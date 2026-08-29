@@ -14,6 +14,7 @@ import dashboardRouter from "./routes/dashboard";
 import remindersRouter from "./routes/reminders";
 import publicRouter from "./routes/public";
 import subscriptionsRouter from "./routes/subscriptions";
+import adminRouter from "./routes/admin";
 
 const app = express();
 const logger = pino({
@@ -123,6 +124,7 @@ app.use("/v1/properties/:propertyId/payments", paymentsRouter);
 app.use("/v1/properties/:propertyId/reminders", remindersRouter);
 app.use("/v1/dashboard", dashboardRouter);
 app.use("/v1/subscriptions", subscriptionsRouter);
+app.use("/v1/admin", adminRouter);
 
 // Public routes (no auth required)
 app.use("/public", publicRouter);
