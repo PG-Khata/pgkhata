@@ -95,6 +95,17 @@ export const room = pgTable("room", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const electricityReading = pgTable("electricity_reading", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  roomId: uuid("room_id")
+    .notNull()
+    .references(() => room.id, { onDelete: "cascade" }),
+  reading: integer("reading").notNull(),
+  units: integer("units").notNull().default(0),
+  readingDate: timestamp("reading_date").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const tenant = pgTable("tenant", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

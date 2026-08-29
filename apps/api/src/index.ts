@@ -7,6 +7,8 @@ import { auth } from "@pgkhata/auth";
 import propertiesRouter from "./routes/properties";
 import roomsRouter from "./routes/rooms";
 import tenantsRouter from "./routes/tenants";
+import readingsRouter from "./routes/readings";
+import billingRouter from "./routes/billing";
 
 const app = express();
 const logger = pino({
@@ -110,6 +112,8 @@ app.get("/v1/me", async (req, res) => {
 app.use("/v1/properties", propertiesRouter);
 app.use("/v1/properties/:propertyId/rooms", roomsRouter);
 app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
+app.use("/v1/properties/:propertyId/readings", readingsRouter);
+app.use("/v1/properties/:propertyId/bills", billingRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
