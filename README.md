@@ -1,159 +1,341 @@
-# Turborepo starter
+# PGKhata V1
 
-This Turborepo starter is maintained by the Turborepo core team.
+> Multi-tenant PG (Paying Guest) management platform for Indian PG owners.
 
-## Using this example
+## What is PGKhata?
 
-Run the following command:
+PGKhata is a SaaS platform that helps PG/hostel owners manage their properties, tenants, billing, and payments. It replaces manual spreadsheets and WhatsApp groups with a structured, automated system.
 
-```sh
-npx create-turbo@latest
+### Core Features
+
+- **Property Management** — Multiple properties with rooms and capacity tracking
+- **Tenant Management** — Tenant lifecycle with KYC, room assignment, and status tracking
+- **Monthly Billing** — Automated rent + electricity bill generation with idempotency
+- **Payment Ledger** — Payments are source of truth; bill status derives from ledger
+- **Reminders** — Email and WhatsApp payment reminders with cooldown/deduplication
+- **Public Links** — Tenant self-signup and complaint submission per property
+- **Dashboard** — Real-time metrics for occupancy, collections, and overdue payments
+- **Subscriptions** — Razorpay-powered plan management (Starter, Growing, Scale)
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Browser                              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Next.js Web (apps/web)                    │
+│                    App Router + Tailwind                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Express API (apps/api)                     │
+│         Better Auth │ Zod │ Pino │ Helmet │ CORS            │
+└─────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  Neon PostgreSQL │ │  Upstash Redis  │ │  External APIs  │
+│  (Drizzle ORM)  │ │  (BullMQ)       │ │  Razorpay       │
+└─────────────────┘ └─────────────────┘ │  Resend         │
+                              │          │  Meta WhatsApp  │
+                              ▼          └─────────────────┘
+                    ┌─────────────────┐
+                    │  BullMQ Worker  │
+                    │  (apps/worker)  │
+                    └─────────────────┘
 ```
 
-## What's inside?
+---
 
-This Turborepo includes the following packages/apps:
+## Tech Stack
 
-### Apps and Packages
+| Layer | Technology |
+|-------|------------|
+| Monorepo | Turborepo + pnpm |
+| Frontend | Next.js 16 (App Router) |
+| Backend | Express 5 |
+| Database | Neon PostgreSQL |
+| ORM | Drizzle ORM |
+| Cache/Queue | Upstash Redis + BullMQ |
+| Auth | Better Auth |
+| Validation | Zod |
+| Logging | Pino |
+| Payments | Razorpay |
+| Email | Resend |
+| WhatsApp | Meta Cloud API |
+| Testing | Vitest + Supertest |
+| CI/CD | GitHub Actions |
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+---
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+## Project Structure
 
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```
+pgkhata_v1/
+├── apps/
+│   ├── web/                    # Next.js frontend
+│   ├── api/                    # Express REST API
+│   │   ├── src/
+│   │   │   ├── middleware/     # Auth middleware
+│   │   │   ├── routes/         # 14 route files
+│   │   │   └── __tests__/      # 7 test files
+│   │   └── package.json
+│   └── worker/                 # BullMQ worker
+│       └── src/
+│           └── queues/         # Billing + reminder queues
+├── packages/
+│   ├── auth/                   # Better Auth config
+│   ├── db/                     # Drizzle schema + migrations
+│   ├── contracts/              # Zod schemas
+│   ├── config/                 # Environment validation
+│   └── ui/                     # Reusable UI primitives
+├── data-points/                # Reference documentation
+├── docs/                       # Development documentation
+├── docker-compose.yml          # Local development
+└── .github/workflows/ci.yml    # CI/CD pipeline
 ```
 
-Without global `turbo`, use your package manager:
+---
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
+## Database Schema
+
+### Auth Tables (Better Auth)
+- `user` — User accounts
+- `session` — Active sessions
+- `account` — OAuth accounts
+- `verification` — Email verification
+
+### Domain Tables
+- `owner_profile` — Owner profiles
+- `property` — Properties with signup/complaint tokens
+- `room` — Rooms with capacity
+- `tenant` — Tenants with status tracking
+- `bill` — Monthly bills (idempotent by tenant+month)
+- `payment` — Payment ledger (source of truth)
+- `electricity_reading` — Meter readings
+- `complaint` — Public complaints
+
+### Key Invariants
+1. **Payments are source of truth** — Bill status derives from payment ledger
+2. **Billing idempotency** — Unique constraint on `(tenant_id, bill_month)`
+3. **Owner scoping** — Every query includes `ownerId` filter
+4. **Scheduled billing = drafts** — Owner approval required before notification
+
+---
+
+## API Endpoints
+
+### Properties
+```
+GET    /v1/properties              # List all properties
+POST   /v1/properties              # Create property
+GET    /v1/properties/:id          # Get property
+PUT    /v1/properties/:id          # Update property
+DELETE /v1/properties/:id          # Delete property
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
+### Rooms
+```
+GET    /v1/properties/:pid/rooms           # List rooms
+POST   /v1/properties/:pid/rooms           # Create room
+GET    /v1/properties/:pid/rooms/:rid      # Get room
+PUT    /v1/properties/:pid/rooms/:rid      # Update room
+DELETE /v1/properties/:pid/rooms/:rid      # Delete room
 ```
 
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+### Tenants
+```
+GET    /v1/properties/:pid/tenants         # List tenants
+POST   /v1/properties/:pid/tenants         # Create tenant
+GET    /v1/properties/:pid/tenants/:tid    # Get tenant
+PUT    /v1/properties/:pid/tenants/:tid    # Update tenant
+DELETE /v1/properties/:pid/tenants/:tid    # Delete tenant
 ```
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
+### Billing
+```
+GET    /v1/properties/:pid/bills           # List bills
+POST   /v1/properties/:pid/bills/generate  # Generate monthly bills
+POST   /v1/properties/:pid/bills/approve   # Approve bills
 ```
 
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
+### Payments
+```
+GET    /v1/properties/:pid/payments        # List payments
+POST   /v1/properties/:pid/payments        # Record payment
+DELETE /v1/properties/:pid/payments/:payid # Delete payment
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
+### Dashboard
+```
+GET    /v1/dashboard/owner                 # Owner portfolio
+GET    /v1/dashboard/property/:pid         # Property dashboard
 ```
 
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+### Public (No Auth)
+```
+GET    /public/signup/:token               # Get signup form
+POST   /public/signup/:token               # Submit signup
+GET    /public/complaint/:token            # Get complaint form
+POST   /public/complaint/:token            # Submit complaint
 ```
 
-### Remote Caching
+---
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+## Getting Started
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+### Prerequisites
+- Node.js 22+
+- pnpm 10.15.1+
+- Neon PostgreSQL account
+- Upstash Redis account
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+### Installation
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+```bash
+# Clone the repository
+git clone <repository-url>
+cd pgkhata_v1
 
-```sh
-cd my-turborepo
-turbo login
+# Install dependencies
+pnpm install
+
+# Set up environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Run database migrations
+cd packages/db
+npx drizzle-kit migrate
+
+# Start development servers
+cd ../..
+pnpm dev
 ```
 
-Without global `turbo`, use your package manager:
+### Environment Variables
 
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
+```env
+# Database
+DATABASE_URL=postgresql://...
+
+# Redis
+REDIS_URL=redis://...
+
+# Auth
+BETTER_AUTH_SECRET=your-secret-key-at-least-32-chars
+BETTER_AUTH_URL=http://localhost:3001
+CORS_ORIGIN=http://localhost:3000
+
+# Rate Limiting
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=60000
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+---
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+## Development
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+### Commands
 
-```sh
-turbo link
+```bash
+# Development
+pnpm dev                    # Start all apps
+pnpm dev --filter @pgkhata/api    # Start API only
+pnpm dev --filter @pgkhata/web    # Start web only
+
+# Testing
+pnpm test                   # Run all tests
+pnpm test --filter @pgkhata/api  # Run API tests
+
+# Building
+pnpm build                  # Build all apps
+
+# Linting
+pnpm lint                   # Lint all packages
+pnpm typecheck              # Type check all packages
 ```
 
-Without global `turbo`:
+### Testing
 
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
+```bash
+# Run API tests
+cd apps/api
+npx vitest run
+
+# Run with watch mode
+npx vitest
 ```
 
-## Useful Links
+---
 
-Learn more about the power of Turborepo:
+## Deployment
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+### Docker
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Or build individual services
+docker build -f apps/api/Dockerfile -t pgkhata-api .
+docker build -f apps/worker/Dockerfile -t pgkhata-worker .
+```
+
+### CI/CD
+
+GitHub Actions workflow runs on push to `main`:
+1. Lint
+2. Type check
+3. Test (with PostgreSQL and Redis services)
+4. Build
+
+---
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| [README.md](./README.md) | This file — project overview |
+| [docs/work-log.md](./docs/work-log.md) | Detailed task-by-task log |
+| [docs/chat-history.md](./docs/chat-history.md) | Session conversation history |
+| [docs/war-story.md](./docs/war-story.md) | Challenges and solutions |
+| [docs/how-we-did-it.md](./docs/how-we-did-it.md) | Technical approach |
+| [docs/development-summary.md](./docs/development-summary.md) | Complete project overview |
+| [data-points/](./data-points/) | Reference documentation |
+
+---
+
+## Key Decisions
+
+1. **Express 5 over Express 4** — Better TypeScript support, modern routing
+2. **Drizzle over Prisma** — More control over SQL, better for complex queries
+3. **Better Auth over custom JWT** — Battle-tested, secure by default
+4. **BullMQ over pg_cron** — Better job management, retry logic, observability
+5. **Upstash Redis** — Serverless, no infrastructure management
+6. **Neon PostgreSQL** — Serverless, branching, cost-effective
+
+---
+
+## Competitive Analysis
+
+See [data-points/niketan-analysis.md](./data-points/niketan-analysis.md) for comparison with Niketan PG management platform.
+
+---
+
+## License
+
+Proprietary — All rights reserved.
+
+---
+
+## Contact
+
+For questions or support, contact the development team.
