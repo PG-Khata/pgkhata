@@ -1,14 +1,17 @@
 import { Worker, Queue } from "bullmq";
+import IORedis from "ioredis";
 import pino from "pino";
 
 const logger = pino({
   level: process.env.NODE_ENV === "production" ? "info" : "debug",
 });
 
-const connection = {
-  host: process.env.REDIS_URL ? new URL(process.env.REDIS_URL).hostname : "localhost",
-  port: process.env.REDIS_URL ? parseInt(new URL(process.env.REDIS_URL).port) : 6379,
-};
+// Upstash Redis connection (requires TLS)
+const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+  tls: process.env.REDIS_URL?.includes("upstash.io") ? {} : undefined,
+});
 
 // Example queue - will be expanded in Task 12
 const exampleQueue = new Queue("example", { connection });
@@ -35,6 +38,7 @@ const shutdown = async () => {
   logger.info("Shutting down worker");
   await exampleWorker.close();
   await exampleQueue.close();
+  await connection.quit();
   process.exit(0);
 };
 
@@ -43,4 +47,4 @@ process.on("SIGINT", shutdown);
 
 logger.info("Worker started");
 
-export { exampleQueue, exampleWorker };
+export { exampleQueue, exampleWorker, connection };
