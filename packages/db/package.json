@@ -22,6 +22,6 @@
     "drizzle-kit": "^0.31.4",
     "@types/node": "^22.16.5",
     "typescript": "^5.9.3",
-    "@pgkhata/typescript-config": "workspace:*"
+    "@repo/typescript-config": "workspace:*"
   }
 }
