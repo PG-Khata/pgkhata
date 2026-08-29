@@ -11,6 +11,7 @@ import readingsRouter from "./routes/readings";
 import billingRouter from "./routes/billing";
 import paymentsRouter from "./routes/payments";
 import dashboardRouter from "./routes/dashboard";
+import remindersRouter from "./routes/reminders";
 
 const app = express();
 const logger = pino({
@@ -117,6 +118,7 @@ app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
 app.use("/v1/properties/:propertyId/readings", readingsRouter);
 app.use("/v1/properties/:propertyId/bills", billingRouter);
 app.use("/v1/properties/:propertyId/payments", paymentsRouter);
+app.use("/v1/properties/:propertyId/reminders", remindersRouter);
 app.use("/v1/dashboard", dashboardRouter);
 
 // Error handling
