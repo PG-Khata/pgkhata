@@ -9,6 +9,7 @@ import roomsRouter from "./routes/rooms";
 import tenantsRouter from "./routes/tenants";
 import readingsRouter from "./routes/readings";
 import billingRouter from "./routes/billing";
+import paymentsRouter from "./routes/payments";
 
 const app = express();
 const logger = pino({
@@ -114,6 +115,7 @@ app.use("/v1/properties/:propertyId/rooms", roomsRouter);
 app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
 app.use("/v1/properties/:propertyId/readings", readingsRouter);
 app.use("/v1/properties/:propertyId/bills", billingRouter);
+app.use("/v1/properties/:propertyId/payments", paymentsRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
