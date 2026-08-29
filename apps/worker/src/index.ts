@@ -1,50 +1,22 @@
-import { Worker, Queue } from "bullmq";
-import IORedis from "ioredis";
 import pino from "pino";
+import { billingQueue, billingWorker } from "./queues/billing";
+import { reminderQueue, reminderWorker } from "./queues/reminders";
 
-const logger = pino({
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
-});
+const logger = pino({ level: "info" });
 
-// Upstash Redis connection (requires TLS)
-const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-  tls: process.env.REDIS_URL?.includes("upstash.io") ? {} : undefined,
-});
-
-// Example queue - will be expanded in Task 12
-const exampleQueue = new Queue("example", { connection });
-
-const exampleWorker = new Worker(
-  "example",
-  async (job) => {
-    logger.info({ jobId: job.id }, "Processing job");
-    // Job processing logic will be added later
-  },
-  { connection }
-);
-
-exampleWorker.on("completed", (job) => {
-  logger.info({ jobId: job.id }, "Job completed");
-});
-
-exampleWorker.on("failed", (job, err) => {
-  logger.error({ jobId: job?.id, err }, "Job failed");
-});
+logger.info("Worker started with queues: billing, reminders");
 
 // Graceful shutdown
 const shutdown = async () => {
   logger.info("Shutting down worker");
-  await exampleWorker.close();
-  await exampleQueue.close();
-  await connection.quit();
+  await billingWorker.close();
+  await reminderWorker.close();
+  await billingQueue.close();
+  await reminderQueue.close();
   process.exit(0);
 };
 
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-logger.info("Worker started");
-
-export { exampleQueue, exampleWorker, connection };
+export { billingQueue, reminderQueue };
