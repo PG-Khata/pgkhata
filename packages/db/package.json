@@ -16,11 +16,13 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.44.2",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "pg": "^8.16.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.4",
     "@types/node": "^22.16.5",
+    "@types/pg": "^8.15.4",
     "typescript": "^5.9.3",
     "@repo/typescript-config": "workspace:*"
   }

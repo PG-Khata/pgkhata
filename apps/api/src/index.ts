@@ -3,6 +3,7 @@ import helmet from "helmet";
 import cors from "cors";
 import pino from "pino";
 import { randomUUID } from "crypto";
+import { auth } from "@pgkhata/auth";
 
 const app = express();
 const logger = pino({
@@ -12,7 +13,7 @@ const logger = pino({
 
 // Request ID middleware
 app.use((req, res, next) => {
-  const requestId = req.headers["x-request-id"] as string || randomUUID();
+  const requestId = (req.headers["x-request-id"] as string) || randomUUID();
   req.headers["x-request-id"] = requestId;
   res.setHeader("x-request-id", requestId);
   next();
@@ -20,13 +21,51 @@ app.use((req, res, next) => {
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    credentials: true,
+  })
+);
 
-// Body parsing
+// Body parsing - needed for auth
 app.use(express.json({ limit: "10mb" }));
+
+// Mount Better Auth - use the handler as Express middleware
+app.use(async (req, res, next) => {
+  if (req.path.startsWith("/api/auth")) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+      const headers = new Headers();
+      Object.entries(req.headers).forEach(([key, value]) => {
+        if (value) {
+          headers.set(key, Array.isArray(value) ? value.join(", ") : value);
+        }
+      });
+
+      const request = new Request(url.toString(), {
+        method: req.method,
+        headers,
+        body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
+      });
+
+      const response = await auth.handler(request);
+      
+      res.status(response.status);
+      response.headers.forEach((value, key) => {
+        res.setHeader(key, value);
+      });
+      
+      const body = await response.text();
+      res.send(body);
+    } catch (error) {
+      logger.error({ err: error, requestId: req.headers["x-request-id"] }, "Auth handler error");
+      res.status(500).json({ error: "Auth handler error" });
+    }
+  } else {
+    next();
+  }
+});
 
 // Request logging
 app.use((req, res, next) => {
@@ -51,6 +90,17 @@ app.get("/health", (req, res) => {
 app.get("/ready", async (req, res) => {
   // TODO: Check database and Redis connectivity
   res.json({ status: "ready", timestamp: new Date().toISOString() });
+});
+
+// Protected endpoint example
+app.get("/v1/me", async (req, res) => {
+  const session = await auth.api.getSession({
+    headers: req.headers as Record<string, string>,
+  });
+  if (!session) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  res.json({ user: session.user, session: session.session });
 });
 
 // Error handling
