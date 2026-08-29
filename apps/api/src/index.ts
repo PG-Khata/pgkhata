@@ -12,6 +12,7 @@ import billingRouter from "./routes/billing";
 import paymentsRouter from "./routes/payments";
 import dashboardRouter from "./routes/dashboard";
 import remindersRouter from "./routes/reminders";
+import publicRouter from "./routes/public";
 
 const app = express();
 const logger = pino({
@@ -120,6 +121,9 @@ app.use("/v1/properties/:propertyId/bills", billingRouter);
 app.use("/v1/properties/:propertyId/payments", paymentsRouter);
 app.use("/v1/properties/:propertyId/reminders", remindersRouter);
 app.use("/v1/dashboard", dashboardRouter);
+
+// Public routes (no auth required)
+app.use("/public", publicRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

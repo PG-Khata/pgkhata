@@ -78,6 +78,8 @@ export const property = pgTable("property", {
   pincode: text("pincode"),
   electricityMode: text("electricity_mode").notNull().default("flat"),
   electricityRatePerUnit: integer("electricity_rate_per_unit"),
+  signupToken: text("signup_token").unique(),
+  complaintToken: text("complaint_token").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -154,4 +156,17 @@ export const payment = pgTable("payment", {
   method: text("method"),
   notes: text("notes"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const complaint = pgTable("complaint", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  subject: text("subject").notNull(),
+  description: text("description").notNull(),
+  roomNumber: text("room_number"),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
