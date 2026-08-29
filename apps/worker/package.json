@@ -1,0 +1,28 @@
+{
+  "name": "@pgkhata/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pgkhata/db": "workspace:*",
+    "@pgkhata/config": "workspace:*",
+    "bullmq": "^5.45.1",
+    "ioredis": "^5.6.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3",
+    "@pgkhata/typescript-config": "workspace:*"
+  }
+}
