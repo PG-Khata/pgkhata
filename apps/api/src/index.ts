@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@pgkhata/auth";
 import propertiesRouter from "./routes/properties";
 import roomsRouter from "./routes/rooms";
+import tenantsRouter from "./routes/tenants";
 
 const app = express();
 const logger = pino({
@@ -108,6 +109,7 @@ app.get("/v1/me", async (req, res) => {
 // API routes
 app.use("/v1/properties", propertiesRouter);
 app.use("/v1/properties/:propertyId/rooms", roomsRouter);
+app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
