@@ -93,6 +93,25 @@ export const property = pgTable("property", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const floor = pgTable(
+  "floor",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Display order within the property; lower comes first. */
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // "Ground floor" twice in one property makes the room grouping ambiguous.
+    uniqueIndex("floor_property_name_uq").on(table.propertyId, table.name),
+  ],
+);
+
 export const room = pgTable(
   "room",
   {
@@ -100,6 +119,10 @@ export const room = pgTable(
     propertyId: uuid("property_id")
       .notNull()
       .references(() => property.id, { onDelete: "cascade" }),
+    // Nullable: rooms created before floors existed, and properties that never
+    // model floors, group under "Unassigned". restrict, so removing a floor
+    // cannot silently orphan its rooms.
+    floorId: uuid("floor_id").references(() => floor.id, { onDelete: "restrict" }),
     number: text("number").notNull(),
     type: text("type").notNull().default("single"),
     capacity: integer("capacity").notNull().default(1),

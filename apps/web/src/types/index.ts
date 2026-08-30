@@ -29,15 +29,33 @@ export interface Property {
   updatedAt: string
 }
 
+export interface Floor {
+  id: string
+  propertyId: string
+  name: string
+  position: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FloorWithRoomCount {
+  floor: Floor
+  roomCount: number
+}
+
 export interface Room {
   id: string
   propertyId: string
+  floorId?: string | null
   number: string
   type: "single" | "double" | "triple" | "dormitory"
   capacity: number
   monthlyRent: number
   createdAt: string
   updatedAt: string
+  /** Joined from the room's floor; null when unassigned. */
+  floorName?: string | null
+  floorPosition?: number | null
 }
 
 export interface Tenant {

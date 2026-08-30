@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, room } from "@pgkhata/db";
-import { eq, and } from "drizzle-orm";
+import { db, room, floor } from "@pgkhata/db";
+import { eq, and, asc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
@@ -13,21 +13,44 @@ const createRoomSchema = z.object({
   type: z.enum(["single", "double", "triple", "dormitory"]).default("single"),
   capacity: z.number().min(1).max(20).default(1),
   monthlyRent: z.number().min(0),
+  floorId: z.string().uuid().nullable().optional(),
 });
 
 const updateRoomSchema = createRoomSchema.partial();
 
 router.use(requireAuth, requireOwner, requireProperty);
 
-// Get all rooms for property
+/** A floor id is only acceptable if it belongs to the same property. */
+async function assertFloorInProperty(
+  propertyId: string,
+  floorId: string | null | undefined,
+): Promise<boolean> {
+  if (!floorId) return true;
+
+  const [f] = await db
+    .select({ id: floor.id })
+    .from(floor)
+    .where(and(eq(floor.id, floorId), eq(floor.propertyId, propertyId)))
+    .limit(1);
+
+  return Boolean(f);
+}
+
+// Get all rooms for property, grouped-ready with floor details
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const rooms = await db
-      .select()
+      .select({
+        room: room,
+        floorName: floor.name,
+        floorPosition: floor.position,
+      })
       .from(room)
-      .where(eq(room.propertyId, req.propertyId!));
+      .leftJoin(floor, eq(room.floorId, floor.id))
+      .where(eq(room.propertyId, req.propertyId!))
+      .orderBy(asc(floor.position), asc(room.number));
 
-    res.json(rooms);
+    res.json(rooms.map((row) => ({ ...row.room, floorName: row.floorName, floorPosition: row.floorPosition })));
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch rooms" });
   }
@@ -62,20 +85,8 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
   try {
     const body = createRoomSchema.parse(req.body);
 
-    // Check for duplicate room number
-    const [existing] = await db
-      .select()
-      .from(room)
-      .where(
-        and(
-          eq(room.propertyId, req.propertyId!),
-          eq(room.number, body.number)
-        )
-      )
-      .limit(1);
-
-    if (existing) {
-      return res.status(409).json({ error: "Room number already exists" });
+    if (!(await assertFloorInProperty(req.propertyId!, body.floorId))) {
+      return res.status(404).json({ error: "Floor not found" });
     }
 
     const [newRoom] = await db
@@ -84,7 +95,12 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
         ...body,
         propertyId: req.propertyId!,
       })
+      .onConflictDoNothing({ target: [room.propertyId, room.number] })
       .returning();
+
+    if (!newRoom) {
+      return res.status(409).json({ error: "Room number already exists" });
+    }
 
     res.status(201).json(newRoom);
   } catch (error) {
@@ -99,6 +115,10 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 router.put("/:roomId", async (req: AuthenticatedRequest, res) => {
   try {
     const body = updateRoomSchema.parse(req.body);
+
+    if (!(await assertFloorInProperty(req.propertyId!, body.floorId))) {
+      return res.status(404).json({ error: "Floor not found" });
+    }
 
     const [updated] = await db
       .update(room)

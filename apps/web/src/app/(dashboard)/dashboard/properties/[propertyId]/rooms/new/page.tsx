@@ -5,17 +5,21 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useCreateRoom } from "@/hooks/use-rooms"
+import { useFloors } from "@/hooks/use-floors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { ApiError } from "@/lib/api-client"
 
 const schema = z.object({
   number: z.string().min(1, "Room number is required").max(20),
   type: z.enum(["single", "double", "triple", "dormitory"]),
   capacity: z.preprocess((v) => Number(v), z.number().min(1).max(20)),
   monthlyRent: z.preprocess((v) => Number(v), z.number().min(0, "Rent must be positive")),
+  // "" means unassigned; the API expects null rather than an empty string.
+  floorId: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -25,6 +29,7 @@ export default function NewRoomPage() {
   const router = useRouter()
   const propertyId = params.propertyId as string
   const createRoom = useCreateRoom(propertyId)
+  const { data: floors } = useFloors(propertyId)
 
   const {
     register,
@@ -47,13 +52,19 @@ export default function NewRoomPage() {
   }
 
   function onSubmit(data: FormData) {
-    createRoom.mutate(data, {
-      onSuccess: () => {
-        toast.success("Room created")
-        router.push(`/dashboard/properties/${propertyId}/rooms`)
+    createRoom.mutate(
+      { ...data, floorId: data.floorId ? data.floorId : null },
+      {
+        onSuccess: () => {
+          toast.success("Room created")
+          router.push(`/dashboard/properties/${propertyId}/rooms`)
+        },
+        onError: (error) =>
+          toast.error(
+            error instanceof ApiError ? error.message : "Failed to create room",
+          ),
       },
-      onError: () => toast.error("Failed to create room"),
-    })
+    )
   }
 
   return (
@@ -96,6 +107,30 @@ export default function NewRoomPage() {
             defaultValue={capacityMap[roomType] || 1}
           />
           {errors.capacity && <p className="text-xs text-destructive">{errors.capacity.message}</p>}
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="floorId">
+            Floor
+          </label>
+          <select
+            id="floorId"
+            {...register("floorId")}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          >
+            <option value="">Unassigned</option>
+            {floors?.map(({ floor }) => (
+              <option key={floor.id} value={floor.id}>
+                {floor.name}
+              </option>
+            ))}
+          </select>
+          {!floors?.length && (
+            <p className="text-xs text-muted-foreground">
+              No floors yet — the room will be unassigned. You can add floors from
+              the structure view.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">

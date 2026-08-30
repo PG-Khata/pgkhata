@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@pgkhata/auth";
 import { HttpError } from "./lib/http";
 import propertiesRouter from "./routes/properties";
+import floorsRouter from "./routes/floors";
 import roomsRouter from "./routes/rooms";
 import tenantsRouter from "./routes/tenants";
 import readingsRouter from "./routes/readings";
@@ -117,6 +118,7 @@ app.get("/v1/me", async (req, res) => {
 
 // API routes
 app.use("/v1/properties", propertiesRouter);
+app.use("/v1/properties/:propertyId/floors", floorsRouter);
 app.use("/v1/properties/:propertyId/rooms", roomsRouter);
 app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
 app.use("/v1/properties/:propertyId/readings", readingsRouter);
