@@ -99,7 +99,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
       // Count active tenants in room
       const { count } = aggregate(
         await db
-          .select({ count: sql<number>`count(*)` })
+          .select({ count: sql<number>`count(*)::int` })
           .from(tenant)
           .where(and(eq(tenant.roomId, body.roomId), eq(tenant.status, "active"))),
         { count: 0 },
@@ -150,7 +150,7 @@ router.put("/:tenantId", async (req: AuthenticatedRequest, res) => {
       // Count active tenants in room (excluding current tenant)
       const { count } = aggregate(
         await db
-          .select({ count: sql<number>`count(*)` })
+          .select({ count: sql<number>`count(*)::int` })
           .from(tenant)
           .where(
             and(

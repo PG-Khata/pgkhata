@@ -6,6 +6,7 @@ export interface FloorGroup {
   label: string
   rooms: Room[]
   bedCount: number
+  occupiedCount: number
 }
 
 /**
@@ -49,6 +50,7 @@ export function groupRoomsByFloor(
       label: entry.floor.name,
       rooms: floorRooms,
       bedCount: countBeds(floorRooms),
+      occupiedCount: countOccupied(floorRooms),
     }
   })
 
@@ -59,6 +61,7 @@ export function groupRoomsByFloor(
       label: "Unassigned",
       rooms: rest,
       bedCount: countBeds(rest),
+      occupiedCount: countOccupied(rest),
     })
   }
 
@@ -72,20 +75,42 @@ function sortRooms(rooms: Room[]): Room[] {
   )
 }
 
+/**
+ * Counts real bed rows, falling back to capacity only for a room whose beds
+ * have not loaded yet — so the figure never silently reads zero mid-fetch.
+ */
 function countBeds(rooms: Room[]): number {
-  return rooms.reduce((total, room) => total + room.capacity, 0)
+  return rooms.reduce(
+    (total, room) => total + (room.beds ? room.beds.length : room.capacity),
+    0,
+  )
+}
+
+function countOccupied(rooms: Room[]): number {
+  return rooms.reduce(
+    (total, room) =>
+      total + (room.beds?.filter((bed) => bed.status === "occupied").length ?? 0),
+    0,
+  )
 }
 
 export interface StructureTotals {
   floors: number
   rooms: number
   beds: number
+  occupied: number
+  occupancyRate: number
 }
 
 export function structureTotals(groups: FloorGroup[]): StructureTotals {
+  const beds = groups.reduce((total, group) => total + group.bedCount, 0)
+  const occupied = groups.reduce((total, group) => total + group.occupiedCount, 0)
+
   return {
     floors: groups.filter((group) => group.floor !== null).length,
     rooms: groups.reduce((total, group) => total + group.rooms.length, 0),
-    beds: groups.reduce((total, group) => total + group.bedCount, 0),
+    beds,
+    occupied,
+    occupancyRate: beds > 0 ? Math.round((occupied / beds) * 100) : 0,
   }
 }

@@ -22,7 +22,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 async function syncBillTotals(billId: string, totalAmount: number) {
   const { totalPaid } = aggregate(
     await db
-      .select({ totalPaid: sql<number>`coalesce(sum(${payment.amount}), 0)` })
+      .select({ totalPaid: sql<number>`coalesce(sum(${payment.amount}), 0)::int` })
       .from(payment)
       .where(eq(payment.billId, billId)),
     { totalPaid: 0 },

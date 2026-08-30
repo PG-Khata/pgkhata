@@ -8,6 +8,8 @@ import { HttpError } from "./lib/http";
 import propertiesRouter from "./routes/properties";
 import floorsRouter from "./routes/floors";
 import roomsRouter from "./routes/rooms";
+import bedsRouter from "./routes/beds";
+import roomBedsRouter from "./routes/room-beds";
 import tenantsRouter from "./routes/tenants";
 import readingsRouter from "./routes/readings";
 import billingRouter from "./routes/billing";
@@ -119,7 +121,9 @@ app.get("/v1/me", async (req, res) => {
 // API routes
 app.use("/v1/properties", propertiesRouter);
 app.use("/v1/properties/:propertyId/floors", floorsRouter);
+app.use("/v1/properties/:propertyId/rooms/:roomId/beds", roomBedsRouter);
 app.use("/v1/properties/:propertyId/rooms", roomsRouter);
+app.use("/v1/properties/:propertyId/beds", bedsRouter);
 app.use("/v1/properties/:propertyId/tenants", tenantsRouter);
 app.use("/v1/properties/:propertyId/readings", readingsRouter);
 app.use("/v1/properties/:propertyId/bills", billingRouter);

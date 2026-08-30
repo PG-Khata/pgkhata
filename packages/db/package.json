@@ -14,6 +14,7 @@
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
     "backfill:owner-profiles": "tsx scripts/backfill-owner-profiles.ts",
+    "backfill:beds": "tsx scripts/backfill-beds.ts",
     "inspect:constraints": "tsx scripts/inspect-constraint-readiness.ts"
   },
   "dependencies": {

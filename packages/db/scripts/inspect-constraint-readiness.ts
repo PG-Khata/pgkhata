@@ -18,7 +18,9 @@ async function main() {
       (select count(*)::int from "user")            as users,
       (select count(*)::int from owner_profile)     as owner_profiles,
       (select count(*)::int from property)          as properties,
+      (select count(*)::int from floor)             as floors,
       (select count(*)::int from room)              as rooms,
+      (select count(*)::int from bed)               as beds,
       (select count(*)::int from tenant)            as tenants,
       (select count(*)::int from bill)              as bills,
       (select count(*)::int from payment)           as payments,
@@ -26,6 +28,25 @@ async function main() {
       (select count(*)::int from complaint)         as complaints
   `);
   console.log("Row counts:", counts.rows[0]);
+
+  // A room without beds reads as zero capacity and drags occupancy down.
+  const bedlessRooms = await db.execute(sql`
+    select r.id, r.number, r.capacity
+    from room r
+    where not exists (select 1 from bed b where b.room_id = r.id)
+  `);
+  console.log(`\nRooms with no beds: ${bedlessRooms.rows.length}`);
+  for (const row of bedlessRooms.rows) console.log("  ", row);
+
+  const bedCountMismatch = await db.execute(sql`
+    select r.number, r.capacity, count(b.id)::int as beds
+    from room r
+    left join bed b on b.room_id = r.id
+    group by r.id, r.number, r.capacity
+    having count(b.id) <> r.capacity
+  `);
+  console.log(`\nRooms whose bed count differs from capacity: ${bedCountMismatch.rows.length}`);
+  for (const row of bedCountMismatch.rows) console.log("  ", row);
 
   const dupBills = await db.execute(sql`
     select tenant_id, bill_month, count(*)::int as copies

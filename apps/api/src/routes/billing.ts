@@ -80,7 +80,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
           // Split among active tenants in room
           const { count } = aggregate(
             await db
-              .select({ count: sql<number>`count(*)` })
+              .select({ count: sql<number>`count(*)::int` })
               .from(tenant)
               .where(and(eq(tenant.roomId, r.id), eq(tenant.status, "active"))),
             { count: 0 },

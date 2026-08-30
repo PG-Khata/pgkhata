@@ -149,6 +149,25 @@ export const electricityReading = pgTable("electricity_reading", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const bed = pgTable(
+  "bed",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    /** Label within the room: A, B, C ... shown to the owner as "101-A". */
+    number: text("number").notNull(),
+    /** vacant | occupied | maintenance */
+    status: text("status").notNull().default("vacant"),
+    /** Optional per-bed rent, overriding the room's. */
+    monthlyRent: integer("monthly_rent"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("bed_room_number_uq").on(table.roomId, table.number)],
+);
+
 export const tenant = pgTable("tenant", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

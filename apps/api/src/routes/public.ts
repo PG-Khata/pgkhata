@@ -74,7 +74,7 @@ router.post("/signup/:token", async (req, res) => {
     // Check capacity
     const { count } = aggregate(
       await db
-        .select({ count: sql<number>`count(*)` })
+        .select({ count: sql<number>`count(*)::int` })
         .from(tenant)
         .where(and(eq(tenant.roomId, body.roomId), eq(tenant.status, "active"))),
       { count: 0 },

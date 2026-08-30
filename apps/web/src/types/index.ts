@@ -43,6 +43,24 @@ export interface FloorWithRoomCount {
   roomCount: number
 }
 
+export interface Bed {
+  id: string
+  roomId: string
+  number: string
+  status: "vacant" | "occupied" | "maintenance"
+  monthlyRent?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BedWithLocation {
+  bed: Bed
+  roomId: string
+  roomNumber: string
+  roomRent?: number
+  floorName?: string | null
+}
+
 export interface Room {
   id: string
   propertyId: string
@@ -56,6 +74,8 @@ export interface Room {
   /** Joined from the room's floor; null when unassigned. */
   floorName?: string | null
   floorPosition?: number | null
+  /** Beds belonging to this room, ordered by label. */
+  beds?: Bed[]
 }
 
 export interface Tenant {
@@ -124,6 +144,8 @@ export interface Complaint {
 export interface OwnerDashboard {
   totalProperties: number
   totalRooms: number
+  totalBeds: number
+  occupiedBeds: number
   totalTenants: number
   occupancyRate: number
   monthlyCollection: number
@@ -134,6 +156,8 @@ export interface OwnerDashboard {
 export interface PropertyDashboard {
   property: Property
   totalRooms: number
+  totalBeds: number
+  occupiedBeds: number
   activeTenants: number
   occupancyRate: number
   monthlyBilled: number

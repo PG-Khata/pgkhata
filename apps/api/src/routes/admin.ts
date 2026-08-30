@@ -22,23 +22,23 @@ async function requireSuperAdmin(
 router.get("/overview", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const { userCount } = aggregate(
-      await db.select({ userCount: sql<number>`count(*)` }).from(user),
+      await db.select({ userCount: sql<number>`count(*)::int` }).from(user),
       { userCount: 0 },
     );
 
     const { ownerCount } = aggregate(
-      await db.select({ ownerCount: sql<number>`count(*)` }).from(ownerProfile),
+      await db.select({ ownerCount: sql<number>`count(*)::int` }).from(ownerProfile),
       { ownerCount: 0 },
     );
 
     const { propertyCount } = aggregate(
-      await db.select({ propertyCount: sql<number>`count(*)` }).from(property),
+      await db.select({ propertyCount: sql<number>`count(*)::int` }).from(property),
       { propertyCount: 0 },
     );
 
     const { tenantCount } = aggregate(
       await db
-        .select({ tenantCount: sql<number>`count(*)` })
+        .select({ tenantCount: sql<number>`count(*)::int` })
         .from(tenant)
         .where(eq(tenant.status, "active")),
       { tenantCount: 0 },

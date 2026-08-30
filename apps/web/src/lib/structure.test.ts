@@ -16,7 +16,12 @@ function makeFloor(id: string, name: string, position: number): FloorWithRoomCou
   }
 }
 
-function makeRoom(number: string, floorId: string | null, capacity = 1): Room {
+function makeRoom(
+  number: string,
+  floorId: string | null,
+  capacity = 1,
+  beds?: Array<"vacant" | "occupied" | "maintenance">,
+): Room {
   return {
     id: `room-${number}`,
     propertyId: "p1",
@@ -27,6 +32,15 @@ function makeRoom(number: string, floorId: string | null, capacity = 1): Room {
     monthlyRent: 5000,
     createdAt: "",
     updatedAt: "",
+    beds: beds?.map((status, index) => ({
+      id: `bed-${number}-${index}`,
+      roomId: `room-${number}`,
+      number: String.fromCharCode(65 + index),
+      status,
+      monthlyRent: null,
+      createdAt: "",
+      updatedAt: "",
+    })),
   }
 }
 
@@ -95,13 +109,28 @@ describe("groupRoomsByFloor", () => {
     expect(groups.map((g) => g.label)).toEqual(["Alpha", "Bravo"])
   })
 
-  it("counts beds from room capacity", () => {
+  it("counts beds from real bed rows when they are loaded", () => {
+    const groups = groupRoomsByFloor(
+      [makeFloor("f1", "Ground floor", 0)],
+      [
+        makeRoom("101", "f1", 3, ["occupied", "vacant", "maintenance"]),
+        makeRoom("102", "f1", 2, ["occupied", "occupied"]),
+      ],
+    )
+
+    expect(groups[0]!.bedCount).toBe(5)
+    expect(groups[0]!.occupiedCount).toBe(3)
+  })
+
+  it("falls back to capacity while beds are still loading", () => {
+    // Without the fallback the structure header would flash "0 beds".
     const groups = groupRoomsByFloor(
       [makeFloor("f1", "Ground floor", 0)],
       [makeRoom("101", "f1", 3), makeRoom("102", "f1", 2)],
     )
 
     expect(groups[0]!.bedCount).toBe(5)
+    expect(groups[0]!.occupiedCount).toBe(0)
   })
 
   it("ignores a room pointing at a floor that is not in the list", () => {
@@ -124,7 +153,35 @@ describe("structureTotals", () => {
       [makeRoom("101", "f1", 3), makeRoom("201", "f2", 2), makeRoom("900", null, 1)],
     )
 
-    expect(structureTotals(groups)).toEqual({ floors: 2, rooms: 3, beds: 6 })
+    expect(structureTotals(groups)).toEqual({
+      floors: 2,
+      rooms: 3,
+      beds: 6,
+      occupied: 0,
+      occupancyRate: 0,
+    })
+  })
+
+  it("derives the occupancy rate from beds, not rooms", () => {
+    // One tenant in a three-bed room is 33% occupied, not 100%.
+    const groups = groupRoomsByFloor(
+      [makeFloor("f1", "Ground floor", 0)],
+      [makeRoom("101", "f1", 3, ["occupied", "vacant", "vacant"])],
+    )
+
+    expect(structureTotals(groups).occupancyRate).toBe(33)
+  })
+
+  it("counts a maintenance bed in the denominator", () => {
+    // It is still a bed the owner paid for and currently cannot sell.
+    const groups = groupRoomsByFloor(
+      [makeFloor("f1", "Ground floor", 0)],
+      [makeRoom("101", "f1", 2, ["occupied", "maintenance"])],
+    )
+
+    const totals = structureTotals(groups)
+    expect(totals.beds).toBe(2)
+    expect(totals.occupancyRate).toBe(50)
   })
 
   it("reports zeroes for an empty property", () => {
@@ -132,6 +189,8 @@ describe("structureTotals", () => {
       floors: 0,
       rooms: 0,
       beds: 0,
+      occupied: 0,
+      occupancyRate: 0,
     })
   })
 })

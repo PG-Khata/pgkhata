@@ -7,12 +7,9 @@ import { toast } from "sonner"
 import { ArrowLeft, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
 import { useRooms, useDeleteRoom } from "@/hooks/use-rooms"
 import { useProperty } from "@/hooks/use-properties"
-import {
-  useFloors,
-  useCreateFloor,
-  useDeleteFloor,
-  useReorderFloors,
-} from "@/hooks/use-floors"
+import { useFloors, useCreateFloor, useDeleteFloor, useReorderFloors } from "@/hooks/use-floors"
+import { useUpdateBedStatus } from "@/hooks/use-beds"
+import { BedPillRow } from "@/components/dashboard/bed-pill"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -27,6 +24,7 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import { groupRoomsByFloor, structureTotals } from "@/lib/structure"
 import { ApiError } from "@/lib/api-client"
+import type { Bed } from "@/types"
 
 export default function StructurePage() {
   const params = useParams()
@@ -40,9 +38,13 @@ export default function StructurePage() {
   const deleteFloor = useDeleteFloor(propertyId)
   const reorderFloors = useReorderFloors(propertyId)
   const deleteRoom = useDeleteRoom(propertyId)
+  const updateBedStatus = useUpdateBedStatus(propertyId)
 
   const [floorDialogOpen, setFloorDialogOpen] = useState(false)
   const [floorName, setFloorName] = useState("")
+  const [selectedBed, setSelectedBed] = useState<{ bed: Bed; roomNumber: string } | null>(
+    null,
+  )
 
   const groups = useMemo(
     () => groupRoomsByFloor(floors ?? [], rooms ?? []),
@@ -100,8 +102,30 @@ export default function StructurePage() {
     if (!confirm(`Delete room ${number}?`)) return
     deleteRoom.mutate(roomId, {
       onSuccess: () => toast.success("Room deleted"),
-      onError: () => toast.error("Failed to delete room"),
+      onError: (error) =>
+        toast.error(
+          error instanceof ApiError ? error.message : "Failed to delete room",
+        ),
     })
+  }
+
+  function handleBedStatus(status: Bed["status"]) {
+    if (!selectedBed) return
+    const { bed, roomNumber } = selectedBed
+
+    updateBedStatus.mutate(
+      { bedId: bed.id, status },
+      {
+        onSuccess: () => {
+          toast.success(`Bed ${roomNumber}-${bed.number} marked ${status}`)
+          setSelectedBed(null)
+        },
+        onError: (error) =>
+          toast.error(
+            error instanceof ApiError ? error.message : "Failed to update bed",
+          ),
+      },
+    )
   }
 
   return (
@@ -142,7 +166,9 @@ export default function StructurePage() {
         <p className="text-xs text-muted-foreground">
           <span className="font-mono text-foreground">{totals.floors}</span> floors ·{" "}
           <span className="font-mono text-foreground">{totals.rooms}</span> rooms ·{" "}
-          <span className="font-mono text-foreground">{totals.beds}</span> beds
+          <span className="font-mono text-foreground">{totals.beds}</span> beds ·{" "}
+          <span className="font-mono text-foreground">{totals.occupied}</span> occupied ·{" "}
+          <span className="font-mono text-foreground">{totals.occupancyRate}%</span>
         </p>
       )}
 
@@ -172,6 +198,7 @@ export default function StructurePage() {
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-muted-foreground">
                     <span className="font-mono">{group.rooms.length}</span> rooms ·{" "}
+                    <span className="font-mono">{group.occupiedCount}</span>/
                     <span className="font-mono">{group.bedCount}</span> beds
                   </span>
                   {group.floor && (
@@ -222,8 +249,8 @@ export default function StructurePage() {
                     <thead>
                       <tr className="text-left text-xs text-muted-foreground">
                         <th className="w-24 py-1.5 font-medium">Room</th>
-                        <th className="py-1.5 font-medium">Type</th>
-                        <th className="w-20 py-1.5 text-right font-medium">Beds</th>
+                        <th className="w-24 py-1.5 font-medium">Type</th>
+                        <th className="py-1.5 font-medium">Beds</th>
                         <th className="w-28 py-1.5 text-right font-medium">Rent</th>
                         <th className="w-10 py-1.5" />
                       </tr>
@@ -235,8 +262,15 @@ export default function StructurePage() {
                           <td className="py-2 capitalize text-muted-foreground">
                             {r.type}
                           </td>
-                          <td className="py-2 text-right font-mono text-muted-foreground">
-                            {r.capacity}
+                          <td className="py-2">
+                            <BedPillRow
+                              beds={r.beds}
+                              roomNumber={r.number}
+                              capacity={r.capacity}
+                              onSelect={(bed) =>
+                                setSelectedBed({ bed, roomNumber: r.number })
+                              }
+                            />
                           </td>
                           <td className="py-2 text-right font-mono">
                             {formatCurrency(r.monthlyRent)}
@@ -295,6 +329,52 @@ export default function StructurePage() {
               onClick={handleAddFloor}
             >
               Add floor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={selectedBed !== null}
+        onOpenChange={(open) => !open && setSelectedBed(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-mono">
+              Bed {selectedBed?.roomNumber}-{selectedBed?.bed.number}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedBed?.bed.status === "occupied"
+                ? "This bed is occupied. Vacate it before taking it out of use."
+                : "Take the bed out of use for repairs, or return it to the vacant pool."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={
+                selectedBed?.bed.status === "vacant" || updateBedStatus.isPending
+              }
+              onClick={() => handleBedStatus("vacant")}
+            >
+              Mark vacant
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={
+                selectedBed?.bed.status !== "vacant" || updateBedStatus.isPending
+              }
+              onClick={() => handleBedStatus("maintenance")}
+            >
+              Mark under maintenance
+            </Button>
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedBed(null)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
