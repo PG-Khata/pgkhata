@@ -393,6 +393,46 @@ export const securityDeposit = pgTable(
   ],
 );
 
+export const expenseCategory = pgTable(
+  "expense_category",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("expense_category_property_name_uq").on(table.propertyId, table.name)],
+);
+
+export const expense = pgTable(
+  "expense",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    // restrict: a category in use on real spend records cannot be deleted
+    // out from under them.
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => expenseCategory.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    description: text("description").notNull(),
+    date: timestamp("date").notNull().defaultNow(),
+    /** pending: awaiting the owner's decision. approved/rejected: terminal. */
+    status: text("status").notNull().default("pending"),
+    approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
+    approvedAt: timestamp("approved_at"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [check("expense_amount_positive", sql`${table.amount} > 0`)],
+);
+
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

@@ -103,6 +103,54 @@ export interface DepositLiabilityReport {
   netLiability: number
 }
 
+export interface ExpenseCategory {
+  id: string
+  propertyId: string
+  name: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Expense {
+  id: string
+  propertyId: string
+  categoryId: string
+  amount: number
+  description: string
+  date: string
+  status: "pending" | "approved" | "rejected"
+  approvedBy?: string | null
+  approvedAt?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExpenseWithCategory {
+  expense: Expense
+  categoryName: string
+}
+
+export interface ExpenseCategorySummary {
+  categoryId: string
+  categoryName: string
+  total: number
+  count: number
+}
+
+export interface ExpenseMonthSummary {
+  month: string
+  total: number
+  count: number
+}
+
+export interface ExpenseSummary {
+  total: number
+  pendingTotal: number
+  byCategory: ExpenseCategorySummary[]
+  byMonth: ExpenseMonthSummary[]
+}
+
 export interface ChargeType {
   id: string
   propertyId: string

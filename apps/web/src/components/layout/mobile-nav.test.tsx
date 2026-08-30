@@ -77,8 +77,8 @@ describe("mobile navigation", () => {
     await user.click(screen.getByRole("button", { name: "More navigation" }))
     const dialog = await screen.findByRole("dialog")
 
-    expect(within(dialog).queryByRole("link", { name: "Expenses" })).toBeNull()
-    expect(within(dialog).getByText("Expenses").closest("[aria-disabled]")).toBeTruthy()
+    expect(within(dialog).queryByRole("link", { name: "Payments" })).toBeNull()
+    expect(within(dialog).getByText("Payments").closest("[aria-disabled]")).toBeTruthy()
   })
 
   it("marks only the current section in the bottom bar", () => {
