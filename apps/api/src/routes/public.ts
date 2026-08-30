@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db, property, room, tenant, complaint } from "@pgkhata/db";
-import { eq, and, sql } from "drizzle-orm";
-import { aggregate } from "../lib/http";
+import { eq, and } from "drizzle-orm";
+import { HttpError } from "../lib/http";
+import { assignTenantToBed } from "../lib/tenant-assignment";
 
 const router = Router();
 
@@ -71,19 +72,6 @@ router.post("/signup/:token", async (req, res) => {
 
     if (!r) return res.status(404).json({ error: "Room not found" });
 
-    // Check capacity
-    const { count } = aggregate(
-      await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(tenant)
-        .where(and(eq(tenant.roomId, body.roomId), eq(tenant.status, "active"))),
-      { count: 0 },
-    );
-
-    if (count >= r.capacity) {
-      return res.status(409).json({ error: "Room is full" });
-    }
-
     // Check duplicate phone
     const [existing] = await db
       .select()
@@ -99,7 +87,6 @@ router.post("/signup/:token", async (req, res) => {
       .insert(tenant)
       .values({
         propertyId: prop.id,
-        roomId: body.roomId,
         name: body.name,
         phone: body.phone,
         email: body.email,
@@ -107,6 +94,25 @@ router.post("/signup/:token", async (req, res) => {
         status: "active",
       })
       .returning();
+
+    if (!newTenant) {
+      return res.status(500).json({ error: "Failed to process signup" });
+    }
+
+    // Same assignment path as the owner-facing route: the tenant picks a room,
+    // the system takes its first vacant bed. Capacity is therefore enforced by
+    // real beds and the tenant_bed_uq index rather than by a counted query that
+    // two simultaneous signups could both pass.
+    try {
+      await assignTenantToBed(prop.id, newTenant.id, { roomId: body.roomId });
+    } catch (error) {
+      await db.delete(tenant).where(eq(tenant.id, newTenant.id));
+
+      if (error instanceof HttpError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+      throw error;
+    }
 
     res.status(201).json({ message: "Signup successful", tenant: newTenant });
   } catch (error) {

@@ -80,6 +80,7 @@ export default function TenantsPage() {
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="pb-2 font-medium">Name</th>
                 <th className="pb-2 font-medium">Phone</th>
+                <th className="pb-2 font-medium">Bed</th>
                 <th className="pb-2 font-medium">Status</th>
                 <th className="pb-2 font-medium">Joined</th>
                 <th className="pb-2 font-medium"></th>
@@ -98,6 +99,9 @@ export default function TenantsPage() {
                   </td>
                   <td className="py-2.5 font-mono text-muted-foreground">
                     {formatPhone(t.phone)}
+                  </td>
+                  <td className="py-2.5 font-mono text-muted-foreground">
+                    {t.bedNumber ? `${t.roomNumber}-${t.bedNumber}` : "—"}
                   </td>
                   <td className="py-2.5">
                     <StatusBadge status={t.status} />

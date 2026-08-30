@@ -15,6 +15,7 @@
     "studio": "drizzle-kit studio",
     "backfill:owner-profiles": "tsx scripts/backfill-owner-profiles.ts",
     "backfill:beds": "tsx scripts/backfill-beds.ts",
+    "backfill:tenant-beds": "tsx scripts/backfill-tenant-beds.ts",
     "inspect:constraints": "tsx scripts/inspect-constraint-readiness.ts"
   },
   "dependencies": {

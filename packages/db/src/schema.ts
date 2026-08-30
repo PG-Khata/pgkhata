@@ -7,6 +7,7 @@ import {
   uuid,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // Better Auth tables will be generated via CLI
 // These are placeholder exports that will be replaced
@@ -168,27 +169,45 @@ export const bed = pgTable(
   (table) => [uniqueIndex("bed_room_number_uq").on(table.roomId, table.number)],
 );
 
-export const tenant = pgTable("tenant", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  propertyId: uuid("property_id")
-    .notNull()
-    // restrict, not cascade: deleting a property must not silently erase its
-    // tenants and, through them, every bill and payment ever recorded.
-    .references(() => property.id, { onDelete: "restrict" }),
-  roomId: uuid("room_id")
-    .references(() => room.id, { onDelete: "set null" }),
-  name: text("name").notNull(),
-  email: text("email"),
-  phone: text("phone").notNull().unique(),
-  status: text("status").notNull().default("active"),
-  joiningDate: timestamp("joining_date").notNull(),
-  vacatingDate: timestamp("vacating_date"),
-  monthlyRentOverride: integer("monthly_rent_override"),
-  deposit: integer("deposit"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const tenant = pgTable(
+  "tenant",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      // restrict, not cascade: deleting a property must not silently erase its
+      // tenants and, through them, every bill and payment ever recorded.
+      .references(() => property.id, { onDelete: "restrict" }),
+    roomId: uuid("room_id").references(() => room.id, { onDelete: "set null" }),
+    /**
+     * The bed this tenant holds. Assignment target as of the bed model;
+     * `roomId` is kept and derived from it so existing room-scoped queries and
+     * the public signup flow keep working. Cleared when the tenant vacates.
+     */
+    bedId: uuid("bed_id").references(() => bed.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    email: text("email"),
+    phone: text("phone").notNull().unique(),
+    status: text("status").notNull().default("active"),
+    joiningDate: timestamp("joining_date").notNull(),
+    vacatingDate: timestamp("vacating_date"),
+    monthlyRentOverride: integer("monthly_rent_override"),
+    deposit: integer("deposit"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    /**
+     * One tenant per bed, enforced by the database rather than by a
+     * read-then-write check that two concurrent assignments both pass.
+     * Partial, so any number of tenants may hold no bed at all.
+     */
+    uniqueIndex("tenant_bed_uq")
+      .on(table.bedId)
+      .where(sql`${table.bedId} is not null`),
+  ],
+);
 
 export const bill = pgTable(
   "bill",

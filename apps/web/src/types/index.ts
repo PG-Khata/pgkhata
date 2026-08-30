@@ -81,7 +81,8 @@ export interface Room {
 export interface Tenant {
   id: string
   propertyId: string
-  roomId?: string
+  roomId?: string | null
+  bedId?: string | null
   name: string
   email?: string
   phone: string
@@ -93,6 +94,9 @@ export interface Tenant {
   notes?: string
   createdAt: string
   updatedAt: string
+  /** Joined from the tenant's bed/room; present on list and detail responses. */
+  bedNumber?: string | null
+  roomNumber?: string | null
 }
 
 export interface Bill {

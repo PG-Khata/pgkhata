@@ -66,6 +66,12 @@ export default function TenantDetailPage() {
           <p className="font-mono text-sm">{formatPhone(tenant.phone)}</p>
         </div>
         <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground">Bed</p>
+          <p className="font-mono text-sm">
+            {tenant.bedNumber ? `${tenant.roomNumber}-${tenant.bedNumber}` : "Unassigned"}
+          </p>
+        </div>
+        <div className="space-y-0.5">
           <p className="text-xs text-muted-foreground">Joined</p>
           <p className="text-sm">{formatDate(tenant.joiningDate)}</p>
         </div>
