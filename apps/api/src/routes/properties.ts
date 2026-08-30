@@ -4,6 +4,7 @@ import { db, property } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param } from "../lib/http";
+import { seedElectricityChargeType } from "../lib/charge-types";
 
 const router = Router();
 
@@ -69,6 +70,13 @@ router.post("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, re
         ownerId: req.ownerId!,
       })
       .returning();
+
+    if (newProperty) {
+      // Every property bills electricity today, so the one charge type
+      // billing depends on must exist from the start rather than being
+      // something an owner has to remember to create.
+      await seedElectricityChargeType(newProperty.id);
+    }
 
     res.status(201).json(newProperty);
   } catch (error) {

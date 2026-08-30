@@ -145,6 +145,29 @@ export const rentPlan = pgTable(
   ],
 );
 
+export const chargeType = pgTable(
+  "charge_type",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Short code a bill line item references: ELEC, WATER, MAINT. */
+    code: text("code").notNull(),
+    defaultAmount: integer("default_amount").notNull().default(0),
+    /** Recurring charges (electricity) reappear each billing run; one-off ones don't. */
+    isRecurring: boolean("is_recurring").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("charge_type_property_code_uq").on(table.propertyId, table.code),
+    check("charge_type_amount_nonnegative", sql`${table.defaultAmount} >= 0`),
+  ],
+);
+
 export const room = pgTable(
   "room",
   {

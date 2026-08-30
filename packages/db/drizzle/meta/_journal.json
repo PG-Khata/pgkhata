@@ -50,6 +50,13 @@
       "when": 1788092982450,
       "tag": "0006_mighty_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788093393391,
+      "tag": "0007_opposite_jasper_sitwell",
+      "breakpoints": true
     }
   ]
 }

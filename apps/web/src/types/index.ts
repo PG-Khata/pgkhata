@@ -61,6 +61,18 @@ export interface BedWithLocation {
   floorName?: string | null
 }
 
+export interface ChargeType {
+  id: string
+  propertyId: string
+  name: string
+  code: string
+  defaultAmount: number
+  isRecurring: boolean
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface RentPlan {
   id: string
   propertyId: string

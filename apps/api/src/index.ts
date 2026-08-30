@@ -8,6 +8,7 @@ import { HttpError } from "./lib/http";
 import propertiesRouter from "./routes/properties";
 import floorsRouter from "./routes/floors";
 import rentPlansRouter from "./routes/rent-plans";
+import chargeTypesRouter from "./routes/charge-types";
 import roomsRouter from "./routes/rooms";
 import bedsRouter from "./routes/beds";
 import roomBedsRouter from "./routes/room-beds";
@@ -123,6 +124,7 @@ app.get("/v1/me", async (req, res) => {
 app.use("/v1/properties", propertiesRouter);
 app.use("/v1/properties/:propertyId/floors", floorsRouter);
 app.use("/v1/properties/:propertyId/rent-plans", rentPlansRouter);
+app.use("/v1/properties/:propertyId/charge-types", chargeTypesRouter);
 app.use("/v1/properties/:propertyId/rooms/:roomId/beds", roomBedsRouter);
 app.use("/v1/properties/:propertyId/rooms", roomsRouter);
 app.use("/v1/properties/:propertyId/beds", bedsRouter);
