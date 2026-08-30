@@ -48,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Billing", href: "/dashboard/billing", icon: Receipt },
       { label: "Payments", href: "/dashboard/payments", icon: IndianRupee, upcoming: true },
+      { label: "Advances", href: "/dashboard/advance-payments", icon: PiggyBank },
       { label: "Expenses", href: "/dashboard/expenses", icon: TrendingDown, upcoming: true },
       { label: "Deposits", href: "/dashboard/deposits", icon: PiggyBank, upcoming: true },
     ],

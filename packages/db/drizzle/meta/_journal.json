@@ -64,6 +64,13 @@
       "when": 1788093858543,
       "tag": "0008_square_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788095881585,
+      "tag": "0009_vengeful_skin",
+      "breakpoints": true
     }
   ]
 }

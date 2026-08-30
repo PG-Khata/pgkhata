@@ -328,6 +328,38 @@ export const payment = pgTable("payment", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const advancePayment = pgTable(
+  "advance_payment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      // restrict: an advance is money already held. Deleting the tenant must
+      // not silently erase the record of what the owner is holding for them.
+      .references(() => tenant.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    date: timestamp("date").notNull().defaultNow(),
+    /**
+     * available: unapplied, still owed back or usable against a future bill.
+     * applied: fully consumed against one or more bills; appliedAmount = amount.
+     * forfeited: terminal — the owner keeps it, no further application.
+     */
+    status: text("status").notNull().default("available"),
+    /** How much of `amount` has been applied so far; the rest stays available. */
+    appliedAmount: integer("applied_amount").notNull().default(0),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check("advance_payment_amount_positive", sql`${table.amount} > 0`),
+    check(
+      "advance_payment_applied_within_amount",
+      sql`${table.appliedAmount} >= 0 and ${table.appliedAmount} <= ${table.amount}`,
+    ),
+  ],
+);
+
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

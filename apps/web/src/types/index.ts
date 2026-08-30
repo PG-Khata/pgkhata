@@ -61,6 +61,23 @@ export interface BedWithLocation {
   floorName?: string | null
 }
 
+export interface AdvancePayment {
+  id: string
+  tenantId: string
+  amount: number
+  date: string
+  status: "available" | "applied" | "forfeited"
+  appliedAmount: number
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdvancePaymentWithTenant {
+  advance: AdvancePayment
+  tenantName: string
+}
+
 export interface ChargeType {
   id: string
   propertyId: string

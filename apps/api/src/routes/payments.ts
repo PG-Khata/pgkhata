@@ -12,14 +12,14 @@ const recordPaymentSchema = z.object({
   billId: z.string().uuid(),
   amount: z.number().min(1),
   paymentDate: z.string().transform((str) => new Date(str)),
-  method: z.enum(["cash", "upi", "bank_transfer", "other"]).optional(),
+  method: z.enum(["cash", "upi", "bank_transfer", "advance", "other"]).optional(),
   notes: z.string().optional(),
 });
 
 router.use(requireAuth, requireOwner, requireProperty);
 
 /** Recomputes bill totals from the payment ledger, the source of truth. */
-async function syncBillTotals(billId: string, totalAmount: number) {
+export async function syncBillTotals(billId: string, totalAmount: number) {
   const { totalPaid } = aggregate(
     await db
       .select({ totalPaid: sql<number>`coalesce(sum(${payment.amount}), 0)::int` })
@@ -94,20 +94,30 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Delete payment (recalculates bill)
+// Delete payment (recalculates bill) — scoped to this property.
 router.delete("/:paymentId", async (req: AuthenticatedRequest, res) => {
   try {
-    const [deleted] = await db
-      .delete(payment)
-      .where(eq(payment.id, param(req, "paymentId")))
-      .returning();
+    const paymentId = param(req, "paymentId");
 
-    if (!deleted) return res.status(404).json({ error: "Payment not found" });
+    // Deleting by id alone previously had no ownership check at all; any
+    // authenticated owner could delete any payment on the platform. Prove the
+    // payment's bill belongs to a tenant of this property before touching it.
+    const [owned] = await db
+      .select({ id: payment.id, billId: payment.billId })
+      .from(payment)
+      .innerJoin(bill, eq(payment.billId, bill.id))
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .where(and(eq(payment.id, paymentId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!owned) return res.status(404).json({ error: "Payment not found" });
+
+    await db.delete(payment).where(eq(payment.id, paymentId));
 
     const [b] = await db
       .select()
       .from(bill)
-      .where(eq(bill.id, deleted.billId))
+      .where(eq(bill.id, owned.billId))
       .limit(1);
 
     if (b) {
