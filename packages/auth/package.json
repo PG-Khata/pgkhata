@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@pgkhata/db": "workspace:*",
-    "better-auth": "^1.3.7"
+    "@pgkhata/email": "workspace:*",
+    "better-auth": "^1.7.2"
   },
   "devDependencies": {
     "@types/node": "^22.16.5",

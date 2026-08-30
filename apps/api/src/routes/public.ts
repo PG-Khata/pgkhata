@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db, property, room, tenant, complaint } from "@pgkhata/db";
 import { eq, and, sql } from "drizzle-orm";
+import { aggregate } from "../lib/http";
 
 const router = Router();
 
@@ -71,10 +72,13 @@ router.post("/signup/:token", async (req, res) => {
     if (!r) return res.status(404).json({ error: "Room not found" });
 
     // Check capacity
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tenant)
-      .where(and(eq(tenant.roomId, body.roomId), eq(tenant.status, "active")));
+    const { count } = aggregate(
+      await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tenant)
+        .where(and(eq(tenant.roomId, body.roomId), eq(tenant.status, "active"))),
+      { count: 0 },
+    );
 
     if (count >= r.capacity) {
       return res.status(409).json({ error: "Room is full" });

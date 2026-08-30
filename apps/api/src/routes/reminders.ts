@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, bill, tenant, property } from "@pgkhata/db";
+import { db, bill, tenant } from "@pgkhata/db";
 import { eq, and, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
-import { sendEmail, billReminderEmail } from "../lib/email";
-import { formatCurrency } from "../lib/format";
+import { requireProperty } from "../middleware/property";
+import { sendEmail, billReminderEmail, formatCurrency } from "@pgkhata/email";
 
 const router = Router({ mergeParams: true });
 
@@ -13,18 +13,10 @@ const sendReminderSchema = z.object({
   channel: z.enum(["email", "whatsapp", "both"]).default("email"),
 });
 
-async function verifyPropertyOwnership(req: AuthenticatedRequest, res: any, next: any) {
-  const [prop] = await db
-    .select()
-    .from(property)
-    .where(and(eq(property.id, req.params.propertyId), eq(property.ownerId, req.ownerId!)))
-    .limit(1);
-  if (!prop) return res.status(404).json({ error: "Property not found" });
-  next();
-}
+router.use(requireAuth, requireOwner, requireProperty);
 
 // Send reminders for bills
-router.post("/send", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+router.post("/send", async (req: AuthenticatedRequest, res) => {
   try {
     const { billIds, channel } = sendReminderSchema.parse(req.body);
 
@@ -35,18 +27,13 @@ router.post("/send", requireAuth, requireOwner, verifyPropertyOwnership, async (
         tenant: tenant,
       })
       .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
       .where(and(
         sql`${bill.id} = ANY(${billIds})`,
-        eq(tenant.propertyId, req.params.propertyId)
+        eq(tenant.propertyId, req.propertyId!)
       ));
 
-    // Get property name
-    const [prop] = await db
-      .select()
-      .from(property)
-      .where(eq(property.id, req.params.propertyId))
-      .limit(1);
+    const prop = req.property!;
 
     const results = [];
 

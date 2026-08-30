@@ -1,9 +1,16 @@
 import { Router } from "express";
-import { db, property, room, tenant, bill, payment } from "@pgkhata/db";
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { db, property, room, tenant, bill } from "@pgkhata/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
+import { requireProperty } from "../middleware/property";
+import { aggregate } from "../lib/http";
 
 const router = Router();
+
+/** Current month as YYYY-MM. */
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
 
 // Owner dashboard - portfolio view
 router.get("/owner", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
@@ -28,39 +35,59 @@ router.get("/owner", requireAuth, requireOwner, async (req: AuthenticatedRequest
     }
 
     // Get room count
-    const [{ roomCount }] = await db
-      .select({ roomCount: sql<number>`count(*)` })
-      .from(room)
-      .where(sql`${room.propertyId} = ANY(${propertyIds})`);
+    const { roomCount } = aggregate(
+      await db
+        .select({ roomCount: sql<number>`count(*)` })
+        .from(room)
+        .where(inArray(room.propertyId, propertyIds)),
+      { roomCount: 0 },
+    );
 
     // Get tenant counts
-    const [{ activeTenants }] = await db
-      .select({ activeTenants: sql<number>`count(*)` })
-      .from(tenant)
-      .where(and(sql`${tenant.propertyId} = ANY(${propertyIds})`, eq(tenant.status, "active")));
+    const { activeTenants } = aggregate(
+      await db
+        .select({ activeTenants: sql<number>`count(*)` })
+        .from(tenant)
+        .where(
+          and(inArray(tenant.propertyId, propertyIds), eq(tenant.status, "active")),
+        ),
+      { activeTenants: 0 },
+    );
 
     // Get current month bills
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const [{ totalBilled }] = await db
-      .select({ totalBilled: sql<number>`coalesce(sum(${bill.totalAmount}), 0)` })
-      .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(sql`${tenant.propertyId} = ANY(${propertyIds})`, eq(bill.billMonth, currentMonth)));
+    const month = currentMonth();
+    const { totalBilled } = aggregate(
+      await db
+        .select({ totalBilled: sql<number>`coalesce(sum(${bill.totalAmount}), 0)` })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(
+          and(inArray(tenant.propertyId, propertyIds), eq(bill.billMonth, month)),
+        ),
+      { totalBilled: 0 },
+    );
 
-    const [{ totalPaid }] = await db
-      .select({ totalPaid: sql<number>`coalesce(sum(${bill.paidAmount}), 0)` })
-      .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(sql`${tenant.propertyId} = ANY(${propertyIds})`, eq(bill.billMonth, currentMonth)));
+    const { totalPaid } = aggregate(
+      await db
+        .select({ totalPaid: sql<number>`coalesce(sum(${bill.paidAmount}), 0)` })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(
+          and(inArray(tenant.propertyId, propertyIds), eq(bill.billMonth, month)),
+        ),
+      { totalPaid: 0 },
+    );
 
-    const [{ overdueAmount }] = await db
-      .select({ overdueAmount: sql<number>`coalesce(sum(${bill.balance}), 0)` })
-      .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(
-        sql`${tenant.propertyId} = ANY(${propertyIds})`,
-        eq(bill.status, "overdue")
-      ));
+    const { overdueAmount } = aggregate(
+      await db
+        .select({ overdueAmount: sql<number>`coalesce(sum(${bill.balance}), 0)` })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(
+          and(inArray(tenant.propertyId, propertyIds), eq(bill.status, "overdue")),
+        ),
+      { overdueAmount: 0 },
+    );
 
     res.json({
       totalProperties: properties.length,
@@ -77,51 +104,63 @@ router.get("/owner", requireAuth, requireOwner, async (req: AuthenticatedRequest
 });
 
 // Property dashboard
-router.get("/property/:propertyId", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
-  try {
-    const [prop] = await db
-      .select()
-      .from(property)
-      .where(and(eq(property.id, req.params.propertyId), eq(property.ownerId, req.ownerId!)))
-      .limit(1);
+router.get(
+  "/property/:propertyId",
+  requireAuth,
+  requireOwner,
+  requireProperty,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const prop = req.property!;
 
-    if (!prop) return res.status(404).json({ error: "Property not found" });
+      const { roomCount } = aggregate(
+        await db
+          .select({ roomCount: sql<number>`count(*)` })
+          .from(room)
+          .where(eq(room.propertyId, prop.id)),
+        { roomCount: 0 },
+      );
 
-    const [{ roomCount }] = await db
-      .select({ roomCount: sql<number>`count(*)` })
-      .from(room)
-      .where(eq(room.propertyId, prop.id));
+      const { activeTenants } = aggregate(
+        await db
+          .select({ activeTenants: sql<number>`count(*)` })
+          .from(tenant)
+          .where(and(eq(tenant.propertyId, prop.id), eq(tenant.status, "active"))),
+        { activeTenants: 0 },
+      );
 
-    const [{ activeTenants }] = await db
-      .select({ activeTenants: sql<number>`count(*)` })
-      .from(tenant)
-      .where(and(eq(tenant.propertyId, prop.id), eq(tenant.status, "active")));
+      const month = currentMonth();
+      const { totalBilled } = aggregate(
+        await db
+          .select({ totalBilled: sql<number>`coalesce(sum(${bill.totalAmount}), 0)` })
+          .from(bill)
+          .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+          .where(and(eq(tenant.propertyId, prop.id), eq(bill.billMonth, month))),
+        { totalBilled: 0 },
+      );
 
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const [{ totalBilled }] = await db
-      .select({ totalBilled: sql<number>`coalesce(sum(${bill.totalAmount}), 0)` })
-      .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(eq(tenant.propertyId, prop.id), eq(bill.billMonth, currentMonth)));
+      const { totalPaid } = aggregate(
+        await db
+          .select({ totalPaid: sql<number>`coalesce(sum(${bill.paidAmount}), 0)` })
+          .from(bill)
+          .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+          .where(and(eq(tenant.propertyId, prop.id), eq(bill.billMonth, month))),
+        { totalPaid: 0 },
+      );
 
-    const [{ totalPaid }] = await db
-      .select({ totalPaid: sql<number>`coalesce(sum(${bill.paidAmount}), 0)` })
-      .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(eq(tenant.propertyId, prop.id), eq(bill.billMonth, currentMonth)));
-
-    res.json({
-      property: prop,
-      totalRooms: roomCount,
-      activeTenants,
-      occupancyRate: roomCount > 0 ? Math.round((activeTenants / roomCount) * 100) : 0,
-      monthlyBilled: totalBilled,
-      monthlyCollected: totalPaid,
-      monthlyPending: totalBilled - totalPaid,
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch property dashboard" });
-  }
-});
+      res.json({
+        property: prop,
+        totalRooms: roomCount,
+        activeTenants,
+        occupancyRate: roomCount > 0 ? Math.round((activeTenants / roomCount) * 100) : 0,
+        monthlyBilled: totalBilled,
+        monthlyCollected: totalPaid,
+        monthlyPending: totalBilled - totalPaid,
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch property dashboard" });
+    }
+  },
+);
 
 export default router;

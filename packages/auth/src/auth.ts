@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { db } from "@pgkhata/db";
-import { sendEmail, passwordResetEmail } from "../../../apps/api/src/lib/email";
+import { sendEmail, passwordResetEmail } from "@pgkhata/email";
+import { ensureOwnerProfile, type OwnerProfileWriter } from "./owner-profile";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -17,6 +18,17 @@ export const auth = betterAuth({
       });
     },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // Every owner-scoped route resolves the caller through `owner_profile`.
+        // Provision it here so a new owner is not met with 403 on every page.
+        after: async (user) => {
+          await ensureOwnerProfile(db as unknown as OwnerProfileWriter, user.id);
+        },
+      },
+    },
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
@@ -26,4 +38,4 @@ export const auth = betterAuth({
 });
 
 export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.User;
+export type User = typeof auth.$Infer.Session.user;

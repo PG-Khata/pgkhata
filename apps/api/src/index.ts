@@ -4,6 +4,7 @@ import cors from "cors";
 import pino from "pino";
 import { randomUUID } from "crypto";
 import { auth } from "@pgkhata/auth";
+import { HttpError } from "./lib/http";
 import propertiesRouter from "./routes/properties";
 import roomsRouter from "./routes/rooms";
 import tenantsRouter from "./routes/tenants";
@@ -63,7 +64,7 @@ app.use(async (req, res, next) => {
       const response = await auth.handler(request);
       
       res.status(response.status);
-      response.headers.forEach((value, key) => {
+      response.headers.forEach((value: string, key: string) => {
         res.setHeader(key, value);
       });
       
@@ -131,12 +132,17 @@ app.use("/public", publicRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error({
-    err,
-    requestId: req.headers["x-request-id"],
-  });
-  res.status(500).json({
-    error: "Internal Server Error",
+  const status = err instanceof HttpError ? err.status : 500;
+
+  if (status >= 500) {
+    logger.error({ err, requestId: req.headers["x-request-id"] });
+  } else {
+    logger.warn({ err: err.message, requestId: req.headers["x-request-id"] });
+  }
+
+  res.status(status).json({
+    error: status >= 500 ? "Internal Server Error" : err.message,
+    ...(err instanceof HttpError && err.details ? { details: err.details } : {}),
     requestId: req.headers["x-request-id"],
   });
 });

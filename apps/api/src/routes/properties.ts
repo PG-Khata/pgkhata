@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, property } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
+import { param } from "../lib/http";
 
 const router = Router();
 
@@ -40,7 +41,7 @@ router.get("/:id", requireAuth, requireOwner, async (req: AuthenticatedRequest, 
       .from(property)
       .where(
         and(
-          eq(property.id, req.params.id),
+          eq(property.id, param(req, "id")),
           eq(property.ownerId, req.ownerId!)
         )
       )
@@ -88,7 +89,7 @@ router.put("/:id", requireAuth, requireOwner, async (req: AuthenticatedRequest, 
       .set({ ...body, updatedAt: new Date() })
       .where(
         and(
-          eq(property.id, req.params.id),
+          eq(property.id, param(req, "id")),
           eq(property.ownerId, req.ownerId!)
         )
       )
@@ -114,7 +115,7 @@ router.delete("/:id", requireAuth, requireOwner, async (req: AuthenticatedReques
       .delete(property)
       .where(
         and(
-          eq(property.id, req.params.id),
+          eq(property.id, param(req, "id")),
           eq(property.ownerId, req.ownerId!)
         )
       )

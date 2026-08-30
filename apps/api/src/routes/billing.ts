@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, bill, tenant, room, electricityReading, property } from "@pgkhata/db";
+import { db, bill, tenant, room, electricityReading } from "@pgkhata/db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
+import { requireProperty } from "../middleware/property";
+import { aggregate } from "../lib/http";
 
 const router = Router({ mergeParams: true });
 
@@ -10,45 +12,28 @@ const generateBillsSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "Format: YYYY-MM"),
 });
 
-async function verifyPropertyOwnership(req: AuthenticatedRequest, res: any, next: any) {
-  const [prop] = await db
-    .select()
-    .from(property)
-    .where(and(eq(property.id, req.params.propertyId), eq(property.ownerId, req.ownerId!)))
-    .limit(1);
-  if (!prop) return res.status(404).json({ error: "Property not found" });
-  next();
-}
+router.use(requireAuth, requireOwner, requireProperty);
 
 // Get bills for property
-router.get("/", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const month = req.query.month as string | undefined;
-    let query = db
+
+    const where = month
+      ? and(eq(tenant.propertyId, req.propertyId!), eq(bill.billMonth, month))
+      : eq(tenant.propertyId, req.propertyId!);
+
+    const bills = await db
       .select({
         bill: bill,
         tenantName: tenant.name,
         roomNumber: room.number,
       })
       .from(bill)
-      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
       .leftJoin(room, eq(tenant.roomId, room.id))
-      .where(eq(tenant.propertyId, req.params.propertyId));
+      .where(where);
 
-    if (month) {
-      query = db
-        .select({
-          bill: bill,
-          tenantName: tenant.name,
-          roomNumber: room.number,
-        })
-        .from(bill)
-        .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-        .leftJoin(room, eq(tenant.roomId, room.id))
-        .where(and(eq(tenant.propertyId, req.params.propertyId), eq(bill.billMonth, month)));
-    }
-
-    const bills = await query;
     res.json(bills);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch bills" });
@@ -56,9 +41,10 @@ router.get("/", requireAuth, requireOwner, verifyPropertyOwnership, async (req: 
 });
 
 // Generate monthly bills
-router.post("/generate", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+router.post("/generate", async (req: AuthenticatedRequest, res) => {
   try {
     const { month } = generateBillsSchema.parse(req.body);
+    const prop = req.property!;
 
     // Get all active tenants for property
     const activeTenants = await db
@@ -68,7 +54,7 @@ router.post("/generate", requireAuth, requireOwner, verifyPropertyOwnership, asy
       })
       .from(tenant)
       .leftJoin(room, eq(tenant.roomId, room.id))
-      .where(and(eq(tenant.propertyId, req.params.propertyId), eq(tenant.status, "active")));
+      .where(and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active")));
 
     const generatedBills = [];
 
@@ -89,13 +75,8 @@ router.post("/generate", requireAuth, requireOwner, verifyPropertyOwnership, asy
 
       // Calculate electricity
       let electricityAmount = 0;
-      const [prop] = await db
-        .select()
-        .from(property)
-        .where(eq(property.id, req.params.propertyId))
-        .limit(1);
 
-      if (prop?.electricityRatePerUnit) {
+      if (prop.electricityRatePerUnit) {
         const [reading] = await db
           .select()
           .from(electricityReading)
@@ -105,12 +86,18 @@ router.post("/generate", requireAuth, requireOwner, verifyPropertyOwnership, asy
 
         if (reading) {
           // Split among active tenants in room
-          const [{ count }] = await db
-            .select({ count: sql<number>`count(*)` })
-            .from(tenant)
-            .where(and(eq(tenant.roomId, r.id), eq(tenant.status, "active")));
+          const { count } = aggregate(
+            await db
+              .select({ count: sql<number>`count(*)` })
+              .from(tenant)
+              .where(and(eq(tenant.roomId, r.id), eq(tenant.status, "active"))),
+            { count: 0 },
+          );
 
-          electricityAmount = Math.round((reading.units * prop.electricityRatePerUnit) / count);
+          const occupants = Math.max(1, count);
+          electricityAmount = Math.round(
+            (reading.units * prop.electricityRatePerUnit) / occupants,
+          );
         }
       }
 
@@ -145,7 +132,7 @@ router.post("/generate", requireAuth, requireOwner, verifyPropertyOwnership, asy
 });
 
 // Approve bills
-router.post("/approve", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+router.post("/approve", async (req: AuthenticatedRequest, res) => {
   try {
     const { billIds } = z.object({ billIds: z.array(z.string().uuid()) }).parse(req.body);
 
@@ -157,6 +144,9 @@ router.post("/approve", requireAuth, requireOwner, verifyPropertyOwnership, asyn
 
     res.json({ message: `Approved ${approved.length} bills`, bills: approved });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
     res.status(500).json({ error: "Failed to approve bills" });
   }
 });

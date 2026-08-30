@@ -1,5 +1,5 @@
 {
-  "name": "@pgkhata/config",
+  "name": "@pgkhata/email",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "^3.25.67",
-    "dotenv": "^16.6.1"
+    "resend": "^6.25.0"
   },
   "devDependencies": {
     "@types/node": "^22.16.5",

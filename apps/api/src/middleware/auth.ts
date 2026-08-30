@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { auth } from "@pgkhata/auth";
-import { db, ownerProfile } from "@pgkhata/db";
+import { db, ownerProfile, property } from "@pgkhata/db";
 import { eq } from "drizzle-orm";
 
 export interface AuthenticatedRequest extends Request {
@@ -10,6 +10,9 @@ export interface AuthenticatedRequest extends Request {
     name: string;
   };
   ownerId?: string;
+  /** Set by `requireProperty`; already proven to belong to `ownerId`. */
+  propertyId?: string;
+  property?: typeof property.$inferSelect;
 }
 
 export async function requireAuth(

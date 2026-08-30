@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, electricityReading, room, property } from "@pgkhata/db";
+import { db, electricityReading, room } from "@pgkhata/db";
 import { eq, and, desc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
+import { requireProperty } from "../middleware/property";
 
 const router = Router({ mergeParams: true });
 
@@ -12,41 +13,68 @@ const createReadingSchema = z.object({
   readingDate: z.string().transform((str) => new Date(str)),
 });
 
-async function verifyPropertyOwnership(req: AuthenticatedRequest, res: any, next: any) {
-  const [prop] = await db
+const listReadingsSchema = z.object({
+  roomId: z.string().uuid().optional(),
+});
+
+router.use(requireAuth, requireOwner, requireProperty);
+
+/** Proves a room belongs to the already-verified property. */
+async function ownedRoom(propertyId: string, roomId: string) {
+  const [r] = await db
     .select()
-    .from(property)
-    .where(and(eq(property.id, req.params.propertyId), eq(property.ownerId, req.ownerId!)))
+    .from(room)
+    .where(and(eq(room.id, roomId), eq(room.propertyId, propertyId)))
     .limit(1);
-  if (!prop) return res.status(404).json({ error: "Property not found" });
-  next();
+  return r;
 }
 
-// Get readings for a room
-router.get("/", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+// Get readings for the property, optionally narrowed to one room
+router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const { roomId } = listReadingsSchema.parse(req.query);
+
+    // Scope by room ownership, not by a client-supplied roomId alone: filtering
+    // on the raw query value would return another owner's readings.
+    if (roomId) {
+      if (!(await ownedRoom(req.propertyId!, roomId))) {
+        return res.status(404).json({ error: "Room not found" });
+      }
+
+      const readings = await db
+        .select()
+        .from(electricityReading)
+        .where(eq(electricityReading.roomId, roomId))
+        .orderBy(desc(electricityReading.readingDate));
+
+      return res.json(readings);
+    }
+
     const readings = await db
-      .select()
+      .select({
+        reading: electricityReading,
+        roomNumber: room.number,
+      })
       .from(electricityReading)
-      .where(eq(electricityReading.roomId, req.query.roomId as string))
+      .innerJoin(room, eq(electricityReading.roomId, room.id))
+      .where(eq(room.propertyId, req.propertyId!))
       .orderBy(desc(electricityReading.readingDate));
+
     res.json(readings);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
     res.status(500).json({ error: "Failed to fetch readings" });
   }
 });
 
 // Create reading
-router.post("/", requireAuth, requireOwner, verifyPropertyOwnership, async (req: AuthenticatedRequest, res) => {
+router.post("/", async (req: AuthenticatedRequest, res) => {
   try {
     const body = createReadingSchema.parse(req.body);
 
-    // Verify room belongs to property
-    const [r] = await db
-      .select()
-      .from(room)
-      .where(and(eq(room.id, body.roomId), eq(room.propertyId, req.params.propertyId)))
-      .limit(1);
+    const r = await ownedRoom(req.propertyId!, body.roomId);
     if (!r) return res.status(404).json({ error: "Room not found" });
 
     // Get last reading for monotonic check
