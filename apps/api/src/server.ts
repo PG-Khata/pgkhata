@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { app, logger } from "./index";
 
 const PORT = process.env.PORT || 3001;

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db, bill, tenant, property } from "@pgkhata/db";
 import { eq, and, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
+import { sendEmail, billReminderEmail } from "../lib/email";
+import { formatCurrency } from "../lib/format";
 
 const router = Router({ mergeParams: true });
 
@@ -39,25 +41,74 @@ router.post("/send", requireAuth, requireOwner, verifyPropertyOwnership, async (
         eq(tenant.propertyId, req.params.propertyId)
       ));
 
+    // Get property name
+    const [prop] = await db
+      .select()
+      .from(property)
+      .where(eq(property.id, req.params.propertyId))
+      .limit(1);
+
     const results = [];
 
     for (const { bill: b, tenant: t } of billsToSend) {
       if (!t) continue;
 
-      // TODO: Integrate with Resend for email
-      // TODO: Integrate with Meta WhatsApp Cloud API
+      if (channel === "email" || channel === "both") {
+        if (t.email) {
+          try {
+            await sendEmail({
+              to: t.email,
+              subject: `Payment reminder — ${prop?.name || "Your PG"}`,
+              html: billReminderEmail({
+                tenantName: t.name,
+                propertyName: prop?.name || "Your PG",
+                month: b.billMonth,
+                totalAmount: formatCurrency(b.totalAmount),
+                balance: formatCurrency(b.balance),
+              }),
+            });
+            results.push({
+              billId: b.id,
+              tenantId: t.id,
+              tenantName: t.name,
+              channel: "email",
+              status: "sent",
+            });
+          } catch {
+            results.push({
+              billId: b.id,
+              tenantId: t.id,
+              tenantName: t.name,
+              channel: "email",
+              status: "failed",
+            });
+          }
+        } else {
+          results.push({
+            billId: b.id,
+            tenantId: t.id,
+            tenantName: t.name,
+            channel: "email",
+            status: "skipped",
+            reason: "No email on file",
+          });
+        }
+      }
 
-      results.push({
-        billId: b.id,
-        tenantId: t.id,
-        tenantName: t.name,
-        channel,
-        status: "queued",
-      });
+      // TODO: Integrate with Meta WhatsApp Cloud API
+      if (channel === "whatsapp" || channel === "both") {
+        results.push({
+          billId: b.id,
+          tenantId: t.id,
+          tenantName: t.name,
+          channel: "whatsapp",
+          status: "not_implemented",
+        });
+      }
     }
 
     res.json({
-      message: `Queued ${results.length} reminders`,
+      message: `Processed ${results.length} reminders`,
       results,
     });
   } catch (error) {

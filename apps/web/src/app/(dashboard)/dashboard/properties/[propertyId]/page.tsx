@@ -1,0 +1,129 @@
+"use client"
+
+import { useParams } from "next/navigation"
+import Link from "next/link"
+import { useProperty } from "@/hooks/use-properties"
+import { usePropertyDashboard } from "@/hooks/use-dashboard"
+import { StatGroup } from "@/components/dashboard/stat-row"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
+import { formatCurrency } from "@/lib/utils"
+import { ArrowLeft, Pencil } from "lucide-react"
+
+export default function PropertyDetailPage() {
+  const params = useParams()
+  const propertyId = params.propertyId as string
+  const { data: property, isLoading: propLoading } = useProperty(propertyId)
+  const { data: dashboard, isLoading: dashLoading } = usePropertyDashboard(propertyId)
+
+  if (propLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    )
+  }
+
+  if (!property) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-muted-foreground">Property not found.</p>
+        <Link href="/dashboard/properties" className="mt-2 inline-block text-sm font-medium hover:underline">
+          Back to properties
+        </Link>
+      </div>
+    )
+  }
+
+  const tabs = [
+    { label: "Overview", href: `/dashboard/properties/${propertyId}` },
+    { label: "Rooms", href: `/dashboard/properties/${propertyId}/rooms` },
+    { label: "Tenants", href: `/dashboard/properties/${propertyId}/tenants` },
+    { label: "Billing", href: `/dashboard/properties/${propertyId}/billing` },
+    { label: "Payments", href: `/dashboard/properties/${propertyId}/payments` },
+    { label: "Readings", href: `/dashboard/properties/${propertyId}/readings` },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/dashboard/properties" className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div>
+            <h1 className="text-lg font-semibold">{property.name}</h1>
+            <p className="text-xs text-muted-foreground">
+              {[property.address, property.city, property.state, property.pincode]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
+          </div>
+        </div>
+        <Button variant="outline" size="sm">
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+          Edit
+        </Button>
+      </div>
+
+      <div className="flex gap-1 overflow-x-auto border-b">
+        {tabs.map((tab) => {
+          const isActive = tab.href === `/dashboard/properties/${propertyId}`
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={`shrink-0 border-b-2 px-3 py-2 text-sm ${
+                isActive
+                  ? "border-foreground font-medium"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </Link>
+          )
+        })}
+      </div>
+
+      {dashLoading ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-6 w-16" />
+            </div>
+          ))}
+        </div>
+      ) : dashboard ? (
+        <StatGroup
+          stats={[
+            { label: "Rooms", value: dashboard.totalRooms },
+            { label: "Tenants", value: dashboard.activeTenants },
+            { label: "Occupancy", value: `${dashboard.occupancyRate}%` },
+            { label: "Monthly Rent", value: formatCurrency(dashboard.monthlyBilled) },
+          ]}
+        />
+      ) : null}
+
+      {dashboard && (
+        <>
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Collections
+            </p>
+            <div className="border-b" />
+          </div>
+          <StatGroup
+            stats={[
+              { label: "Billed", value: formatCurrency(dashboard.monthlyBilled) },
+              { label: "Collected", value: formatCurrency(dashboard.monthlyCollected) },
+              { label: "Pending", value: formatCurrency(dashboard.monthlyPending) },
+            ]}
+          />
+        </>
+      )}
+    </div>
+  )
+}

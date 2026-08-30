@@ -2,6 +2,12 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
-  esbuild: set this to true or false
-  msgpackr-extract: set this to true or false
-  unrs-resolver: set this to true or false
+  esbuild: true
+  msgpackr-extract: true
+  unrs-resolver: true
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver
+minimumReleaseAgeExclude:
+  - react-hook-form@7.87.0
+  - zod@4.5.4
