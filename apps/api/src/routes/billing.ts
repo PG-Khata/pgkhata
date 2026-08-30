@@ -1,11 +1,22 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, bill, tenant, room, bed, rentPlan, electricityReading } from "@pgkhata/db";
-import { eq, and, sql, desc } from "drizzle-orm";
+import {
+  db,
+  bill,
+  tenant,
+  room,
+  bed,
+  rentPlan,
+  chargeType,
+  electricityReading,
+} from "@pgkhata/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
-import { aggregate } from "../lib/http";
-import { resolveMonthlyRent } from "../lib/rent";
+import { param } from "../lib/http";
+import { calculateBill } from "../lib/billing-calculator";
+import { readingForMonth } from "../lib/electricity";
+import { computeDueDate } from "../lib/due-date";
 
 const router = Router({ mergeParams: true });
 
@@ -41,92 +52,144 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
   }
 });
 
+router.get("/:billId", async (req: AuthenticatedRequest, res) => {
+  try {
+    const [row] = await db
+      .select({
+        bill: bill,
+        tenantName: tenant.name,
+        roomNumber: room.number,
+      })
+      .from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .where(
+        and(eq(bill.id, param(req, "billId")), eq(tenant.propertyId, req.propertyId!)),
+      )
+      .limit(1);
+
+    if (!row) return res.status(404).json({ error: "Bill not found" });
+
+    res.json({ ...row.bill, tenantName: row.tenantName, roomNumber: row.roomNumber });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch bill" });
+  }
+});
+
 // Generate monthly bills
 router.post("/generate", async (req: AuthenticatedRequest, res) => {
   try {
     const { month } = generateBillsSchema.parse(req.body);
     const prop = req.property!;
 
-    // Get all active tenants for property
+    // Everything this run needs, read once outside the transaction: active
+    // tenants with their room, bed and rent plan, plus the property's active
+    // recurring charge types (excluding electricity, which is always computed
+    // from readings rather than a flat default).
     const activeTenants = await db
-      .select({
-        tenant: tenant,
-        room: room,
-        bed: bed,
-        plan: rentPlan,
-      })
+      .select({ tenant: tenant, room: room, bed: bed, plan: rentPlan })
       .from(tenant)
       .leftJoin(room, eq(tenant.roomId, room.id))
       .leftJoin(bed, eq(tenant.bedId, bed.id))
       .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
       .where(and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active")));
 
-    const generatedBills = [];
-    let skipped = 0;
+    const recurringCharges = await db
+      .select({ code: chargeType.code, name: chargeType.name, amount: chargeType.defaultAmount })
+      .from(chargeType)
+      .where(
+        and(
+          eq(chargeType.propertyId, req.propertyId!),
+          eq(chargeType.isRecurring, true),
+          eq(chargeType.isActive, true),
+          sql`${chargeType.code} <> 'ELEC'`,
+        ),
+      );
 
-    for (const { tenant: t, room: r, bed: b, plan } of activeTenants) {
-      if (!r) continue;
+    const roomIds = [
+      ...new Set(activeTenants.map((row) => row.room?.id).filter((id): id is string => Boolean(id))),
+    ];
 
-      // Rent resolution: tenant override -> bed override -> rent plan -> room.
-      const { amount: rentAmount } = resolveMonthlyRent({
-        tenantOverride: t.monthlyRentOverride,
-        bedRent: b?.monthlyRent,
-        planRent: plan?.monthlyRent,
-        roomRent: r.monthlyRent,
-      });
+    const readingsByRoom = new Map<string, Array<{ readingDate: Date; units: number }>>();
+    if (roomIds.length > 0) {
+      const readings = await db
+        .select({
+          roomId: electricityReading.roomId,
+          readingDate: electricityReading.readingDate,
+          units: electricityReading.units,
+        })
+        .from(electricityReading)
+        .where(inArray(electricityReading.roomId, roomIds));
 
-      // Calculate electricity
-      let electricityAmount = 0;
+      for (const r of readings) {
+        const bucket = readingsByRoom.get(r.roomId);
+        if (bucket) bucket.push(r);
+        else readingsByRoom.set(r.roomId, [r]);
+      }
+    }
 
-      if (prop.electricityRatePerUnit) {
-        const [reading] = await db
-          .select()
-          .from(electricityReading)
-          .where(eq(electricityReading.roomId, r.id))
-          .orderBy(desc(electricityReading.readingDate))
-          .limit(1);
+    const occupantsByRoom = new Map<string, number>();
+    for (const row of activeTenants) {
+      if (!row.room) continue;
+      occupantsByRoom.set(row.room.id, (occupantsByRoom.get(row.room.id) ?? 0) + 1);
+    }
 
-        if (reading) {
-          // Split among active tenants in room
-          const { count } = aggregate(
-            await db
-              .select({ count: sql<number>`count(*)::int` })
-              .from(tenant)
-              .where(and(eq(tenant.roomId, r.id), eq(tenant.status, "active"))),
-            { count: 0 },
-          );
+    // The whole run is one transaction: either every bill this month lands
+    // together, or none do. A partial run previously left some tenants billed
+    // and others not with no way to tell which had already happened.
+    const { generatedBills, skipped } = await db.transaction(async (tx) => {
+      const generatedBills: (typeof bill.$inferSelect)[] = [];
+      let skipped = 0;
 
-          const occupants = Math.max(1, count);
-          electricityAmount = Math.round(
-            (reading.units * prop.electricityRatePerUnit) / occupants,
-          );
+      for (const { tenant: t, room: r, bed: b, plan } of activeTenants) {
+        if (!r) continue;
+
+        const reading = readingForMonth(readingsByRoom.get(r.id) ?? [], month);
+
+        const calculated = calculateBill({
+          rent: {
+            tenantOverride: t.monthlyRentOverride,
+            bedRent: b?.monthlyRent,
+            planRent: plan?.monthlyRent,
+            roomRent: r.monthlyRent,
+          },
+          electricity: {
+            ratePerUnit: prop.electricityRatePerUnit,
+            unitsForMonth: reading?.units,
+            occupants: occupantsByRoom.get(r.id) ?? 1,
+          },
+          recurringCharges,
+        });
+
+        const dueDate = plan ? computeDueDate(month, plan.dueDay) : computeDueDate(month, 1);
+
+        // Idempotency is enforced by bill_tenant_month_uq rather than by a
+        // read-then-insert check, which two concurrent runs both passed.
+        const [newBill] = await tx
+          .insert(bill)
+          .values({
+            tenantId: t.id,
+            billMonth: month,
+            rentAmount: calculated.rentAmount,
+            electricityAmount: calculated.electricityAmount,
+            lineItems: calculated.lineItems,
+            totalAmount: calculated.totalAmount,
+            balance: calculated.totalAmount,
+            dueDate,
+            approved: false,
+          })
+          .onConflictDoNothing({ target: [bill.tenantId, bill.billMonth] })
+          .returning();
+
+        if (newBill) {
+          generatedBills.push(newBill);
+        } else {
+          skipped += 1;
         }
       }
 
-      const totalAmount = rentAmount + electricityAmount;
-
-      // Idempotency is enforced by bill_tenant_month_uq rather than by a
-      // read-then-insert check, which two concurrent runs both passed.
-      const [newBill] = await db
-        .insert(bill)
-        .values({
-          tenantId: t.id,
-          billMonth: month,
-          rentAmount,
-          electricityAmount,
-          totalAmount,
-          balance: totalAmount,
-          approved: false,
-        })
-        .onConflictDoNothing({ target: [bill.tenantId, bill.billMonth] })
-        .returning();
-
-      if (newBill) {
-        generatedBills.push(newBill);
-      } else {
-        skipped += 1;
-      }
-    }
+      return { generatedBills, skipped };
+    });
 
     res.status(201).json({
       message: `Generated ${generatedBills.length} bills`,
@@ -142,7 +205,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Approve bills
+// Approve bills — scoped to this property, not any billId the caller sends.
 router.post("/approve", async (req: AuthenticatedRequest, res) => {
   try {
     const { billIds } = z.object({ billIds: z.array(z.string().uuid()) }).parse(req.body);
@@ -150,7 +213,15 @@ router.post("/approve", async (req: AuthenticatedRequest, res) => {
     const approved = await db
       .update(bill)
       .set({ approved: true, updatedAt: new Date() })
-      .where(sql`${bill.id} = ANY(${billIds})`)
+      .where(
+        and(
+          inArray(bill.id, billIds),
+          inArray(
+            bill.tenantId,
+            db.select({ id: tenant.id }).from(tenant).where(eq(tenant.propertyId, req.propertyId!)),
+          ),
+        ),
+      )
       .returning();
 
     res.json({ message: `Approved ${approved.length} bills`, bills: approved });

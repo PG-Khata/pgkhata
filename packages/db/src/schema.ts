@@ -7,6 +7,7 @@ import {
   uuid,
   uniqueIndex,
   check,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -283,12 +284,22 @@ export const bill = pgTable(
     billMonth: text("bill_month").notNull(),
     rentAmount: integer("rent_amount").notNull(),
     electricityAmount: integer("electricity_amount").notNull().default(0),
+    /**
+     * Itemised charges for this bill: [{ code, name, amount }, ...]. Rent and
+     * electricity are also mirrored here as lines, so a bill's total is always
+     * the sum of lineItems rather than a set of columns that can drift apart.
+     * Historical bills keep their own lines even if the charge type, plan or
+     * rate that produced them is later edited or deleted.
+     */
+    lineItems: jsonb("line_items").notNull().default([]),
     totalAmount: integer("total_amount").notNull(),
     paidAmount: integer("paid_amount").notNull().default(0),
     balance: integer("balance").notNull(),
     status: text("status").notNull().default("pending"),
+    /** Computed from the room's rent plan due_day at generation time. */
     dueDate: timestamp("due_date"),
     approved: boolean("approved").notNull().default(false),
+    voidedAt: timestamp("voided_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -297,6 +308,10 @@ export const bill = pgTable(
     // first, but two concurrent runs both passed the check and both inserted.
     // The legacy schema had this constraint; the rebuild dropped it.
     uniqueIndex("bill_tenant_month_uq").on(table.tenantId, table.billMonth),
+    check(
+      "bill_amounts_nonnegative",
+      sql`${table.totalAmount} >= 0 and ${table.paidAmount} >= 0`,
+    ),
   ],
 );
 

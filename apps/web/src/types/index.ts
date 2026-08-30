@@ -136,18 +136,26 @@ export interface Tenant {
   roomNumber?: string | null
 }
 
+export interface BillLineItem {
+  code: string
+  name: string
+  amount: number
+}
+
 export interface Bill {
   id: string
   tenantId: string
   billMonth: string
   rentAmount: number
   electricityAmount: number
+  lineItems: BillLineItem[]
   totalAmount: number
   paidAmount: number
   balance: number
   status: "pending" | "partial" | "paid" | "overdue"
-  dueDate?: string
+  dueDate?: string | null
   approved: boolean
+  voidedAt?: string | null
   createdAt: string
   updatedAt: string
 }
