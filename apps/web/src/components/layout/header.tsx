@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MobileNav } from "./mobile-nav"
+import { MobileNavTrigger } from "./mobile-nav"
 
 export function Header() {
   const router = useRouter()
@@ -23,8 +23,8 @@ export function Header() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-      <div className="flex items-center gap-3">
-        <MobileNav />
+      <div className="flex items-center gap-2">
+        <MobileNavTrigger />
         <span className="text-base font-semibold tracking-tight md:hidden">
           pgkhata
         </span>
