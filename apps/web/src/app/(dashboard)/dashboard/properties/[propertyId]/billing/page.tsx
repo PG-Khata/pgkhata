@@ -3,14 +3,14 @@
 import { Fragment, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { useBills, useGenerateBills, useApproveBills } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApproveBills, useApplyLateFees } from "@/hooks/use-bills"
 import { useProperty } from "@/hooks/use-properties"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency, formatMonth, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, FileCheck, Play } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play } from "lucide-react"
 
 function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -33,6 +33,7 @@ export default function BillingPage() {
   const { data: bills, isLoading } = useBills(propertyId, month)
   const generateBills = useGenerateBills(propertyId)
   const approveBills = useApproveBills(propertyId)
+  const applyLateFees = useApplyLateFees(propertyId)
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -77,6 +78,14 @@ export default function BillingPage() {
         setSelected(new Set())
       },
       onError: () => toast.error("Failed to approve bills"),
+    })
+  }
+
+  function handleApplyLateFees() {
+    const ids = selected.size > 0 ? Array.from(selected) : undefined
+    applyLateFees.mutate(ids, {
+      onSuccess: (res) => toast.success(res.message),
+      onError: () => toast.error("Failed to apply late fees"),
     })
   }
 
@@ -127,6 +136,20 @@ export default function BillingPage() {
         <Button size="sm" onClick={handleGenerate} disabled={generateBills.isPending}>
           <Play className="mr-1.5 h-3.5 w-3.5" />
           {generateBills.isPending ? "Generating..." : "Generate bills"}
+        </Button>
+
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleApplyLateFees}
+          disabled={applyLateFees.isPending}
+        >
+          <Clock className="mr-1.5 h-3.5 w-3.5" />
+          {applyLateFees.isPending
+            ? "Applying..."
+            : selected.size > 0
+              ? `Apply late fees (${selected.size})`
+              : "Apply late fees to all overdue"}
         </Button>
 
         {selected.size > 0 && (

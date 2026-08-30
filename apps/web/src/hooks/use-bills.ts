@@ -25,6 +25,18 @@ export function useGenerateBills(propertyId: string) {
   })
 }
 
+export function useApplyLateFees(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (billIds?: string[]) =>
+      api.post<{ message: string; updated: number }>(
+        `/v1/properties/${propertyId}/bills/apply-late-fees`,
+        billIds ? { billIds } : {},
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
+  })
+}
+
 export function useApproveBills(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({

@@ -17,11 +17,17 @@ import { param } from "../lib/http";
 import { calculateBill } from "../lib/billing-calculator";
 import { readingForMonth } from "../lib/electricity";
 import { computeDueDate } from "../lib/due-date";
+import { calculateLateFee } from "../lib/late-fee";
 
 const router = Router({ mergeParams: true });
 
 const generateBillsSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "Format: YYYY-MM"),
+});
+
+const applyLateFeesSchema = z.object({
+  billIds: z.array(z.string().uuid()).optional(),
+  asOf: z.string().optional(),
 });
 
 router.use(requireAuth, requireOwner, requireProperty);
@@ -202,6 +208,103 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: "Validation error", details: error.errors });
     }
     res.status(500).json({ error: "Failed to generate bills" });
+  }
+});
+
+// Apply late fees to overdue, unpaid bills as a LATE line item.
+// Idempotent per calendar day: re-running the same day updates the existing
+// LATE line to the freshly computed amount rather than stacking a second one,
+// so a retried or duplicated cron trigger cannot double-charge a tenant.
+router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
+  try {
+    const body = applyLateFeesSchema.parse(req.body);
+    const asOf = body.asOf ? new Date(body.asOf) : new Date();
+
+    const targetBills = await db
+      .select({
+        bill: bill,
+        plan: rentPlan,
+      })
+      .from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
+      .where(
+        and(
+          eq(tenant.propertyId, req.propertyId!),
+          body.billIds ? inArray(bill.id, body.billIds) : sql`true`,
+        ),
+      );
+
+    const updatedBills = await db.transaction(async (tx) => {
+      const updated: (typeof bill.$inferSelect)[] = [];
+
+      for (const { bill: b, plan } of targetBills) {
+        const { amount, daysOverdue } = calculateLateFee({
+          dueDate: b.dueDate,
+          lateFeePerDay: plan?.lateFeePerDay,
+          asOf,
+          balance: b.balance,
+          voidedAt: b.voidedAt,
+        });
+
+        const withoutLateFee = (b.lineItems as { code: string; name: string; amount: number }[]).filter(
+          (line) => line.code !== "LATE",
+        );
+
+        if (amount <= 0) {
+          // No longer overdue (paid, voided, or the date rolled back): if a
+          // stale LATE line exists from a previous run, remove it too.
+          if (withoutLateFee.length !== (b.lineItems as unknown[]).length) {
+            const totalAmount = withoutLateFee.reduce((sum, line) => sum + line.amount, 0);
+            const [row] = await tx
+              .update(bill)
+              .set({
+                lineItems: withoutLateFee,
+                totalAmount,
+                balance: Math.max(0, totalAmount - b.paidAmount),
+                updatedAt: new Date(),
+              })
+              .where(eq(bill.id, b.id))
+              .returning();
+            if (row) updated.push(row);
+          }
+          continue;
+        }
+
+        const lineItems = [
+          ...withoutLateFee,
+          { code: "LATE", name: `Late fee (${daysOverdue}d)`, amount },
+        ];
+        const totalAmount = lineItems.reduce((sum, line) => sum + line.amount, 0);
+
+        const [row] = await tx
+          .update(bill)
+          .set({
+            lineItems,
+            totalAmount,
+            balance: Math.max(0, totalAmount - b.paidAmount),
+            updatedAt: new Date(),
+          })
+          .where(eq(bill.id, b.id))
+          .returning();
+
+        if (row) updated.push(row);
+      }
+
+      return updated;
+    });
+
+    res.json({
+      message: `Updated late fees on ${updatedBills.length} bill${updatedBills.length === 1 ? "" : "s"}`,
+      updated: updatedBills.length,
+      bills: updatedBills,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
+    res.status(500).json({ error: "Failed to apply late fees" });
   }
 });
 
