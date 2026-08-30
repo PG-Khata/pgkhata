@@ -57,18 +57,10 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       .where(and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active")));
 
     const generatedBills = [];
+    let skipped = 0;
 
     for (const { tenant: t, room: r } of activeTenants) {
       if (!r) continue;
-
-      // Check if bill already exists (idempotent)
-      const [existing] = await db
-        .select()
-        .from(bill)
-        .where(and(eq(bill.tenantId, t.id), eq(bill.billMonth, month)))
-        .limit(1);
-
-      if (existing) continue;
 
       // Calculate rent
       const rentAmount = t.monthlyRentOverride ?? r.monthlyRent;
@@ -103,6 +95,8 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
 
       const totalAmount = rentAmount + electricityAmount;
 
+      // Idempotency is enforced by bill_tenant_month_uq rather than by a
+      // read-then-insert check, which two concurrent runs both passed.
       const [newBill] = await db
         .insert(bill)
         .values({
@@ -114,13 +108,20 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
           balance: totalAmount,
           approved: false,
         })
+        .onConflictDoNothing({ target: [bill.tenantId, bill.billMonth] })
         .returning();
 
-      generatedBills.push(newBill);
+      if (newBill) {
+        generatedBills.push(newBill);
+      } else {
+        skipped += 1;
+      }
     }
 
     res.status(201).json({
       message: `Generated ${generatedBills.length} bills`,
+      generated: generatedBills.length,
+      skipped,
       bills: generatedBills,
     });
   } catch (error) {

@@ -1,4 +1,12 @@
-import { pgTable, text, timestamp, boolean, integer, uuid } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  timestamp,
+  boolean,
+  integer,
+  uuid,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 // Better Auth tables will be generated via CLI
 // These are placeholder exports that will be replaced
@@ -85,18 +93,27 @@ export const property = pgTable("property", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const room = pgTable("room", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  propertyId: uuid("property_id")
-    .notNull()
-    .references(() => property.id, { onDelete: "cascade" }),
-  number: text("number").notNull(),
-  type: text("type").notNull().default("single"),
-  capacity: integer("capacity").notNull().default(1),
-  monthlyRent: integer("monthly_rent").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const room = pgTable(
+  "room",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    number: text("number").notNull(),
+    type: text("type").notNull().default("single"),
+    capacity: integer("capacity").notNull().default(1),
+    monthlyRent: integer("monthly_rent").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // Room numbers identify a room to the owner and to tenants; two "101"s in
+    // one property make bills ambiguous. The application checked this, but a
+    // concurrent create slipped through.
+    uniqueIndex("room_property_number_uq").on(table.propertyId, table.number),
+  ],
+);
 
 export const electricityReading = pgTable("electricity_reading", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -113,7 +130,9 @@ export const tenant = pgTable("tenant", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")
     .notNull()
-    .references(() => property.id, { onDelete: "cascade" }),
+    // restrict, not cascade: deleting a property must not silently erase its
+    // tenants and, through them, every bill and payment ever recorded.
+    .references(() => property.id, { onDelete: "restrict" }),
   roomId: uuid("room_id")
     .references(() => room.id, { onDelete: "set null" }),
   name: text("name").notNull(),
@@ -129,29 +148,41 @@ export const tenant = pgTable("tenant", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const bill = pgTable("bill", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenant.id, { onDelete: "cascade" }),
-  billMonth: text("bill_month").notNull(),
-  rentAmount: integer("rent_amount").notNull(),
-  electricityAmount: integer("electricity_amount").notNull().default(0),
-  totalAmount: integer("total_amount").notNull(),
-  paidAmount: integer("paid_amount").notNull().default(0),
-  balance: integer("balance").notNull(),
-  status: text("status").notNull().default("pending"),
-  dueDate: timestamp("due_date"),
-  approved: boolean("approved").notNull().default(false),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const bill = pgTable(
+  "bill",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      // restrict: a bill is a financial record. Deleting a tenant must not
+      // remove their billing history.
+      .references(() => tenant.id, { onDelete: "restrict" }),
+    billMonth: text("bill_month").notNull(),
+    rentAmount: integer("rent_amount").notNull(),
+    electricityAmount: integer("electricity_amount").notNull().default(0),
+    totalAmount: integer("total_amount").notNull(),
+    paidAmount: integer("paid_amount").notNull().default(0),
+    balance: integer("balance").notNull(),
+    status: text("status").notNull().default("pending"),
+    dueDate: timestamp("due_date"),
+    approved: boolean("approved").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // Billing idempotency. The generation loop checked for an existing bill
+    // first, but two concurrent runs both passed the check and both inserted.
+    // The legacy schema had this constraint; the rebuild dropped it.
+    uniqueIndex("bill_tenant_month_uq").on(table.tenantId, table.billMonth),
+  ],
+);
 
 export const payment = pgTable("payment", {
   id: uuid("id").primaryKey().defaultRandom(),
   billId: uuid("bill_id")
     .notNull()
-    .references(() => bill.id, { onDelete: "cascade" }),
+    // restrict: payments are the source of truth for what a tenant has paid.
+    .references(() => bill.id, { onDelete: "restrict" }),
   amount: integer("amount").notNull(),
   paymentDate: timestamp("payment_date").notNull(),
   method: text("method"),

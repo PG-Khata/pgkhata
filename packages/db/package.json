@@ -13,7 +13,8 @@
     "migrate": "drizzle-kit migrate",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
-    "backfill:owner-profiles": "tsx scripts/backfill-owner-profiles.ts"
+    "backfill:owner-profiles": "tsx scripts/backfill-owner-profiles.ts",
+    "inspect:constraints": "tsx scripts/inspect-constraint-readiness.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.2",
