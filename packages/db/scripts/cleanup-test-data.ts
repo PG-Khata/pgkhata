@@ -25,6 +25,8 @@ import {
   payment,
   electricityReading,
   complaint,
+  advancePayment,
+  securityDeposit,
   session,
   account,
 } from "../src/index";
@@ -64,27 +66,35 @@ async function main() {
           .where(inArray(room.propertyId, propertyIds));
         const roomIds = rooms.map((r) => r.id);
 
-        if (roomIds.length > 0) {
-          const tenants = await db
-            .select({ id: tenant.id })
-            .from(tenant)
-            .where(inArray(tenant.roomId, roomIds));
-          const tenantIds = tenants.map((t) => t.id);
+        // Scope tenants by property_id directly, not just via roomIds — a
+        // tenant can exist without a room (e.g. before bed assignment), and
+        // scoping only through rooms leaves those orphaned.
+        const tenants = await db
+          .select({ id: tenant.id })
+          .from(tenant)
+          .where(inArray(tenant.propertyId, propertyIds));
+        const tenantIds = tenants.map((t) => t.id);
 
-          if (tenantIds.length > 0) {
-            const bills = await db
-              .select({ id: bill.id })
-              .from(bill)
-              .where(inArray(bill.tenantId, tenantIds));
-            const billIds = bills.map((b) => b.id);
-            if (billIds.length > 0) {
-              await db.delete(payment).where(inArray(payment.billId, billIds));
-            }
-            await db.delete(bill).where(inArray(bill.tenantId, tenantIds));
+        if (tenantIds.length > 0) {
+          const bills = await db
+            .select({ id: bill.id })
+            .from(bill)
+            .where(inArray(bill.tenantId, tenantIds));
+          const billIds = bills.map((b) => b.id);
+          if (billIds.length > 0) {
+            await db.delete(payment).where(inArray(payment.billId, billIds));
           }
+          await db.delete(bill).where(inArray(bill.tenantId, tenantIds));
+          await db.delete(advancePayment).where(inArray(advancePayment.tenantId, tenantIds));
+        }
 
-          await db.update(tenant).set({ bedId: null }).where(inArray(tenant.roomId, roomIds));
-          await db.delete(tenant).where(inArray(tenant.roomId, roomIds));
+        await db.delete(securityDeposit).where(inArray(securityDeposit.propertyId, propertyIds));
+
+        if (tenantIds.length > 0) {
+          await db.update(tenant).set({ bedId: null }).where(inArray(tenant.id, tenantIds));
+          await db.delete(tenant).where(inArray(tenant.id, tenantIds));
+        }
+        if (roomIds.length > 0) {
           await db.delete(electricityReading).where(inArray(electricityReading.roomId, roomIds));
           await db.delete(bed).where(inArray(bed.roomId, roomIds));
         }

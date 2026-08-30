@@ -360,6 +360,39 @@ export const advancePayment = pgTable(
   ],
 );
 
+export const securityDeposit = pgTable(
+  "security_deposit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      // restrict: a held deposit is money the owner still owes back or is
+      // entitled to keep against damages. Deleting the tenant must not erase
+      // the record of what is owed.
+      .references(() => tenant.id, { onDelete: "restrict" }),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    /** held: nothing refunded yet. partial: some refunded. refunded: fully settled. */
+    status: text("status").notNull().default("held"),
+    refundAmount: integer("refund_amount").notNull().default(0),
+    refundDate: timestamp("refund_date"),
+    /** Owner's committed date for returning the balance; informational only. */
+    promisedDate: timestamp("promised_date"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check("security_deposit_amount_positive", sql`${table.amount} > 0`),
+    check(
+      "security_deposit_refund_within_amount",
+      sql`${table.refundAmount} >= 0 and ${table.refundAmount} <= ${table.amount}`,
+    ),
+  ],
+);
+
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

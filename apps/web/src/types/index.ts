@@ -78,6 +78,31 @@ export interface AdvancePaymentWithTenant {
   tenantName: string
 }
 
+export interface SecurityDeposit {
+  id: string
+  tenantId: string
+  propertyId: string
+  amount: number
+  status: "held" | "partial" | "refunded"
+  refundAmount: number
+  refundDate?: string | null
+  promisedDate?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SecurityDepositWithTenant {
+  deposit: SecurityDeposit
+  tenantName: string
+}
+
+export interface DepositLiabilityReport {
+  totalHeld: number
+  totalRefunded: number
+  netLiability: number
+}
+
 export interface ChargeType {
   id: string
   propertyId: string
