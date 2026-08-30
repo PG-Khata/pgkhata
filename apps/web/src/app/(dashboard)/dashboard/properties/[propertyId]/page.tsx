@@ -3,8 +3,14 @@
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useProperty } from "@/hooks/use-properties"
-import { usePropertyDashboard } from "@/hooks/use-dashboard"
+import {
+  usePropertyDashboard,
+  useMonthlyTrend,
+  useDueRent,
+  useOutstandingAging,
+} from "@/hooks/use-dashboard"
 import { StatGroup } from "@/components/dashboard/stat-row"
+import { MonthlyTrendChart } from "@/components/dashboard/monthly-trend-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
@@ -15,6 +21,9 @@ export default function PropertyDetailPage() {
   const propertyId = params.propertyId as string
   const { data: property, isLoading: propLoading } = useProperty(propertyId)
   const { data: dashboard, isLoading: dashLoading } = usePropertyDashboard(propertyId)
+  const { data: trend, isLoading: trendLoading } = useMonthlyTrend(propertyId)
+  const { data: dueRent, isLoading: dueRentLoading } = useDueRent(propertyId)
+  const { data: aging } = useOutstandingAging(propertyId)
 
   if (propLoading) {
     return (
@@ -124,6 +133,90 @@ export default function PropertyDetailPage() {
           />
         </>
       )}
+
+      <div className="space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          6-month trend
+        </p>
+        <div className="border-b" />
+      </div>
+      {trendLoading ? (
+        <Skeleton className="h-56 w-full" />
+      ) : trend && trend.length > 0 ? (
+        <MonthlyTrendChart data={trend} />
+      ) : null}
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Due rent
+            </p>
+            <div className="border-b" />
+          </div>
+          {dueRentLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : dueRent && dueRent.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="pb-2 font-medium">Tenant</th>
+                    <th className="pb-2 font-medium">Room</th>
+                    <th className="pb-2 text-right font-medium">Due</th>
+                    <th className="pb-2 text-right font-medium">Days</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dueRent.map((row) => (
+                    <tr key={row.tenantId} className="border-b last:border-0">
+                      <td className="py-2 font-medium">{row.tenantName}</td>
+                      <td className="py-2 text-muted-foreground">{row.roomNumber ?? "—"}</td>
+                      <td className="py-2 text-right font-mono">
+                        {formatCurrency(row.amountDue)}
+                      </td>
+                      <td className="py-2 text-right font-mono text-muted-foreground">
+                        {row.daysOverdue > 0 ? row.daysOverdue : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">No rent is currently due.</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <div className="space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Outstanding by age
+            </p>
+            <div className="border-b" />
+          </div>
+          {aging && aging.total > 0 ? (
+            <div className="space-y-1.5">
+              {aging.buckets
+                .filter((b) => b.total > 0)
+                .map((b) => (
+                  <div key={b.bucket} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {b.bucket === "current" ? "Not yet due" : `${b.bucket} days`}
+                    </span>
+                    <span className="font-mono">{formatCurrency(b.total)}</span>
+                  </div>
+                ))}
+              <div className="flex items-center justify-between border-t pt-1.5 text-sm font-medium">
+                <span>Total outstanding</span>
+                <span className="font-mono">{formatCurrency(aging.total)}</span>
+              </div>
+            </div>
+          ) : (
+            <p className="py-4 text-sm text-muted-foreground">Nothing outstanding.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

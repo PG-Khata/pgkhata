@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { db, property, room, bed, tenant, bill } from "@pgkhata/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { db, property, room, bed, tenant, bill, payment, expense } from "@pgkhata/db";
+import { eq, and, sql, inArray, gte } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { aggregate } from "../lib/http";
+import { daysOverdue, summarizeAging, buildMonthlyTrend } from "../lib/dashboard-analytics";
 
 const router = Router();
 
@@ -207,6 +208,134 @@ router.get(
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch property dashboard" });
+    }
+  },
+);
+
+/** Last 6 calendar months of rent collected vs approved expenses. */
+router.get(
+  "/property/:propertyId/monthly-trend",
+  requireAuth,
+  requireOwner,
+  requireProperty,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const propertyId = req.propertyId!;
+      const months = 6;
+      const since = new Date();
+      since.setMonth(since.getMonth() - (months - 1));
+      since.setDate(1);
+      since.setHours(0, 0, 0, 0);
+
+      const collectedRows = await db
+        .select({
+          month: sql<string>`to_char(${payment.paymentDate}, 'YYYY-MM')`,
+          collected: sql<number>`coalesce(sum(${payment.amount}), 0)::int`,
+        })
+        .from(payment)
+        .innerJoin(bill, eq(payment.billId, bill.id))
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(and(eq(tenant.propertyId, propertyId), gte(payment.paymentDate, since)))
+        .groupBy(sql`to_char(${payment.paymentDate}, 'YYYY-MM')`);
+
+      const expenseRows = await db
+        .select({
+          month: sql<string>`to_char(${expense.date}, 'YYYY-MM')`,
+          expenses: sql<number>`coalesce(sum(${expense.amount}), 0)::int`,
+        })
+        .from(expense)
+        .where(
+          and(
+            eq(expense.propertyId, propertyId),
+            eq(expense.status, "approved"),
+            gte(expense.date, since),
+          ),
+        )
+        .groupBy(sql`to_char(${expense.date}, 'YYYY-MM')`);
+
+      const collectedByMonth = new Map(collectedRows.map((r) => [r.month, r.collected]));
+      const expensesByMonth = new Map(expenseRows.map((r) => [r.month, r.expenses]));
+      const allMonths = new Set([...collectedByMonth.keys(), ...expensesByMonth.keys()]);
+
+      const merged = Array.from(allMonths).map((month) => ({
+        month,
+        collected: collectedByMonth.get(month) ?? 0,
+        expenses: expensesByMonth.get(month) ?? 0,
+      }));
+
+      res.json(buildMonthlyTrend(merged, months));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch monthly trend" });
+    }
+  },
+);
+
+/** Tenants with an outstanding bill balance, most overdue first. */
+router.get(
+  "/property/:propertyId/due-rent",
+  requireAuth,
+  requireOwner,
+  requireProperty,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = await db
+        .select({
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+          roomNumber: room.number,
+          amountDue: bill.balance,
+          dueDate: bill.dueDate,
+        })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .leftJoin(room, eq(tenant.roomId, room.id))
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`))
+        .orderBy(bill.dueDate);
+
+      const withOverdue = rows
+        .map((r) => ({
+          tenantId: r.tenantId,
+          tenantName: r.tenantName,
+          roomNumber: r.roomNumber,
+          amountDue: r.amountDue,
+          daysOverdue: daysOverdue(r.dueDate),
+        }))
+        .sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+      res.json(withOverdue);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch due rent" });
+    }
+  },
+);
+
+/** Outstanding balances grouped into aging buckets (current/0-30/31-60/61-90/90+). */
+router.get(
+  "/property/:propertyId/outstanding-payment",
+  requireAuth,
+  requireOwner,
+  requireProperty,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = await db
+        .select({
+          tenantId: tenant.id,
+          balance: bill.balance,
+          dueDate: bill.dueDate,
+        })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`));
+
+      const agingRows = rows.map((r) => ({
+        tenantId: r.tenantId,
+        balance: r.balance,
+        daysOverdue: daysOverdue(r.dueDate),
+      }));
+
+      res.json(summarizeAging(agingRows));
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch outstanding payment breakdown" });
     }
   },
 );

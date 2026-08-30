@@ -306,6 +306,31 @@ export interface PropertyDashboard {
   monthlyPending: number
 }
 
+export interface MonthlyTrendPoint {
+  month: string
+  collected: number
+  expenses: number
+}
+
+export interface DueRentRow {
+  tenantId: string
+  tenantName: string
+  roomNumber: string | null
+  amountDue: number
+  daysOverdue: number
+}
+
+export interface AgingBucketSummary {
+  bucket: "current" | "0-30" | "31-60" | "61-90" | "90+"
+  total: number
+  count: number
+}
+
+export interface AgingReport {
+  buckets: AgingBucketSummary[]
+  total: number
+}
+
 export interface BillWithDetails {
   bill: Bill
   tenantName: string
