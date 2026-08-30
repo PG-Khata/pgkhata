@@ -248,6 +248,17 @@ export const tenant = pgTable(
      * the public signup flow keep working. Cleared when the tenant vacates.
      */
     bedId: uuid("bed_id").references(() => bed.id, { onDelete: "restrict" }),
+    /**
+     * The room a self-registered tenant asked for at signup, before an owner
+     * has approved them and a real bed has been assigned. Kept separate from
+     * `roomId` (the room they actually occupy) so a pending signup never
+     * looks occupied or affects occupancy counts before approval.
+     */
+    requestedRoomId: uuid("requested_room_id").references(() => room.id, {
+      onDelete: "set null",
+    }),
+    /** Set once approved; lets the tenant reach a private onboarding page. */
+    onboardingToken: text("onboarding_token").unique(),
     name: text("name").notNull(),
     email: text("email"),
     phone: text("phone").notNull().unique(),

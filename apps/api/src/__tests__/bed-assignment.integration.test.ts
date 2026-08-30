@@ -349,7 +349,7 @@ describeDb("bed assignment (database)", () => {
     expect(freed!.status).toBe("vacant");
   });
 
-  it("enforces bed capacity through the public signup link", async () => {
+  it("does not assign a bed at signup — capacity is enforced when approving", async () => {
     const prop = await request(app)
       .get(`/v1/properties/${alice.propertyId}`)
       .set("Cookie", alice.cookie);
@@ -370,15 +370,33 @@ describeDb("bed assignment (database)", () => {
         .send({ number: "401", capacity: 1, monthlyRent: 7000 })
     ).body.id as string;
 
+    // Signup no longer contends for a bed — it only records the request, so
+    // both pending signups succeed even though the room holds one bed.
     const first = await request(app)
       .post(`/public/signup/${token}`)
       .send({ name: "Public One", phone: nextPhone(), roomId });
     expect(first.status).toBe(201);
+    expect(first.body.tenant.status).toBe("pending");
+    expect(first.body.tenant.bedId).toBeNull();
 
     const second = await request(app)
       .post(`/public/signup/${token}`)
       .send({ name: "Public Two", phone: nextPhone(), roomId });
-    expect(second.status).toBe(409);
-    expect(second.body.error).toMatch(/no vacant beds/i);
+    expect(second.status).toBe(201);
+    expect(second.body.tenant.status).toBe("pending");
+
+    // Capacity is enforced when the owner approves — the first approval
+    // takes the room's only bed, the second is refused.
+    const approveFirst = await request(app)
+      .post(tenants(alice, `/${first.body.tenant.id}/approve`))
+      .set("Cookie", alice.cookie);
+    expect(approveFirst.status).toBe(200);
+    expect(approveFirst.body.status).toBe("active");
+
+    const approveSecond = await request(app)
+      .post(tenants(alice, `/${second.body.tenant.id}/approve`))
+      .set("Cookie", alice.cookie);
+    expect(approveSecond.status).toBe(409);
+    expect(approveSecond.body.error).toMatch(/no vacant beds/i);
   });
 });

@@ -9,6 +9,7 @@ import {
   assignTenantToBed,
   vacateTenantBed,
 } from "../lib/tenant-assignment";
+import { decideTenantApproval, generateOnboardingToken } from "../lib/tenant-approval";
 
 const router = Router({ mergeParams: true });
 
@@ -27,7 +28,7 @@ const createTenantSchema = z.object({
 });
 
 const updateTenantSchema = createTenantSchema.partial().extend({
-  status: z.enum(["active", "vacating", "vacated"]).optional(),
+  status: z.enum(["pending", "active", "vacating", "vacated", "rejected"]).optional(),
   vacatingDate: z.string().transform((str) => new Date(str)).optional(),
 });
 
@@ -217,6 +218,103 @@ router.post("/:tenantId/vacate-bed", async (req: AuthenticatedRequest, res, next
   } catch (error) {
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to release bed" });
+  }
+});
+
+/**
+ * Approve or reject a tenant who signed up through the public link.
+ * Approving places them in the room they requested at signup (first vacant
+ * bed there) in the same step — a pending tenant holds no bed, so there is
+ * nothing to place until this succeeds. Rejecting never touches a bed.
+ */
+async function decideApproval(
+  req: AuthenticatedRequest,
+  res: import("express").Response,
+  next: import("express").NextFunction,
+  decision: "approve" | "reject",
+) {
+  try {
+    const tenantId = param(req, "tenantId");
+
+    const [target] = await db
+      .select()
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "Tenant not found" });
+
+    const result = decideTenantApproval(target, decision);
+    if (!result.ok) {
+      return res.status(409).json({ error: "This tenant has already been decided" });
+    }
+
+    if (decision === "reject") {
+      const [updated] = await db
+        .update(tenant)
+        .set({ status: "rejected", updatedAt: new Date() })
+        .where(eq(tenant.id, tenantId))
+        .returning();
+      return res.json(updated);
+    }
+
+    // Approve: assign the requested room's first vacant bed, then activate.
+    // If no room was requested (a manually-added tenant somehow left
+    // pending), activate without placing them — the owner assigns a bed
+    // separately via assign-bed.
+    if (target.requestedRoomId) {
+      await assignTenantToBed(req.propertyId!, tenantId, { roomId: target.requestedRoomId });
+    }
+
+    const [updated] = await db
+      .update(tenant)
+      .set({
+        status: "active",
+        onboardingToken: generateOnboardingToken(),
+        updatedAt: new Date(),
+      })
+      .where(eq(tenant.id, tenantId))
+      .returning();
+
+    res.json(updated);
+  } catch (error) {
+    if (error instanceof HttpError) return next(error);
+    res.status(500).json({ error: `Failed to ${decision} tenant` });
+  }
+}
+
+router.post("/:tenantId/approve", (req: AuthenticatedRequest, res, next) =>
+  decideApproval(req, res, next, "approve"),
+);
+router.post("/:tenantId/reject", (req: AuthenticatedRequest, res, next) =>
+  decideApproval(req, res, next, "reject"),
+);
+
+/** (Re)issue the private onboarding link for an already-approved tenant. */
+router.post("/:tenantId/onboarding-link", async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = param(req, "tenantId");
+
+    const [target] = await db
+      .select({ id: tenant.id, status: tenant.status })
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "Tenant not found" });
+    if (target.status !== "active") {
+      return res.status(409).json({ error: "Only an approved tenant can have an onboarding link" });
+    }
+
+    const onboardingToken = generateOnboardingToken();
+    await db
+      .update(tenant)
+      .set({ onboardingToken, updatedAt: new Date() })
+      .where(eq(tenant.id, tenantId));
+
+    res.json({ onboardingToken });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate onboarding link" });
   }
 });
 

@@ -56,3 +56,36 @@ export function useDeleteTenant(propertyId: string) {
     },
   })
 }
+
+export function useApproveTenant(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tenantId: string) =>
+      api.post<Tenant>(`/v1/properties/${propertyId}/tenants/${tenantId}/approve`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenants", propertyId] })
+      qc.invalidateQueries({ queryKey: ["dashboard"] })
+    },
+  })
+}
+
+export function useRejectTenant(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (tenantId: string) =>
+      api.post<Tenant>(`/v1/properties/${propertyId}/tenants/${tenantId}/reject`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tenants", propertyId] })
+      qc.invalidateQueries({ queryKey: ["dashboard"] })
+    },
+  })
+}
+
+export function useGenerateOnboardingLink(propertyId: string) {
+  return useMutation({
+    mutationFn: (tenantId: string) =>
+      api.post<{ onboardingToken: string }>(
+        `/v1/properties/${propertyId}/tenants/${tenantId}/onboarding-link`,
+      ),
+  })
+}

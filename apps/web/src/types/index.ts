@@ -210,10 +210,12 @@ export interface Tenant {
   propertyId: string
   roomId?: string | null
   bedId?: string | null
+  requestedRoomId?: string | null
+  onboardingToken?: string | null
   name: string
   email?: string
   phone: string
-  status: "active" | "vacating" | "vacated"
+  status: "pending" | "active" | "vacating" | "vacated" | "rejected"
   joiningDate: string
   vacatingDate?: string
   monthlyRentOverride?: number

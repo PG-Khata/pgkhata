@@ -2,8 +2,6 @@ import { Router } from "express";
 import { z } from "zod";
 import { db, property, room, tenant, complaint } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
-import { HttpError } from "../lib/http";
-import { assignTenantToBed } from "../lib/tenant-assignment";
 
 const router = Router();
 
@@ -83,6 +81,10 @@ router.post("/signup/:token", async (req, res) => {
       return res.status(409).json({ error: "Phone already registered" });
     }
 
+    // Self-registered tenants start pending: no bed is assigned and they do
+    // not count toward occupancy until the owner approves them. The room
+    // they asked for is remembered on requestedRoomId so approval knows where
+    // to place them.
     const [newTenant] = await db
       .insert(tenant)
       .values({
@@ -90,8 +92,9 @@ router.post("/signup/:token", async (req, res) => {
         name: body.name,
         phone: body.phone,
         email: body.email,
+        requestedRoomId: body.roomId,
         joiningDate: new Date(),
-        status: "active",
+        status: "pending",
       })
       .returning();
 
@@ -99,22 +102,10 @@ router.post("/signup/:token", async (req, res) => {
       return res.status(500).json({ error: "Failed to process signup" });
     }
 
-    // Same assignment path as the owner-facing route: the tenant picks a room,
-    // the system takes its first vacant bed. Capacity is therefore enforced by
-    // real beds and the tenant_bed_uq index rather than by a counted query that
-    // two simultaneous signups could both pass.
-    try {
-      await assignTenantToBed(prop.id, newTenant.id, { roomId: body.roomId });
-    } catch (error) {
-      await db.delete(tenant).where(eq(tenant.id, newTenant.id));
-
-      if (error instanceof HttpError) {
-        return res.status(error.status).json({ error: error.message });
-      }
-      throw error;
-    }
-
-    res.status(201).json({ message: "Signup successful", tenant: newTenant });
+    res.status(201).json({
+      message: "Signup received. The owner will review and approve it shortly.",
+      tenant: newTenant,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Validation error", details: error.errors });
@@ -170,6 +161,42 @@ router.post("/complaint/:token", async (req, res) => {
       return res.status(400).json({ error: "Validation error", details: error.errors });
     }
     res.status(500).json({ error: "Failed to submit complaint" });
+  }
+});
+
+// Get onboarding status by token (public) — the private link an approved
+// tenant is given, so they can see their placement without an account.
+router.get("/onboarding/:token", async (req, res) => {
+  try {
+    const [t] = await db
+      .select({
+        id: tenant.id,
+        name: tenant.name,
+        status: tenant.status,
+        roomId: tenant.roomId,
+        bedId: tenant.bedId,
+        joiningDate: tenant.joiningDate,
+      })
+      .from(tenant)
+      .where(eq(tenant.onboardingToken, req.params.token))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Invalid onboarding link" });
+
+    let roomNumber: string | null = null;
+    if (t.roomId) {
+      const [r] = await db.select({ number: room.number }).from(room).where(eq(room.id, t.roomId)).limit(1);
+      roomNumber = r?.number ?? null;
+    }
+
+    res.json({
+      name: t.name,
+      status: t.status,
+      roomNumber,
+      joiningDate: t.joiningDate,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch onboarding status" });
   }
 });
 
