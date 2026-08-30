@@ -6,12 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useCreateRoom } from "@/hooks/use-rooms"
 import { useFloors } from "@/hooks/use-floors"
+import { useRentPlans } from "@/hooks/use-rent-plans"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { ApiError } from "@/lib/api-client"
+import { formatCurrency } from "@/lib/utils"
 
 const schema = z.object({
   number: z.string().min(1, "Room number is required").max(20),
@@ -20,6 +22,7 @@ const schema = z.object({
   monthlyRent: z.preprocess((v) => Number(v), z.number().min(0, "Rent must be positive")),
   // "" means unassigned; the API expects null rather than an empty string.
   floorId: z.string().optional(),
+  rentPlanId: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -30,6 +33,7 @@ export default function NewRoomPage() {
   const propertyId = params.propertyId as string
   const createRoom = useCreateRoom(propertyId)
   const { data: floors } = useFloors(propertyId)
+  const { data: plans } = useRentPlans(propertyId)
 
   const {
     register,
@@ -53,7 +57,11 @@ export default function NewRoomPage() {
 
   function onSubmit(data: FormData) {
     createRoom.mutate(
-      { ...data, floorId: data.floorId ? data.floorId : null },
+      {
+        ...data,
+        floorId: data.floorId ? data.floorId : null,
+        rentPlanId: data.rentPlanId ? data.rentPlanId : null,
+      },
       {
         onSuccess: () => {
           toast.success("Room created")
@@ -134,11 +142,32 @@ export default function NewRoomPage() {
         </div>
 
         <div className="space-y-1.5">
+          <label className="text-sm font-medium" htmlFor="rentPlanId">
+            Rent plan
+          </label>
+          <select
+            id="rentPlanId"
+            {...register("rentPlanId")}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          >
+            <option value="">None — use the rent below</option>
+            {plans?.map(({ plan }) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.name} ({formatCurrency(plan.monthlyRent)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="text-sm font-medium">Monthly rent (₹) *</label>
           <Input type="number" placeholder="8000" {...register("monthlyRent")} />
           {errors.monthlyRent && (
             <p className="text-xs text-destructive">{errors.monthlyRent.message}</p>
           )}
+          <p className="text-xs text-muted-foreground">
+            Used when no rent plan is attached, or as the base if it is.
+          </p>
         </div>
 
         <div className="flex gap-3 pt-2">

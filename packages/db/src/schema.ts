@@ -6,6 +6,7 @@ import {
   integer,
   uuid,
   uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -113,6 +114,37 @@ export const floor = pgTable(
   ],
 );
 
+export const rentPlan = pgTable(
+  "rent_plan",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    monthlyRent: integer("monthly_rent").notNull(),
+    securityDeposit: integer("security_deposit"),
+    /** Day of the month rent is due; capped at 28 so it exists in every month. */
+    dueDay: integer("due_day").notNull().default(1),
+    lateFeePerDay: integer("late_fee_per_day"),
+    isActive: boolean("is_active").notNull().default(true),
+    minStayMonths: integer("min_stay_months"),
+    noticePeriodDays: integer("notice_period_days"),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("rent_plan_property_name_uq").on(table.propertyId, table.name),
+    check("rent_plan_due_day_range", sql`${table.dueDay} between 1 and 28`),
+    check("rent_plan_rent_nonnegative", sql`${table.monthlyRent} >= 0`),
+    check(
+      "rent_plan_late_fee_nonnegative",
+      sql`${table.lateFeePerDay} is null or ${table.lateFeePerDay} >= 0`,
+    ),
+  ],
+);
+
 export const room = pgTable(
   "room",
   {
@@ -124,6 +156,13 @@ export const room = pgTable(
     // model floors, group under "Unassigned". restrict, so removing a floor
     // cannot silently orphan its rooms.
     floorId: uuid("floor_id").references(() => floor.id, { onDelete: "restrict" }),
+    /**
+     * Nullable and restrict: a plan in use cannot be deleted out from under a
+     * room, but a room need not have one — monthlyRent below is the fallback.
+     */
+    rentPlanId: uuid("rent_plan_id").references(() => rentPlan.id, {
+      onDelete: "restrict",
+    }),
     number: text("number").notNull(),
     type: text("type").notNull().default("single"),
     capacity: integer("capacity").notNull().default(1),

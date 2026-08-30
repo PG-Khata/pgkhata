@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, bill, tenant, room, electricityReading } from "@pgkhata/db";
+import { db, bill, tenant, room, bed, rentPlan, electricityReading } from "@pgkhata/db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { aggregate } from "../lib/http";
+import { resolveMonthlyRent } from "../lib/rent";
 
 const router = Router({ mergeParams: true });
 
@@ -51,19 +52,28 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       .select({
         tenant: tenant,
         room: room,
+        bed: bed,
+        plan: rentPlan,
       })
       .from(tenant)
       .leftJoin(room, eq(tenant.roomId, room.id))
+      .leftJoin(bed, eq(tenant.bedId, bed.id))
+      .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
       .where(and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active")));
 
     const generatedBills = [];
     let skipped = 0;
 
-    for (const { tenant: t, room: r } of activeTenants) {
+    for (const { tenant: t, room: r, bed: b, plan } of activeTenants) {
       if (!r) continue;
 
-      // Calculate rent
-      const rentAmount = t.monthlyRentOverride ?? r.monthlyRent;
+      // Rent resolution: tenant override -> bed override -> rent plan -> room.
+      const { amount: rentAmount } = resolveMonthlyRent({
+        tenantOverride: t.monthlyRentOverride,
+        bedRent: b?.monthlyRent,
+        planRent: plan?.monthlyRent,
+        roomRent: r.monthlyRent,
+      });
 
       // Calculate electricity
       let electricityAmount = 0;

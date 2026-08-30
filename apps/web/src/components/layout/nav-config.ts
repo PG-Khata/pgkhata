@@ -56,7 +56,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Setup",
     items: [
       { label: "Readings", href: "/dashboard/readings", icon: Zap },
-      { label: "Rent plans", href: "/dashboard/rent-plans", icon: ClipboardList, upcoming: true },
+      { label: "Rent plans", href: "/dashboard/rent-plans", icon: ClipboardList },
       { label: "Charge types", href: "/dashboard/charge-types", icon: Tags, upcoming: true },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },
     ],

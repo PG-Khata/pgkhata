@@ -61,10 +61,32 @@ export interface BedWithLocation {
   floorName?: string | null
 }
 
+export interface RentPlan {
+  id: string
+  propertyId: string
+  name: string
+  monthlyRent: number
+  securityDeposit?: number | null
+  dueDay: number
+  lateFeePerDay?: number | null
+  isActive: boolean
+  minStayMonths?: number | null
+  noticePeriodDays?: number | null
+  description?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RentPlanWithRoomCount {
+  plan: RentPlan
+  roomCount: number
+}
+
 export interface Room {
   id: string
   propertyId: string
   floorId?: string | null
+  rentPlanId?: string | null
   number: string
   type: "single" | "double" | "triple" | "dormitory"
   capacity: number
@@ -74,6 +96,9 @@ export interface Room {
   /** Joined from the room's floor; null when unassigned. */
   floorName?: string | null
   floorPosition?: number | null
+  /** Joined from the room's rent plan, if any. */
+  planName?: string | null
+  planRent?: number | null
   /** Beds belonging to this room, ordered by label. */
   beds?: Bed[]
 }

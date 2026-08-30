@@ -43,6 +43,13 @@
       "when": 1788092054870,
       "tag": "0005_acoustic_proudstar",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788092982450,
+      "tag": "0006_mighty_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

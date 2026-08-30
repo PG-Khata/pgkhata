@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, room, floor, bed } from "@pgkhata/db";
+import { db, room, floor, bed, rentPlan } from "@pgkhata/db";
 import { eq, and, asc, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
@@ -15,6 +15,7 @@ const createRoomSchema = z.object({
   capacity: z.number().min(1).max(20).default(1),
   monthlyRent: z.number().min(0),
   floorId: z.string().uuid().nullable().optional(),
+  rentPlanId: z.string().uuid().nullable().optional(),
 });
 
 const updateRoomSchema = createRoomSchema.partial();
@@ -37,6 +38,22 @@ async function assertFloorInProperty(
   return Boolean(f);
 }
 
+/** Same shape of check for the rent plan a room is priced under. */
+async function assertPlanInProperty(
+  propertyId: string,
+  planId: string | null | undefined,
+): Promise<boolean> {
+  if (!planId) return true;
+
+  const [p] = await db
+    .select({ id: rentPlan.id })
+    .from(rentPlan)
+    .where(and(eq(rentPlan.id, planId), eq(rentPlan.propertyId, propertyId)))
+    .limit(1);
+
+  return Boolean(p);
+}
+
 // Get all rooms for property, grouped-ready with floor details and beds
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
@@ -45,9 +62,12 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         room: room,
         floorName: floor.name,
         floorPosition: floor.position,
+        planName: rentPlan.name,
+        planRent: rentPlan.monthlyRent,
       })
       .from(room)
       .leftJoin(floor, eq(room.floorId, floor.id))
+      .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
       .where(eq(room.propertyId, req.propertyId!))
       .orderBy(asc(floor.position), asc(room.number));
 
@@ -73,6 +93,8 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         ...row.room,
         floorName: row.floorName,
         floorPosition: row.floorPosition,
+        planName: row.planName,
+        planRent: row.planRent,
         beds: bedsByRoom.get(row.room.id) ?? [],
       })),
     );
@@ -112,6 +134,10 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 
     if (!(await assertFloorInProperty(req.propertyId!, body.floorId))) {
       return res.status(404).json({ error: "Floor not found" });
+    }
+
+    if (!(await assertPlanInProperty(req.propertyId!, body.rentPlanId))) {
+      return res.status(404).json({ error: "Rent plan not found" });
     }
 
     // One transaction so a room can never exist without its beds — occupancy
@@ -159,6 +185,10 @@ router.put("/:roomId", async (req: AuthenticatedRequest, res) => {
 
     if (!(await assertFloorInProperty(req.propertyId!, body.floorId))) {
       return res.status(404).json({ error: "Floor not found" });
+    }
+
+    if (!(await assertPlanInProperty(req.propertyId!, body.rentPlanId))) {
+      return res.status(404).json({ error: "Rent plan not found" });
     }
 
     const [existingRoom] = await db
