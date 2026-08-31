@@ -5,15 +5,13 @@ const testimonials = [
     content:
       "PGKhata has completely transformed how I manage my PG. The WhatsApp integration alone saves me hours every month. I used to spend 2-3 hours daily chasing tenants for rent.",
     rating: 5,
-    avatar: "RK",
   },
   {
     name: "Priya Sharma",
     role: "PG Owner, Bangalore",
     content:
-      "I was paying ₹3,600/year for another software. PGKhata does everything for free. It's incredible! The police verification feature is a lifesaver for compliance.",
+      "I was paying 3,600 rupees per year for another software. PGKhata does everything for free. The police verification feature is a lifesaver for compliance.",
     rating: 5,
-    avatar: "PS",
   },
   {
     name: "Amit Patel",
@@ -21,30 +19,25 @@ const testimonials = [
     content:
       "The auto bill generation and WhatsApp reminders have reduced my rent collection time by 80%. I can now focus on growing my business instead of chasing payments.",
     rating: 5,
-    avatar: "AP",
   },
   {
     name: "Sneha Reddy",
     role: "PG Owner, Hyderabad",
     content:
-      "Best PG management software I've used. The dashboard gives me a clear view of all my properties. The QR code signup feature is genius for onboarding new tenants.",
+      "Best PG management software I have used. The dashboard gives me a clear view of all my properties. The QR code signup feature is genius for onboarding new tenants.",
     rating: 5,
-    avatar: "SR",
   },
 ];
 
 export default function Testimonials() {
   return (
-    <section className="py-24 bg-[#0a0a0a]">
+    <section className="py-24 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-2 mb-6">
-            <span className="text-sm text-purple-400">Testimonials</span>
-          </div>
-          <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
             What PG Owners Say
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Trusted by PG owners across India.
           </p>
         </div>
@@ -53,7 +46,7 @@ export default function Testimonials() {
           {testimonials.map((testimonial) => (
             <div
               key={testimonial.name}
-              className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 hover:bg-white/[0.05] hover:border-white/10 transition-all"
+              className="bg-white border border-gray-200 rounded-xl p-6 hover:border-gray-300 transition-colors"
             >
               <div className="flex gap-1 mb-4">
                 {Array.from({ length: testimonial.rating }).map((_, i) => (
@@ -62,15 +55,10 @@ export default function Testimonials() {
                   </svg>
                 ))}
               </div>
-              <p className="text-gray-400 mb-6">{testimonial.content}</p>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-sm font-semibold text-white">
-                  {testimonial.avatar}
-                </div>
-                <div>
-                  <div className="font-semibold text-white">{testimonial.name}</div>
-                  <div className="text-sm text-gray-500">{testimonial.role}</div>
-                </div>
+              <p className="text-gray-600 mb-6">{testimonial.content}</p>
+              <div>
+                <div className="font-semibold text-gray-900">{testimonial.name}</div>
+                <div className="text-sm text-gray-500">{testimonial.role}</div>
               </div>
             </div>
           ))}
