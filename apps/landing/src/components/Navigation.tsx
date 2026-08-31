@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navLinks = [
   { href: "#features", label: "Features" },
@@ -11,12 +11,27 @@ const navLinks = [
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <nav
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <a href="/" className="text-xl font-bold text-gray-900">
+          <a href="/" className="text-xl font-bold text-white">
             PGKhata
           </a>
 
@@ -25,21 +40,21 @@ export default function Navigation() {
               <a
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
               >
                 {link.label}
               </a>
             ))}
             <a
               href="https://app.pgkhata.com/register"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="bg-white text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors"
             >
               Get Started Free
             </a>
           </div>
 
           <button
-            className="md:hidden p-2"
+            className="md:hidden p-2 text-white"
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Toggle menu"
           >
@@ -69,13 +84,13 @@ export default function Navigation() {
         </div>
 
         {isOpen && (
-          <div className="md:hidden py-4 border-t border-gray-100">
+          <div className="md:hidden py-4 border-t border-white/10">
             <div className="flex flex-col gap-4">
               {navLinks.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
-                  className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                  className="text-sm font-medium text-gray-400 hover:text-white"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -83,7 +98,7 @@ export default function Navigation() {
               ))}
               <a
                 href="https://app.pgkhata.com/register"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium text-center"
+                className="bg-white text-black px-4 py-2 rounded-lg text-sm font-semibold text-center"
               >
                 Get Started Free
               </a>
