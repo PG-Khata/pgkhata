@@ -346,8 +346,7 @@ export async function sendBillNotification(params: {
         parameters: [
           { type: "text", text: params.tenantName },
           { type: "text", text: params.billMonth },
-          { type: "text", text: params.propertyName },
-          { type: "text", text: params.roomNumber },
+          { type: "text", text: `${params.propertyName} Room ${params.roomNumber}` },
           { type: "text", text: String(params.rentAmount) },
           { type: "text", text: String(params.electricityAmount) },
           { type: "text", text: String(params.otherCharges) },
@@ -374,7 +373,7 @@ export async function sendPaymentReminder(params: {
 }): Promise<SendResult> {
   return sendWhatsAppMessage({
     to: `91${params.phone}`,
-    templateName: "payment_reminder",
+    templateName: "rent_payment_reminder",
     languageCode: "en",
     components: [
       {
@@ -382,8 +381,7 @@ export async function sendPaymentReminder(params: {
         parameters: [
           { type: "text", text: params.tenantName },
           { type: "text", text: params.billMonth },
-          { type: "text", text: params.propertyName },
-          { type: "text", text: params.roomNumber },
+          { type: "text", text: `${params.propertyName} Room ${params.roomNumber}` },
           { type: "text", text: String(params.amount) },
           { type: "text", text: params.dueDate },
         ],
