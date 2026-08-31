@@ -33,6 +33,7 @@ export interface TemplateComponent {
   parameters: Array<{
     type: "text" | "currency" | "date_time" | "image" | "document";
     text?: string;
+    parameter_name?: string;
     currency?: {
       fallback_value: string;
       code: string;

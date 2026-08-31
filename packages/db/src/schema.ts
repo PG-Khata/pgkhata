@@ -268,6 +268,13 @@ export const tenant = pgTable(
     monthlyRentOverride: integer("monthly_rent_override"),
     deposit: integer("deposit"),
     notes: text("notes"),
+    // Police verification fields
+    aadhaarNumber: text("aadhaar_number"),
+    panNumber: text("pan_number"),
+    permanentAddress: text("permanent_address"),
+    policeVerificationStatus: text("police_verification_status").default("pending"),
+    policeVerificationDate: timestamp("police_verification_date"),
+    policeVerificationNotes: text("police_verification_notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

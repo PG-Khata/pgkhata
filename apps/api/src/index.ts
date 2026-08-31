@@ -36,6 +36,7 @@ import adminDocumentsRouter from "./routes/admin-documents";
 import permissionsRouter from "./routes/permissions";
 import structureRouter from "./routes/structure";
 import whatsappRouter from "./routes/whatsapp";
+import policeVerificationRouter from "./routes/police-verification";
 
 const app = express();
 const logger = pino({
@@ -163,6 +164,7 @@ app.use("/v1/properties/:propertyId/admin-documents", adminDocumentsRouter);
 app.use("/v1/properties/:propertyId/permissions", permissionsRouter);
 app.use("/v1/properties/:propertyId/structure", structureRouter);
 app.use("/v1/properties/:propertyId/whatsapp", whatsappRouter);
+app.use("/v1/properties/:propertyId/police-verification", policeVerificationRouter);
 app.use("/v1/dashboard", dashboardRouter);
 app.use("/v1/subscriptions", subscriptionsRouter);
 app.use("/v1/admin", adminRouter);
