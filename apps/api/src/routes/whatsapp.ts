@@ -95,6 +95,7 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
       totalAmount: row.bill.totalAmount,
       dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "N/A",
       upiId: row.upiId || undefined,
+      headerImageUrl: "https://www.pgkhata.com/logo.png",
     });
 
     if (!result.success) {
