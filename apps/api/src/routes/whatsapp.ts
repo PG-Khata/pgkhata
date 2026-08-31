@@ -95,7 +95,6 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
       totalAmount: row.bill.totalAmount,
       dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "N/A",
       upiId: row.upiId || undefined,
-      headerImageUrl: "https://via.placeholder.com/300x200/8B4513/FFFFFF?text=PGKhata+Monthly+Bill",
     });
 
     if (!result.success) {
