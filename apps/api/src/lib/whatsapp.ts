@@ -8,8 +8,6 @@
  * Template messages (business-initiated) are charged per conversation.
  */
 
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
 
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -18,8 +16,9 @@ const WHATSAPP_BUSINESS_ACCOUNT_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const WHATSAPP_API_URL = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
 const WHATSAPP_TEMPLATES_URL = `https://graph.facebook.com/v21.0/${WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`;
 
-// Default header image path (relative to project root)
-const DEFAULT_HEADER_IMAGE_PATH = join(__dirname, "..", "..", "whatsapp-bill-header.png");
+// Default header image URL - served from the web app's public folder
+const WHATSAPP_HEADER_IMAGE_URL = process.env.WHATSAPP_HEADER_IMAGE_URL || 
+  `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/whatsapp-bill-header.png`;
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., "919876543210")
@@ -341,27 +340,18 @@ export async function sendBillNotification(params: {
 }): Promise<SendResult> {
   const components: TemplateComponent[] = [];
 
-  // Add image header - use provided URL or local file
-  let imageUrl = params.headerImageUrl;
-  
-  if (!imageUrl && existsSync(DEFAULT_HEADER_IMAGE_PATH)) {
-    // Read local file and convert to base64 data URL
-    const imageBuffer = readFileSync(DEFAULT_HEADER_IMAGE_PATH);
-    const base64 = imageBuffer.toString("base64");
-    imageUrl = `data:image/png;base64,${base64}`;
-  }
+  // Add image header - use provided URL or default
+  const imageUrl = params.headerImageUrl || WHATSAPP_HEADER_IMAGE_URL;
 
-  if (imageUrl) {
-    components.push({
-      type: "header",
-      parameters: [
-        {
-          type: "image",
-          image: { link: imageUrl },
-        },
-      ],
-    });
-  }
+  components.push({
+    type: "header",
+    parameters: [
+      {
+        type: "image",
+        image: { link: imageUrl },
+      },
+    ],
+  });
 
   components.push({
     type: "body",
