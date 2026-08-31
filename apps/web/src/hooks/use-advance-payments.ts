@@ -48,7 +48,11 @@ export function useApplyAdvancePayment(propertyId: string) {
       advanceId: string
       billId: string
       amount?: number
-    }) => api.post(`/v1/properties/${propertyId}/advance-payments/${advanceId}/apply`, data),
+    }) =>
+      api.post<{ message: string; amountApplied: number }>(
+        `/v1/properties/${propertyId}/advance-payments/${advanceId}/apply`,
+        data,
+      ),
     onSuccess: () => invalidate(qc, propertyId),
   })
 }

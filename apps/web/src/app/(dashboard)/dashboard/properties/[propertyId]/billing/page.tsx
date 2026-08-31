@@ -5,12 +5,23 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { useBills, useGenerateBills, useApproveBills, useApplyLateFees } from "@/hooks/use-bills"
 import { useProperty } from "@/hooks/use-properties"
+import { useTenantAdvancePayments, useApplyAdvancePayment } from "@/hooks/use-advance-payments"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { formatCurrency, formatMonth, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play } from "lucide-react"
+import { ApiError } from "@/lib/api-client"
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play, Wallet } from "lucide-react"
 
 function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -29,11 +40,23 @@ export default function BillingPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
+  // Advance payment dialog state
+  const [advanceDialog, setAdvanceDialog] = useState<{ billId: string; tenantId: string; tenantName: string; billBalance: number } | null>(null)
+  const [selectedAdvanceId, setSelectedAdvanceId] = useState("")
+  const [advanceAmount, setAdvanceAmount] = useState("")
+
   const { data: property } = useProperty(propertyId)
   const { data: bills, isLoading } = useBills(propertyId, month)
   const generateBills = useGenerateBills(propertyId)
   const approveBills = useApproveBills(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
+  const applyAdvance = useApplyAdvancePayment(propertyId)
+
+  // Fetch advances for the tenant in the dialog
+  const { data: tenantAdvances } = useTenantAdvancePayments(
+    propertyId,
+    advanceDialog?.tenantId || "",
+  )
 
   function toggleExpanded(id: string) {
     setExpanded((prev) => {
@@ -87,6 +110,30 @@ export default function BillingPage() {
       onSuccess: (res) => toast.success(res.message),
       onError: () => toast.error("Failed to apply late fees"),
     })
+  }
+
+  function handleApplyAdvance() {
+    if (!advanceDialog || !selectedAdvanceId) return
+    const amount = advanceAmount ? Number(advanceAmount) : undefined
+    applyAdvance.mutate(
+      { advanceId: selectedAdvanceId, billId: advanceDialog.billId, amount },
+      {
+        onSuccess: (res) => {
+          toast.success(res.message)
+          setAdvanceDialog(null)
+          setSelectedAdvanceId("")
+          setAdvanceAmount("")
+        },
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.message : "Failed to apply advance"),
+      },
+    )
+  }
+
+  function openAdvanceDialog(billId: string, tenantId: string, tenantName: string, billBalance: number) {
+    setAdvanceDialog({ billId, tenantId, tenantName, billBalance })
+    setSelectedAdvanceId("")
+    setAdvanceAmount("")
   }
 
   const totalBilled = bills?.reduce((sum, b) => sum + b.bill.totalAmount, 0) ?? 0
@@ -248,6 +295,22 @@ export default function BillingPage() {
                                 </li>
                               ))}
                             </ul>
+                            {b.bill.balance > 0 && (
+                              <div className="mt-2 pt-2 border-t border-muted-foreground/20">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openAdvanceDialog(b.bill.id, b.bill.tenantId, b.tenantName, b.bill.balance)
+                                  }}
+                                >
+                                  <Wallet className="mr-1 h-3 w-3" />
+                                  Apply advance
+                                </Button>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
@@ -281,6 +344,79 @@ export default function BillingPage() {
           </p>
         </div>
       )}
+
+      {/* Apply advance payment dialog */}
+      <Dialog open={!!advanceDialog} onOpenChange={(open) => !open && setAdvanceDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Apply advance payment</DialogTitle>
+            <DialogDescription>
+              Apply an available advance to {advanceDialog?.tenantName}&apos;s bill.
+              Balance: {formatCurrency(advanceDialog?.billBalance ?? 0)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Advance *</label>
+              <select
+                value={selectedAdvanceId}
+                onChange={(e) => {
+                  setSelectedAdvanceId(e.target.value)
+                  // Default amount to min(advance available, bill balance)
+                  const advance = tenantAdvances?.find((a) => a.id === e.target.value)
+                  if (advance && advanceDialog) {
+                    const available = advance.amount - advance.appliedAmount
+                    setAdvanceAmount(String(Math.min(available, advanceDialog.billBalance)))
+                  }
+                }}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                <option value="">Select an advance</option>
+                {tenantAdvances
+                  ?.filter((a) => a.status === "available" && a.amount > a.appliedAmount)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {formatCurrency(a.amount - a.appliedAmount)} available ({formatDateShort(a.date)})
+                    </option>
+                  ))}
+              </select>
+              {tenantAdvances?.filter((a) => a.status === "available" && a.amount > a.appliedAmount).length === 0 && (
+                <p className="text-xs text-muted-foreground">No available advances for this tenant.</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Amount (₹)</label>
+              <Input
+                type="number"
+                placeholder="Full available amount"
+                value={advanceAmount}
+                onChange={(e) => setAdvanceAmount(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Leave empty to apply the maximum available.</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAdvanceDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!selectedAdvanceId || applyAdvance.isPending}
+              onClick={handleApplyAdvance}
+            >
+              {applyAdvance.isPending ? "Applying..." : "Apply advance"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
