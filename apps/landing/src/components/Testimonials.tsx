@@ -9,7 +9,7 @@ const testimonials = [
     name: "Priya Sharma",
     role: "PG Owner, Bangalore",
     content:
-      "I was paying ₹3,600/year for another software. PGKhata does everything for free. It's incredible!",
+      "I was paying Rs.3,600/year for another software. PGKhata does everything for free. It is incredible.",
   },
   {
     name: "Amit Patel",
@@ -22,22 +22,22 @@ const testimonials = [
 export default function Testimonials() {
   return (
     <section className="py-20 bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
             What PG Owners Say
           </h2>
-          <p className="text-xl text-gray-600">
-            Trusted by PG owners across India
+          <p className="text-lg text-gray-600">
+            Trusted by PG owners across India.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {testimonials.map((testimonial) => (
             <div
               key={testimonial.name}
-              className="bg-white p-6 rounded-lg shadow-md"
+              className="bg-white p-6 rounded-lg border border-gray-200"
             >
-              <p className="text-gray-600 mb-4">"{testimonial.content}"</p>
+              <p className="text-gray-600 mb-4">{testimonial.content}</p>
               <div>
                 <div className="font-semibold text-gray-900">
                   {testimonial.name}

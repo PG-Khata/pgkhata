@@ -1,26 +1,28 @@
 export default function Hero() {
   return (
-    <section className="relative bg-gradient-to-br from-blue-600 to-purple-700 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <div className="text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
+    <section className="bg-white border-b border-gray-200">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="max-w-3xl">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">
             Free PG Management Software
           </h1>
-          <p className="text-xl md:text-2xl mb-8 text-blue-100">
-            Manage your PG properties, tenants, and billing - 100% free forever
+          <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
+            Manage your PG properties, tenants, and billing completely free.
+            WhatsApp notifications, police verification, expense tracking, and
+            more.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-4">
             <a
               href="https://app.pgkhata.com/register"
-              className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-colors"
+              className="bg-blue-600 text-white px-6 py-3 rounded-md font-medium hover:bg-blue-700 transition-colors text-center"
             >
               Get Started Free
             </a>
             <a
               href="#features"
-              className="border-2 border-white text-white px-8 py-4 rounded-lg font-semibold text-lg hover:bg-white/10 transition-colors"
+              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-md font-medium hover:bg-gray-50 transition-colors text-center"
             >
-              Learn More
+              View Features
             </a>
           </div>
         </div>

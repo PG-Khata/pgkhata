@@ -1,0 +1,33 @@
+# PGKhata - Free PG Management Software
+
+## Overview
+PGKhata is a free, web-based PG (Paying Guest) management software for Indian PG owners. It helps manage properties, tenants, billing, and communications.
+
+## Key Features
+- Multi-property management
+- Tenant management with approval workflow
+- Auto bill generation with line-item billing
+- WhatsApp notifications for bills and reminders
+- Expense tracking with categories
+- Police verification tracking
+- Staff management with role-based permissions
+- Reports and analytics
+
+## Pricing
+PGKhata is 100% free forever. No hidden charges, no premium tiers, no per-tenant fees.
+
+## Technology
+- Web-based application (no installation required)
+- WhatsApp Business API integration
+- Cloudflare R2 for document storage
+- Modern tech stack: Next.js, TypeScript, PostgreSQL
+
+## Target Users
+- PG (Paying Guest) owners in India
+- Hostel managers
+- Co-living space operators
+
+## Contact
+- Website: https://pgkhata.com
+- App: https://app.pgkhata.com
+- Email: support@pgkhata.com
