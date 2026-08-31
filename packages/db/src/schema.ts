@@ -311,6 +311,8 @@ export const bill = pgTable(
     dueDate: timestamp("due_date"),
     approved: boolean("approved").notNull().default(false),
     voidedAt: timestamp("voided_at"),
+    /** Tenant's promised payment date; late fees are suspended until this date. */
+    promisedDate: timestamp("promised_date"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

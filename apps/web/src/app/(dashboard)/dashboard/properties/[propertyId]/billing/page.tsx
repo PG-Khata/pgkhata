@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { useBills, useGenerateBills, useApproveBills, useApplyLateFees } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApproveBills, useApplyLateFees, useVoidBill, useSetPromisedDate } from "@/hooks/use-bills"
 import { useProperty } from "@/hooks/use-properties"
 import { useTenantAdvancePayments, useApplyAdvancePayment } from "@/hooks/use-advance-payments"
 import { StatusBadge } from "@/components/dashboard/status-badge"
@@ -50,6 +50,8 @@ export default function BillingPage() {
   const generateBills = useGenerateBills(propertyId)
   const approveBills = useApproveBills(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
+  const voidBill = useVoidBill(propertyId)
+  const setPromisedDate = useSetPromisedDate(propertyId)
   const applyAdvance = useApplyAdvancePayment(propertyId)
 
   // Fetch advances for the tenant in the dialog
@@ -110,6 +112,29 @@ export default function BillingPage() {
       onSuccess: (res) => toast.success(res.message),
       onError: () => toast.error("Failed to apply late fees"),
     })
+  }
+
+  function handleVoid(billId: string, tenantName: string) {
+    if (!confirm(`Void this bill for ${tenantName}? The record will be preserved but the balance zeroed.`)) return
+    voidBill.mutate(billId, {
+      onSuccess: (res) => toast.success(res.message),
+      onError: (error) =>
+        toast.error(error instanceof ApiError ? error.message : "Failed to void bill"),
+    })
+  }
+
+  function handleSetPromisedDate(billId: string) {
+    const date = prompt("Enter promised payment date (YYYY-MM-DD), or leave empty to clear:")
+    if (date === null) return // cancelled
+    const value = date.trim() === "" ? null : date
+    setPromisedDate.mutate(
+      { billId, promisedDate: value },
+      {
+        onSuccess: (res) => toast.success(res.message),
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.message : "Failed to set promised date"),
+      },
+    )
   }
 
   function handleApplyAdvance() {
@@ -295,8 +320,8 @@ export default function BillingPage() {
                                 </li>
                               ))}
                             </ul>
-                            {b.bill.balance > 0 && (
-                              <div className="mt-2 pt-2 border-t border-muted-foreground/20">
+                            <div className="mt-2 pt-2 border-t border-muted-foreground/20 flex gap-2">
+                              {b.bill.balance > 0 && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -309,8 +334,42 @@ export default function BillingPage() {
                                   <Wallet className="mr-1 h-3 w-3" />
                                   Apply advance
                                 </Button>
-                              </div>
-                            )}
+                              )}
+                              {!b.bill.voidedAt && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleVoid(b.bill.id, b.tenantName)
+                                    }}
+                                  >
+                                    Void bill
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleSetPromisedDate(b.bill.id)
+                                    }}
+                                  >
+                                    {b.bill.promisedDate ? "Change promised date" : "Set promised date"}
+                                  </Button>
+                                </>
+                              )}
+                              {b.bill.voidedAt && (
+                                <span className="text-xs text-muted-foreground italic">Voided</span>
+                              )}
+                              {b.bill.promisedDate && !b.bill.voidedAt && (
+                                <span className="text-xs text-muted-foreground">
+                                  Promised: {formatDateShort(b.bill.promisedDate)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )}

@@ -246,6 +246,7 @@ router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
           asOf,
           balance: b.balance,
           voidedAt: b.voidedAt,
+          promisedDate: b.promisedDate,
         });
 
         const withoutLateFee = (b.lineItems as { code: string; name: string; amount: number }[]).filter(
@@ -305,6 +306,76 @@ router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: "Validation error", details: error.errors });
     }
     res.status(500).json({ error: "Failed to apply late fees" });
+  }
+});
+
+// Set or clear a bill's promised payment date. Late fees are suspended until
+// this date, giving the tenant time to pay without penalty.
+router.patch("/:billId/promised-date", async (req: AuthenticatedRequest, res) => {
+  try {
+    const billId = param(req, "billId");
+    const { promisedDate } = z
+      .object({ promisedDate: z.string().nullable().optional() })
+      .parse(req.body);
+
+    const [target] = await db
+      .select({ bill: bill })
+      .from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .where(and(eq(bill.id, billId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "Bill not found" });
+
+    const [updated] = await db
+      .update(bill)
+      .set({
+        promisedDate: promisedDate ? new Date(promisedDate) : null,
+        updatedAt: new Date(),
+      })
+      .where(eq(bill.id, billId))
+      .returning();
+
+    res.json({ message: promisedDate ? "Promised date set" : "Promised date cleared", bill: updated });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
+    res.status(500).json({ error: "Failed to update promised date" });
+  }
+});
+
+// Void a bill — sets voidedAt, zeros balance, preserves the record for audit.
+router.post("/:billId/void", async (req: AuthenticatedRequest, res) => {
+  try {
+    const billId = param(req, "billId");
+
+    const [target] = await db
+      .select({ bill: bill })
+      .from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .where(and(eq(bill.id, billId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!target) return res.status(404).json({ error: "Bill not found" });
+
+    if (target.bill.voidedAt) {
+      return res.status(409).json({ error: "Bill is already voided" });
+    }
+
+    const [voided] = await db
+      .update(bill)
+      .set({
+        voidedAt: new Date(),
+        balance: 0,
+        updatedAt: new Date(),
+      })
+      .where(eq(bill.id, billId))
+      .returning();
+
+    res.json({ message: "Bill voided", bill: voided });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to void bill" });
   }
 });
 

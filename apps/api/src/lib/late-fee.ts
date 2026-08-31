@@ -17,6 +17,8 @@ export interface LateFeeInputs {
   balance: number;
   /** A voided bill is not owed at all. */
   voidedAt: Date | string | null | undefined;
+  /** Late fees are suspended until this date if set. */
+  promisedDate?: Date | string | null;
 }
 
 export interface LateFeeResult {
@@ -34,6 +36,14 @@ export function calculateLateFee(inputs: LateFeeInputs): LateFeeResult {
 
   const due = startOfDay(inputs.dueDate);
   const asOf = startOfDay(inputs.asOf);
+
+  // If a promised date is set and we're before it, suspend late fees.
+  if (inputs.promisedDate) {
+    const promised = startOfDay(inputs.promisedDate);
+    if (asOf.getTime() < promised.getTime()) {
+      return { amount: 0, daysOverdue: 0 };
+    }
+  }
 
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysOverdue = Math.floor((asOf.getTime() - due.getTime()) / msPerDay);

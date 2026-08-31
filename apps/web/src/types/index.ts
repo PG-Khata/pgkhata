@@ -248,6 +248,7 @@ export interface Bill {
   dueDate?: string | null
   approved: boolean
   voidedAt?: string | null
+  promisedDate?: string | null
   createdAt: string
   updatedAt: string
 }

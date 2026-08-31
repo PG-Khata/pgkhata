@@ -48,3 +48,26 @@ export function useApproveBills(propertyId: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
   })
 }
+
+export function useVoidBill(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (billId: string) =>
+      api.post<{ message: string; bill: Bill }>(
+        `/v1/properties/${propertyId}/bills/${billId}/void`,
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
+  })
+}
+
+export function useSetPromisedDate(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ billId, promisedDate }: { billId: string; promisedDate: string | null }) =>
+      api.patch<{ message: string; bill: Bill }>(
+        `/v1/properties/${propertyId}/bills/${billId}/promised-date`,
+        { promisedDate },
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
+  })
+}
