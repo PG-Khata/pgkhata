@@ -57,24 +57,24 @@ async function teardown(owner: Owner) {
     .where(eq(room.propertyId, owner.propertyId));
   const roomIds = rooms.map((r) => r.id);
 
-  if (roomIds.length > 0) {
-    const tenants = await db
-      .select({ id: tenant.id })
-      .from(tenant)
-      .where(inArray(tenant.roomId, roomIds));
-    const tenantIds = tenants.map((t) => t.id);
+  // Scope tenants by propertyId directly (pending tenants may have no roomId).
+  const tenants = await db
+    .select({ id: tenant.id })
+    .from(tenant)
+    .where(eq(tenant.propertyId, owner.propertyId));
+  const tenantIds = tenants.map((t) => t.id);
 
-    if (tenantIds.length > 0) {
-      await db.delete(advancePayment).where(inArray(advancePayment.tenantId, tenantIds));
-      const tenantBills = await db.select({ id: bill.id }).from(bill).where(inArray(bill.tenantId, tenantIds));
-      for (const b of tenantBills) {
-        await db.delete(payment).where(eq(payment.billId, b.id));
-      }
-      await db.delete(bill).where(inArray(bill.tenantId, tenantIds));
+  if (tenantIds.length > 0) {
+    await db.delete(advancePayment).where(inArray(advancePayment.tenantId, tenantIds));
+    const tenantBills = await db.select({ id: bill.id }).from(bill).where(inArray(bill.tenantId, tenantIds));
+    for (const b of tenantBills) {
+      await db.delete(payment).where(eq(payment.billId, b.id));
     }
-
-    await db.update(tenant).set({ bedId: null }).where(inArray(tenant.roomId, roomIds));
-    await db.delete(tenant).where(inArray(tenant.roomId, roomIds));
+    await db.delete(bill).where(inArray(bill.tenantId, tenantIds));
+    await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(eq(tenant.propertyId, owner.propertyId));
+    await db.delete(tenant).where(eq(tenant.propertyId, owner.propertyId));
+  }
+  if (roomIds.length > 0) {
     await db.delete(bed).where(inArray(bed.roomId, roomIds));
     await db.delete(room).where(eq(room.propertyId, owner.propertyId));
   }
@@ -108,6 +108,11 @@ describeDb("advance payments (database)", () => {
         joiningDate: new Date().toISOString(),
       });
     aliceTenantId = tenantRes.body.id;
+
+    // Approve the tenant so they get a bed and become billable.
+    await request(app)
+      .post(`/v1/properties/${alice.propertyId}/tenants/${aliceTenantId}/approve`)
+      .set("Cookie", alice.cookie);
 
     const generated = await request(app)
       .post(`/v1/properties/${alice.propertyId}/bills/generate`)

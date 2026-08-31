@@ -56,7 +56,7 @@ export default function NewTenantPage() {
     }
     createTenant.mutate(payload, {
       onSuccess: () => {
-        toast.success("Tenant added")
+        toast.success("Tenant added — approve them from the tenants list to assign a bed")
         router.push(`/dashboard/properties/${propertyId}/tenants`)
       },
       onError: (err: any) => {
@@ -75,6 +75,10 @@ export default function NewTenantPage() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="text-lg font-semibold">Add tenant</h1>
+      </div>
+
+      <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+        New tenants start as <strong>pending</strong>. Approve them from the tenants list to assign a bed and activate their tenancy.
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -137,7 +141,7 @@ export default function NewTenantPage() {
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={createTenant.isPending}>
-            {createTenant.isPending ? "Adding..." : "Add tenant"}
+            {createTenant.isPending ? "Adding..." : "Add for approval"}
           </Button>
           <Button type="button" variant="outline" render={<Link href={`/dashboard/properties/${propertyId}/tenants`} />}>
             Cancel

@@ -91,7 +91,7 @@ async function main() {
         await db.delete(securityDeposit).where(inArray(securityDeposit.propertyId, propertyIds));
 
         if (tenantIds.length > 0) {
-          await db.update(tenant).set({ bedId: null }).where(inArray(tenant.id, tenantIds));
+          await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(inArray(tenant.id, tenantIds));
           await db.delete(tenant).where(inArray(tenant.id, tenantIds));
         }
         if (roomIds.length > 0) {

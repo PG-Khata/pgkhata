@@ -57,11 +57,14 @@ async function teardown(owner: Owner) {
     .where(eq(room.propertyId, owner.propertyId));
   const roomIds = rooms.map((r) => r.id);
 
-  if (roomIds.length > 0) {
-    const tenants = await db
-      .select({ id: tenant.id })
-      .from(tenant)
-      .where(inArray(tenant.roomId, roomIds));
+  // Scope tenants by propertyId directly (pending tenants may have no roomId).
+  const tenants = await db
+    .select({ id: tenant.id })
+    .from(tenant)
+    .where(eq(tenant.propertyId, owner.propertyId));
+  const tenantIds = tenants.map((t) => t.id);
+
+  if (tenantIds.length > 0) {
     for (const t of tenants) {
       const tenantBills = await db.select({ id: bill.id }).from(bill).where(eq(bill.tenantId, t.id));
       for (const b of tenantBills) {
@@ -69,8 +72,10 @@ async function teardown(owner: Owner) {
       }
       await db.delete(bill).where(eq(bill.tenantId, t.id));
     }
-    await db.update(tenant).set({ bedId: null }).where(inArray(tenant.roomId, roomIds));
-    await db.delete(tenant).where(inArray(tenant.roomId, roomIds));
+    await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(eq(tenant.propertyId, owner.propertyId));
+    await db.delete(tenant).where(eq(tenant.propertyId, owner.propertyId));
+  }
+  if (roomIds.length > 0) {
     await db.delete(bed).where(inArray(bed.roomId, roomIds));
     await db.update(room).set({ rentPlanId: null }).where(inArray(room.id, roomIds));
     await db.delete(room).where(eq(room.propertyId, owner.propertyId));
@@ -104,7 +109,7 @@ describeDb("late fees (database)", () => {
         .send({ number: "101", capacity: 1, monthlyRent: 6000, rentPlanId: planId })
     ).body.id;
 
-    await request(app)
+    const tenantRes = await request(app)
       .post(`/v1/properties/${alice.propertyId}/tenants`)
       .set("Cookie", alice.cookie)
       .send({
@@ -113,6 +118,11 @@ describeDb("late fees (database)", () => {
         roomId,
         joiningDate: new Date().toISOString(),
       });
+
+    // Approve the tenant so they get a bed and become billable.
+    await request(app)
+      .post(`/v1/properties/${alice.propertyId}/tenants/${tenantRes.body.id}/approve`)
+      .set("Cookie", alice.cookie);
 
     const generated = await request(app)
       .post(`/v1/properties/${alice.propertyId}/bills/generate`)
@@ -238,7 +248,7 @@ describeDb("late fees (database)", () => {
         .send({ number: "301", capacity: 1, monthlyRent: 4000 })
     ).body.id;
 
-    await request(app)
+    const tenantRes = await request(app)
       .post(`/v1/properties/${alice.propertyId}/tenants`)
       .set("Cookie", alice.cookie)
       .send({
@@ -247,6 +257,11 @@ describeDb("late fees (database)", () => {
         roomId: roomWithoutPlan,
         joiningDate: new Date().toISOString(),
       });
+
+    // Approve the tenant so they get a bed and become billable.
+    await request(app)
+      .post(`/v1/properties/${alice.propertyId}/tenants/${tenantRes.body.id}/approve`)
+      .set("Cookie", alice.cookie);
 
     const generated = await request(app)
       .post(`/v1/properties/${alice.propertyId}/bills/generate`)

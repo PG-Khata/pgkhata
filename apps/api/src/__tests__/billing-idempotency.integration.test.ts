@@ -54,6 +54,12 @@ describeDb("bill generation idempotency (database)", () => {
         joiningDate: new Date().toISOString(),
       });
     expect(createTenant.status).toBe(201);
+
+    // Approve the tenant so they get a bed and become billable.
+    const approve = await request(app)
+      .post(`/v1/properties/${propertyId}/tenants/${createTenant.body.id}/approve`)
+      .set("Cookie", cookie);
+    expect(approve.status).toBe(200);
   });
 
   afterAll(async () => {
@@ -68,6 +74,7 @@ describeDb("bill generation idempotency (database)", () => {
       }
       await db.delete(bill).where(eq(bill.tenantId, t.id));
     }
+    await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(eq(tenant.propertyId, propertyId));
     await db.delete(tenant).where(eq(tenant.propertyId, propertyId));
     await db.delete(room).where(eq(room.propertyId, propertyId));
     await db.delete(property).where(eq(property.id, propertyId));

@@ -106,6 +106,16 @@ describeDb("bed assignment (database)", () => {
     return res;
   }
 
+  /** Create a pending tenant then approve them, returning the active tenant. */
+  async function addAndApproveTenant(owner: Owner, name: string, body: object = {}) {
+    const created = await addTenant(owner, name, body);
+    if (created.status !== 201) return created;
+    const approved = await request(app)
+      .post(tenants(owner, `/${created.body.id}/approve`))
+      .set("Cookie", owner.cookie);
+    return approved;
+  }
+
   async function bedsOfRoom(owner: Owner, roomId: string) {
     const res = await request(app)
       .get(`/v1/properties/${owner.propertyId}/rooms/${roomId}/beds`)
@@ -113,22 +123,23 @@ describeDb("bed assignment (database)", () => {
     return res.body as Array<{ id: string; number: string; status: string }>;
   }
 
-  it("creates a tenant with no bed when none is requested", async () => {
+  it("creates a tenant as pending with no bed when none is requested", async () => {
     const res = await addTenant(alice, "Unassigned Tenant");
 
     expect(res.status).toBe(201);
+    expect(res.body.status).toBe("pending");
     expect(res.body.bedId).toBeNull();
   });
 
-  it("assigns the first vacant bed when a room is named", async () => {
-    const res = await addTenant(alice, "Room Picker", { roomId: tripleRoomId });
+  it("assigns the first vacant bed when a room is named and tenant is approved", async () => {
+    const res = await addAndApproveTenant(alice, "Room Picker", { roomId: tripleRoomId });
 
-    expect(res.status).toBe(201);
-    expect(res.body.bedNumber).toBe("A");
-    expect(res.body.roomNumber).toBe("101");
+    expect(res.status).toBe(200);
+    expect(res.body.bedId).toBeTruthy();
+    expect(res.body.status).toBe("active");
   });
 
-  it("marks the bed occupied in the same operation", async () => {
+  it("marks the bed occupied after approval", async () => {
     const roomBeds = await bedsOfRoom(alice, tripleRoomId);
     const bedA = roomBeds.find((b) => b.number === "A");
 
@@ -136,10 +147,10 @@ describeDb("bed assignment (database)", () => {
   });
 
   it("takes the next label for the second tenant in the room", async () => {
-    const res = await addTenant(alice, "Second Occupant", { roomId: tripleRoomId });
+    const res = await addAndApproveTenant(alice, "Second Occupant", { roomId: tripleRoomId });
 
-    expect(res.status).toBe(201);
-    expect(res.body.bedNumber).toBe("B");
+    expect(res.status).toBe(200);
+    expect(res.body.bedId).toBeTruthy();
   });
 
   it("assigns a specific bed when one is named", async () => {
@@ -156,15 +167,22 @@ describeDb("bed assignment (database)", () => {
     expect(res.body.bedNumber).toBe("C");
   });
 
-  it("refuses a room whose beds are all taken", async () => {
-    const res = await addTenant(alice, "Too Late", { roomId: tripleRoomId });
+  it("creates a pending tenant even when room is full, but approval fails", async () => {
+    const created = await addTenant(alice, "Too Late", { roomId: tripleRoomId });
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe("pending");
 
-    expect(res.status).toBe(409);
-    expect(res.body.error).toMatch(/no vacant beds/i);
+    // Approval fails because the room has no vacant beds.
+    const approve = await request(app)
+      .post(tenants(alice, `/${created.body.id}/approve`))
+      .set("Cookie", alice.cookie);
+    expect(approve.status).toBe(409);
+    expect(approve.body.error).toMatch(/no vacant beds/i);
 
-    // The rejected tenant must not linger without a bed.
+    // The tenant remains pending (not deleted).
     const list = await request(app).get(tenants(alice)).set("Cookie", alice.cookie);
-    expect(list.body.some((t: { name: string }) => t.name === "Too Late")).toBe(false);
+    const tooLate = list.body.find((t: { name: string }) => t.name === "Too Late");
+    expect(tooLate.status).toBe("pending");
   });
 
   it("refuses a bed that is already occupied", async () => {
@@ -334,11 +352,12 @@ describeDb("bed assignment (database)", () => {
   });
 
   it("releases the bed when a tenant is deleted", async () => {
-    const created = await addTenant(alice, "Short Stay", { roomId: tripleRoomId });
-    const bedId = created.body.bedId as string;
+    const approved = await addAndApproveTenant(alice, "Short Stay", { roomId: tripleRoomId });
+    expect(approved.status).toBe(200);
+    const bedId = approved.body.bedId as string;
 
     const del = await request(app)
-      .delete(tenants(alice, `/${created.body.id}`))
+      .delete(tenants(alice, `/${approved.body.id}`))
       .set("Cookie", alice.cookie);
     expect(del.status).toBe(200);
 

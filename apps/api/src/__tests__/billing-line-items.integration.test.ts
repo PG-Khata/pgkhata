@@ -58,16 +58,21 @@ async function teardown(owner: Owner) {
     .where(eq(room.propertyId, owner.propertyId));
   const roomIds = rooms.map((r) => r.id);
 
-  if (roomIds.length > 0) {
-    const tenants = await db
-      .select({ id: tenant.id })
-      .from(tenant)
-      .where(inArray(tenant.roomId, roomIds));
+  // Scope tenants by propertyId directly (pending tenants may have no roomId).
+  const tenants = await db
+    .select({ id: tenant.id })
+    .from(tenant)
+    .where(eq(tenant.propertyId, owner.propertyId));
+  const tenantIds = tenants.map((t) => t.id);
+
+  if (tenantIds.length > 0) {
     for (const t of tenants) {
       await db.delete(bill).where(eq(bill.tenantId, t.id));
     }
-    await db.update(tenant).set({ bedId: null }).where(inArray(tenant.roomId, roomIds));
-    await db.delete(tenant).where(inArray(tenant.roomId, roomIds));
+    await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(eq(tenant.propertyId, owner.propertyId));
+    await db.delete(tenant).where(eq(tenant.propertyId, owner.propertyId));
+  }
+  if (roomIds.length > 0) {
     await db.delete(electricityReading).where(inArray(electricityReading.roomId, roomIds));
     await db.delete(bed).where(inArray(bed.roomId, roomIds));
     await db.update(room).set({ rentPlanId: null }).where(inArray(room.id, roomIds));
@@ -104,6 +109,18 @@ describeDb("billing on line items (database)", () => {
     return `/v1/properties/${alice.propertyId}/readings${path}`;
   }
 
+  /** Create a pending tenant then approve them so they get a bed and become active. */
+  async function addAndApproveTenant(body: object) {
+    const created = await request(app)
+      .post(tenants())
+      .set("Cookie", alice.cookie)
+      .send(body);
+    if (created.status !== 201) return created;
+    return request(app)
+      .post(tenants(`/${created.body.id}/approve`))
+      .set("Cookie", alice.cookie);
+  }
+
   it("bills rent and electricity as separate line items with a due date", async () => {
     const plans = await request(app).get(`/v1/properties/${alice.propertyId}/rent-plans`).set("Cookie", alice.cookie);
     const planId = (
@@ -120,16 +137,13 @@ describeDb("billing on line items (database)", () => {
       .send({ number: "101", capacity: 1, monthlyRent: 6000, rentPlanId: planId });
     const roomId = roomRes.body.id;
 
-    const tenantRes = await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({
-        name: "Line Item Tenant",
-        phone: nextPhone(),
-        roomId,
-        joiningDate: new Date().toISOString(),
-      });
-    expect(tenantRes.status).toBe(201);
+    const tenantRes = await addAndApproveTenant({
+      name: "Line Item Tenant",
+      phone: nextPhone(),
+      roomId,
+      joiningDate: new Date().toISOString(),
+    });
+    expect(tenantRes.status).toBe(200);
 
     await request(app)
       .post(readings())
@@ -166,15 +180,12 @@ describeDb("billing on line items (database)", () => {
       .send({ number: "201", capacity: 1, monthlyRent: 5000 });
     const roomId = roomRes.body.id;
 
-    await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({
-        name: "Month Tenant",
-        phone: nextPhone(),
-        roomId,
-        joiningDate: new Date().toISOString(),
-      });
+    await addAndApproveTenant({
+      name: "Month Tenant",
+      phone: nextPhone(),
+      roomId,
+      joiningDate: new Date().toISOString(),
+    });
 
     // Readings for June and August, but bill July — no reading exists for it.
     await request(app)
@@ -205,14 +216,8 @@ describeDb("billing on line items (database)", () => {
       .send({ number: "301", capacity: 2, monthlyRent: 4000 });
     const roomId = roomRes.body.id;
 
-    const first = await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({ name: "Co Tenant One", phone: nextPhone(), roomId, joiningDate: new Date().toISOString() });
-    await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({ name: "Co Tenant Two", phone: nextPhone(), roomId, joiningDate: new Date().toISOString() });
+    const first = await addAndApproveTenant({ name: "Co Tenant One", phone: nextPhone(), roomId, joiningDate: new Date().toISOString() });
+    await addAndApproveTenant({ name: "Co Tenant Two", phone: nextPhone(), roomId, joiningDate: new Date().toISOString() });
 
     await request(app)
       .post(readings())
@@ -247,15 +252,12 @@ describeDb("billing on line items (database)", () => {
       .set("Cookie", alice.cookie)
       .send({ number: "401", capacity: 1, monthlyRent: 5500 });
 
-    await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({
-        name: "Maint Tenant",
-        phone: nextPhone(),
-        roomId: roomRes.body.id,
-        joiningDate: new Date().toISOString(),
-      });
+    await addAndApproveTenant({
+      name: "Maint Tenant",
+      phone: nextPhone(),
+      roomId: roomRes.body.id,
+      joiningDate: new Date().toISOString(),
+    });
 
     const generated = await request(app)
       .post(bills("/generate"))
@@ -278,15 +280,12 @@ describeDb("billing on line items (database)", () => {
       .set("Cookie", alice.cookie)
       .send({ number: "402", capacity: 1, monthlyRent: 5100 });
 
-    await request(app)
-      .post(tenants())
-      .set("Cookie", alice.cookie)
-      .send({
-        name: "OneOff Tenant",
-        phone: nextPhone(),
-        roomId: roomRes.body.id,
-        joiningDate: new Date().toISOString(),
-      });
+    await addAndApproveTenant({
+      name: "OneOff Tenant",
+      phone: nextPhone(),
+      roomId: roomRes.body.id,
+      joiningDate: new Date().toISOString(),
+    });
 
     const generated = await request(app)
       .post(bills("/generate"))

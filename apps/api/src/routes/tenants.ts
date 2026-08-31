@@ -111,7 +111,9 @@ router.get("/:tenantId", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Create tenant, optionally assigning a bed straight away
+// Create tenant — always starts as pending. The owner approves from the
+// tenants list, which is when bed assignment actually happens. This matches
+// the public signup flow and Niketan's "signup or manual entry" model.
 router.post("/", async (req: AuthenticatedRequest, res, next) => {
   try {
     const body = createTenantSchema.parse(req.body);
@@ -129,36 +131,29 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
 
     const { bedId, roomId, ...fields } = body;
 
+    // Resolve bedId to its parent room so approval knows where to place them.
+    let requestedRoomId = roomId;
+    if (bedId && !roomId) {
+      const [b] = await db
+        .select({ roomId: bed.roomId })
+        .from(bed)
+        .where(eq(bed.id, bedId))
+        .limit(1);
+      requestedRoomId = b?.roomId;
+    }
+
     const [newTenant] = await db
       .insert(tenant)
-      .values({ ...fields, propertyId: req.propertyId! })
+      .values({
+        ...fields,
+        propertyId: req.propertyId!,
+        status: "pending",
+        requestedRoomId: requestedRoomId || null,
+      })
       .returning();
 
     if (!newTenant) {
       return res.status(500).json({ error: "Failed to create tenant" });
-    }
-
-    // Assignment is a separate transactional step so a refused bed cannot
-    // leave a half-created tenant, and so both request shapes share one path.
-    if (bedId || roomId) {
-      try {
-        const outcome = await assignTenantToBed(req.propertyId!, newTenant.id, {
-          bedId,
-          roomId,
-        });
-
-        return res.status(201).json({
-          ...newTenant,
-          bedId: outcome.bedId,
-          roomId: outcome.roomId,
-          bedNumber: outcome.bedNumber,
-          roomNumber: outcome.roomNumber,
-        });
-      } catch (error) {
-        // Do not keep a tenant who could not be placed where the owner asked.
-        await db.delete(tenant).where(eq(tenant.id, newTenant.id));
-        throw error;
-      }
     }
 
     res.status(201).json(newTenant);

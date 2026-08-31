@@ -56,16 +56,22 @@ async function teardown(owner: Owner) {
     .where(eq(room.propertyId, owner.propertyId));
 
   const roomIds = rooms.map((r) => r.id);
-  if (roomIds.length > 0) {
-    const tenants = await db
-      .select({ id: tenant.id })
-      .from(tenant)
-      .where(inArray(tenant.roomId, roomIds));
+
+  // Scope tenants by propertyId directly (pending tenants may have no roomId).
+  const tenants = await db
+    .select({ id: tenant.id })
+    .from(tenant)
+    .where(eq(tenant.propertyId, owner.propertyId));
+  const tenantIds = tenants.map((t) => t.id);
+
+  if (tenantIds.length > 0) {
     for (const t of tenants) {
       await db.delete(bill).where(eq(bill.tenantId, t.id));
     }
-    await db.update(tenant).set({ bedId: null }).where(inArray(tenant.roomId, roomIds));
-    await db.delete(tenant).where(inArray(tenant.roomId, roomIds));
+    await db.update(tenant).set({ bedId: null, requestedRoomId: null }).where(eq(tenant.propertyId, owner.propertyId));
+    await db.delete(tenant).where(eq(tenant.propertyId, owner.propertyId));
+  }
+  if (roomIds.length > 0) {
     await db.delete(bed).where(inArray(bed.roomId, roomIds));
     await db.update(room).set({ rentPlanId: null }).where(inArray(room.id, roomIds));
     await db.delete(room).where(eq(room.propertyId, owner.propertyId));
@@ -194,6 +200,12 @@ describeDb("rent plans (database)", () => {
         joiningDate: new Date().toISOString(),
       });
     expect(tenantRes.status).toBe(201);
+
+    // Approve the tenant so they get a bed and become billable.
+    const approve = await request(app)
+      .post(`/v1/properties/${alice.propertyId}/tenants/${tenantRes.body.id}/approve`)
+      .set("Cookie", alice.cookie);
+    expect(approve.status).toBe(200);
 
     const month = `2026-0${(new Date().getMonth() % 9) + 1}`;
     const generated = await request(app)
