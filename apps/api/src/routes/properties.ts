@@ -139,4 +139,38 @@ router.delete("/:id", requireAuth, requireOwner, async (req: AuthenticatedReques
   }
 });
 
+// Get QR code for signup link
+router.get("/:id/qr-code", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
+  try {
+    const [prop] = await db
+      .select({ signupToken: property.signupToken })
+      .from(property)
+      .where(
+        and(
+          eq(property.id, param(req, "id")),
+          eq(property.ownerId, req.ownerId!)
+        )
+      )
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+    if (!prop.signupToken) {
+      return res.status(409).json({ error: "No signup token configured" });
+    }
+
+    // Generate QR code as base64 PNG
+    // Using a simple QR code generation approach
+    const signupUrl = `${process.env.APP_URL || "https://pgkhata.com"}/public/signup/${prop.signupToken}`;
+
+    // For now, return the URL - QR generation will be added when qrcode package is installed
+    res.json({
+      url: signupUrl,
+      token: prop.signupToken,
+      message: "Install qrcode package for QR generation",
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate QR code" });
+  }
+});
+
 export default router;

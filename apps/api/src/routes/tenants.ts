@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, tenant, room, bed } from "@pgkhata/db";
-import { eq, and, asc } from "drizzle-orm";
+import { db, tenant, room, bed, bill, advancePayment, securityDeposit, payment } from "@pgkhata/db";
+import { eq, and, asc, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param, HttpError } from "../lib/http";
@@ -10,6 +10,8 @@ import {
   vacateTenantBed,
 } from "../lib/tenant-assignment";
 import { decideTenantApproval, generateOnboardingToken } from "../lib/tenant-approval";
+import { calculateCheckoutPreview } from "../lib/checkout-preview";
+import { validateTransfer } from "../lib/bed-transfer";
 
 const router = Router({ mergeParams: true });
 
@@ -410,6 +412,129 @@ router.delete("/:tenantId", async (req: AuthenticatedRequest, res, next) => {
   } catch (error) {
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to delete tenant" });
+  }
+});
+
+// Checkout financial preview
+router.get("/:tenantId/checkout-preview", async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = param(req, "tenantId");
+
+    const [t] = await db
+      .select()
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Tenant not found" });
+
+    const bills = await db
+      .select({ totalAmount: bill.totalAmount, paidAmount: bill.paidAmount, balance: bill.balance })
+      .from(bill)
+      .where(eq(bill.tenantId, tenantId));
+
+    const [deposit] = await db
+      .select()
+      .from(securityDeposit)
+      .where(eq(securityDeposit.tenantId, tenantId))
+      .limit(1);
+
+    const advances = await db
+      .select()
+      .from(advancePayment)
+      .where(eq(advancePayment.tenantId, tenantId));
+
+    const preview = calculateCheckoutPreview({
+      outstandingBills: bills,
+      securityDeposit: deposit ?? null,
+      advancePayments: advances,
+    });
+
+    res.json(preview);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate checkout preview" });
+  }
+});
+
+// Bed transfer — atomically moves tenant from current bed to new bed
+router.post("/:tenantId/transfer", async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const tenantId = param(req, "tenantId");
+    const { bedId } = z.object({ bedId: z.string().uuid() }).parse(req.body);
+
+    const [t] = await db
+      .select()
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Tenant not found" });
+
+    // Verify new bed belongs to property
+    const [newBed] = await db
+      .select({ id: bed.id, status: bed.status, roomId: bed.roomId })
+      .from(bed)
+      .innerJoin(room, eq(bed.roomId, room.id))
+      .where(and(eq(bed.id, bedId), eq(room.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!newBed) return res.status(404).json({ error: "Bed not found" });
+
+    const validation = validateTransfer(t.bedId, bedId, newBed.status);
+    if (!validation.ok) {
+      return res.status(409).json({ error: validation.reason });
+    }
+
+    // Use existing assignTenantToBed which handles freeing old bed
+    const outcome = await assignTenantToBed(req.propertyId!, tenantId, { bedId });
+
+    res.json({ message: `Transferred to bed ${outcome.roomNumber}-${outcome.bedNumber}`, ...outcome });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
+    if (error instanceof HttpError) return next(error);
+    res.status(500).json({ error: "Failed to transfer bed" });
+  }
+});
+
+// Tenant financial report
+router.get("/:tenantId/financial-report", async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = param(req, "tenantId");
+
+    const [t] = await db
+      .select()
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Tenant not found" });
+
+    const bills = await db
+      .select()
+      .from(bill)
+      .where(eq(bill.tenantId, tenantId))
+      .orderBy(asc(bill.billMonth));
+
+    const payments = await db
+      .select()
+      .from(payment)
+      .innerJoin(bill, eq(payment.billId, bill.id))
+      .where(eq(bill.tenantId, tenantId));
+
+    const totalBilled = bills.reduce((sum, b) => sum + b.totalAmount, 0);
+    const totalPaid = bills.reduce((sum, b) => sum + b.paidAmount, 0);
+    const totalBalance = bills.reduce((sum, b) => sum + b.balance, 0);
+
+    res.json({
+      tenant: { id: t.id, name: t.name, phone: t.phone, status: t.status },
+      summary: { totalBilled, totalPaid, totalBalance },
+      bills,
+      payments: payments.map((p) => p.payment),
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate financial report" });
   }
 });
 

@@ -24,6 +24,10 @@ import remindersRouter from "./routes/reminders";
 import publicRouter from "./routes/public";
 import subscriptionsRouter from "./routes/subscriptions";
 import adminRouter from "./routes/admin";
+import emergencyContactsRouter from "./routes/emergency-contacts";
+import bedBookingsRouter from "./routes/bed-bookings";
+import staffRouter from "./routes/staff";
+import exportsRouter from "./routes/exports";
 
 const app = express();
 const logger = pino({
@@ -139,6 +143,10 @@ app.use("/v1/properties/:propertyId/advance-payments", advancePaymentsRouter);
 app.use("/v1/properties/:propertyId/security-deposits", securityDepositsRouter);
 app.use("/v1/properties/:propertyId/expenses", expensesRouter);
 app.use("/v1/properties/:propertyId/reminders", remindersRouter);
+app.use("/v1/properties/:propertyId/emergency-contacts", emergencyContactsRouter);
+app.use("/v1/properties/:propertyId/bed-bookings", bedBookingsRouter);
+app.use("/v1/properties/:propertyId/staff", staffRouter);
+app.use("/v1/properties/:propertyId/exports", exportsRouter);
 app.use("/v1/dashboard", dashboardRouter);
 app.use("/v1/subscriptions", subscriptionsRouter);
 app.use("/v1/admin", adminRouter);

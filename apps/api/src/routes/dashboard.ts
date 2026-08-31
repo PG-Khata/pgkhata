@@ -340,4 +340,56 @@ router.get(
   },
 );
 
+// Outstanding payment drill-down — details per aging bucket
+router.get(
+  "/property/:propertyId/outstanding-payment/details",
+  requireAuth,
+  requireOwner,
+  requireProperty,
+  async (req: AuthenticatedRequest, res) => {
+    try {
+      const rows = await db
+        .select({
+          tenantId: tenant.id,
+          tenantName: tenant.name,
+          roomNumber: room.number,
+          billId: bill.id,
+          billMonth: bill.billMonth,
+          balance: bill.balance,
+          dueDate: bill.dueDate,
+        })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .leftJoin(room, eq(tenant.roomId, room.id))
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`));
+
+      const buckets: Record<string, typeof rows> = {
+        current: [],
+        "0-30": [],
+        "31-60": [],
+        "61-90": [],
+        "90+": [],
+      };
+
+      for (const row of rows) {
+        const days = daysOverdue(row.dueDate);
+        let bucket: string;
+        if (days <= 0) bucket = "current";
+        else if (days <= 30) bucket = "0-30";
+        else if (days <= 60) bucket = "31-60";
+        else if (days <= 90) bucket = "61-90";
+        else bucket = "90+";
+        const bucketList = buckets[bucket];
+        if (bucketList) {
+          bucketList.push(row);
+        }
+      }
+
+      res.json(buckets);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch outstanding payment details" });
+    }
+  },
+);
+
 export default router;

@@ -446,6 +446,48 @@ export const expense = pgTable(
   (table) => [check("expense_amount_positive", sql`${table.amount} > 0`)],
 );
 
+export const emergencyContact = pgTable("emergency_contact", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenant.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  relation: text("relation").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const bedBooking = pgTable("bed_booking", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  bedId: uuid("bed_id")
+    .notNull()
+    .references(() => bed.id, { onDelete: "cascade" }),
+  tenantName: text("tenant_name").notNull(),
+  tenantPhone: text("tenant_phone").notNull(),
+  status: text("status").notNull().default("pending"), // pending, confirmed, cancelled, converted
+  bookingDate: timestamp("booking_date").notNull().defaultNow(),
+  expiryDate: timestamp("expiry_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const staff = pgTable("staff", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .references(() => user.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  role: text("role").notNull().default("warden"), // warden, manager, accountant, cleaner
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db, payment, bill, tenant } from "@pgkhata/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, asc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param, aggregate } from "../lib/http";
+import { autoAllocatePayment } from "../lib/auto-allocate";
 
 const router = Router({ mergeParams: true });
 
@@ -127,6 +128,87 @@ router.delete("/:paymentId", async (req: AuthenticatedRequest, res) => {
     res.json({ message: "Payment deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete payment" });
+  }
+});
+
+// Auto-allocate a payment across outstanding bills (oldest first)
+router.post("/auto-allocate", async (req: AuthenticatedRequest, res) => {
+  try {
+    const { tenantId, amount, paymentDate, method, notes } = z
+      .object({
+        tenantId: z.string().uuid(),
+        amount: z.number().min(1),
+        paymentDate: z.string().transform((str) => new Date(str)),
+        method: z.enum(["cash", "upi", "bank_transfer", "other"]).optional(),
+        notes: z.string().optional(),
+      })
+      .parse(req.body);
+
+    // Verify tenant belongs to property
+    const [t] = await db
+      .select({ id: tenant.id })
+      .from(tenant)
+      .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Tenant not found" });
+
+    // Get outstanding bills
+    const outstandingBills = await db
+      .select({ id: bill.id, balance: bill.balance, billMonth: bill.billMonth })
+      .from(bill)
+      .where(and(eq(bill.tenantId, tenantId), sql`${bill.balance} > 0`))
+      .orderBy(asc(bill.billMonth));
+
+    if (outstandingBills.length === 0) {
+      return res.status(409).json({ error: "No outstanding bills" });
+    }
+
+    const allocations = autoAllocatePayment(amount, outstandingBills);
+
+    if (allocations.length === 0) {
+      return res.status(409).json({ error: "Amount too small to allocate" });
+    }
+
+    // Create payments and update bills in a transaction
+    const results = await db.transaction(async (tx) => {
+      const created = [];
+      for (const alloc of allocations) {
+        const [p] = await tx
+          .insert(payment)
+          .values({
+            billId: alloc.billId,
+            amount: alloc.amount,
+            paymentDate,
+            method,
+            notes: notes ? `Auto-allocated: ${notes}` : "Auto-allocated",
+          })
+          .returning();
+        created.push(p);
+
+        // Sync bill totals
+        const [b] = await tx
+          .select({ totalAmount: bill.totalAmount })
+          .from(bill)
+          .where(eq(bill.id, alloc.billId))
+          .limit(1);
+
+        if (b) {
+          await syncBillTotals(alloc.billId, b.totalAmount);
+        }
+      }
+      return created;
+    });
+
+    res.status(201).json({
+      message: `Allocated across ${results.length} bills`,
+      allocations: results,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.errors });
+    }
+    res.status(500).json({ error: "Failed to auto-allocate payment" });
   }
 });
 
