@@ -10,6 +10,9 @@ import {
   sendPaymentReminder,
   sendRentDueReminder,
   isWhatsAppConfigured,
+  isTemplateManagementConfigured,
+  setupPGKhataTemplates,
+  listTemplates,
 } from "../lib/whatsapp";
 
 const router = Router({ mergeParams: true });
@@ -18,7 +21,38 @@ router.use(requireAuth, requireOwner, requireProperty);
 
 // Check WhatsApp configuration status
 router.get("/status", async (req: AuthenticatedRequest, res) => {
-  res.json({ configured: isWhatsAppConfigured() });
+  res.json({
+    configured: isWhatsAppConfigured(),
+    templateManagement: isTemplateManagementConfigured(),
+  });
+});
+
+// List all WhatsApp templates
+router.get("/templates", async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await listTemplates();
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+    res.json(result.templates);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to list templates" });
+  }
+});
+
+// Setup all PGKhata templates (run once)
+router.post("/setup-templates", async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await setupPGKhataTemplates();
+    res.json({
+      message: result.success
+        ? "All templates created successfully"
+        : "Some templates failed to create",
+      ...result,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to setup templates" });
+  }
 });
 
 // Send bill notification to a single tenant
