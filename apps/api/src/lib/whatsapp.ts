@@ -331,31 +331,43 @@ export async function sendBillNotification(params: {
   totalAmount: number;
   dueDate: string;
   upiId?: string;
+  headerImageUrl?: string;
 }): Promise<SendResult> {
+  const components: TemplateComponent[] = [];
+
+  // Add image header if provided
+  if (params.headerImageUrl) {
+    components.push({
+      type: "header",
+      parameters: [
+        {
+          type: "image",
+          image: { link: params.headerImageUrl },
+        },
+      ],
+    });
+  }
+
+  components.push({
+    type: "body",
+    parameters: [
+      { type: "text", parameter_name: "tenant_name", text: params.tenantName },
+      { type: "text", parameter_name: "bill_month", text: params.billMonth },
+      { type: "text", parameter_name: "property_room", text: `${params.propertyName} Room ${params.roomNumber}` },
+      { type: "text", parameter_name: "rent_amount", text: String(params.rentAmount) },
+      { type: "text", parameter_name: "electricity_amount", text: String(params.electricityAmount) },
+      { type: "text", parameter_name: "other_charges", text: String(params.otherCharges) },
+      { type: "text", parameter_name: "total_amount", text: String(params.totalAmount) },
+      { type: "text", parameter_name: "due_date", text: params.dueDate },
+      { type: "text", parameter_name: "upi_id", text: params.upiId || "N/A" },
+    ],
+  });
+
   return sendWhatsAppMessage({
     to: `91${params.phone}`,
     templateName: "monthly_bill_ready",
     languageCode: "en",
-    components: [
-      {
-        type: "header",
-        parameters: [],
-      },
-      {
-        type: "body",
-        parameters: [
-          { type: "text", text: params.tenantName },
-          { type: "text", text: params.billMonth },
-          { type: "text", text: `${params.propertyName} Room ${params.roomNumber}` },
-          { type: "text", text: String(params.rentAmount) },
-          { type: "text", text: String(params.electricityAmount) },
-          { type: "text", text: String(params.otherCharges) },
-          { type: "text", text: String(params.totalAmount) },
-          { type: "text", text: params.dueDate },
-          { type: "text", text: params.upiId || "N/A" },
-        ],
-      },
-    ],
+    components,
   });
 }
 
@@ -379,11 +391,11 @@ export async function sendPaymentReminder(params: {
       {
         type: "body",
         parameters: [
-          { type: "text", text: params.tenantName },
-          { type: "text", text: params.billMonth },
-          { type: "text", text: `${params.propertyName} Room ${params.roomNumber}` },
-          { type: "text", text: String(params.amount) },
-          { type: "text", text: params.dueDate },
+          { type: "text", parameter_name: "tenant_name", text: params.tenantName },
+          { type: "text", parameter_name: "month", text: params.billMonth },
+          { type: "text", parameter_name: "property_room", text: `${params.propertyName} Room ${params.roomNumber}` },
+          { type: "text", parameter_name: "amount", text: String(params.amount) },
+          { type: "text", parameter_name: "due_date", text: params.dueDate },
         ],
       },
     ],
