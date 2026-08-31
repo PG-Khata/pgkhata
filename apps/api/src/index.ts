@@ -28,6 +28,13 @@ import emergencyContactsRouter from "./routes/emergency-contacts";
 import bedBookingsRouter from "./routes/bed-bookings";
 import staffRouter from "./routes/staff";
 import exportsRouter from "./routes/exports";
+import amenitiesRouter from "./routes/amenities";
+import billingPolicyRouter from "./routes/billing-policy";
+import notificationPreferencesRouter from "./routes/notification-preferences";
+import tenantDocumentsRouter from "./routes/tenant-documents";
+import adminDocumentsRouter from "./routes/admin-documents";
+import permissionsRouter from "./routes/permissions";
+import structureRouter from "./routes/structure";
 
 const app = express();
 const logger = pino({
@@ -147,6 +154,13 @@ app.use("/v1/properties/:propertyId/emergency-contacts", emergencyContactsRouter
 app.use("/v1/properties/:propertyId/bed-bookings", bedBookingsRouter);
 app.use("/v1/properties/:propertyId/staff", staffRouter);
 app.use("/v1/properties/:propertyId/exports", exportsRouter);
+app.use("/v1/properties/:propertyId/amenities", amenitiesRouter);
+app.use("/v1/properties/:propertyId/billing-policy", billingPolicyRouter);
+app.use("/v1/properties/:propertyId/notification-preferences", notificationPreferencesRouter);
+app.use("/v1/properties/:propertyId/tenant-documents", tenantDocumentsRouter);
+app.use("/v1/properties/:propertyId/admin-documents", adminDocumentsRouter);
+app.use("/v1/properties/:propertyId/permissions", permissionsRouter);
+app.use("/v1/properties/:propertyId/structure", structureRouter);
 app.use("/v1/dashboard", dashboardRouter);
 app.use("/v1/subscriptions", subscriptionsRouter);
 app.use("/v1/admin", adminRouter);

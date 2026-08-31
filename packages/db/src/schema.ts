@@ -488,6 +488,85 @@ export const staff = pgTable("staff", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const propertyAmenity = pgTable("property_amenity", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const billingPolicy = pgTable("billing_policy", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  advanceHandlingMode: text("advance_handling_mode").notNull().default("manual"), // manual, auto_adjust
+  bookingExpiryDays: integer("booking_expiry_days").notNull().default(3),
+  autoAllocatePayments: boolean("auto_allocate_payments").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const notificationPreference = pgTable("notification_preference", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(), // rent_due, rent_overdue, payment_received, tenant_checkin, etc.
+  inApp: boolean("in_app").notNull().default(true),
+  email: boolean("email").notNull().default(true),
+  whatsapp: boolean("whatsapp").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const tenantDocument = pgTable("tenant_document", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenant.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // aadhaar, pan, passport, driving_license, other
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size"),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const adminDocument = pgTable("admin_document", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type").notNull(), // agreement, license, insurance, other
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size"),
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const modulePermission = pgTable("module_permission", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  staffId: uuid("staff_id")
+    .notNull()
+    .references(() => staff.id, { onDelete: "cascade" }),
+  module: text("module").notNull(), // tenants, billing, expenses, reports, structure
+  canView: boolean("can_view").notNull().default(false),
+  canEdit: boolean("can_edit").notNull().default(false),
+  canDelete: boolean("can_delete").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
   propertyId: uuid("property_id")
