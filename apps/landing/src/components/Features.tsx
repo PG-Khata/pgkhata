@@ -2,6 +2,7 @@
 
 import { BlurFade } from "@/components/ui/blur-fade";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
+import { AnimatedList } from "@/components/ui/animated-list";
 
 const features = [
   {
@@ -11,6 +12,9 @@ const features = [
     className: "lg:col-span-2",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent" />
+    ),
   },
   {
     name: "Tenant management",
@@ -19,6 +23,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent" />
+    ),
   },
   {
     name: "Auto bill generation",
@@ -27,6 +34,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent" />
+    ),
   },
   {
     name: "WhatsApp notifications",
@@ -35,6 +45,9 @@ const features = [
     className: "lg:col-span-2",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-green-600/10 to-transparent" />
+    ),
   },
   {
     name: "Expense tracking",
@@ -43,6 +56,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent" />
+    ),
   },
   {
     name: "Police verification",
@@ -51,6 +67,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 to-transparent" />
+    ),
   },
   {
     name: "Staff management",
@@ -59,6 +78,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent" />
+    ),
   },
   {
     name: "Reports and analytics",
@@ -67,6 +89,9 @@ const features = [
     className: "lg:col-span-2",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent" />
+    ),
   },
   {
     name: "QR code signup",
@@ -75,6 +100,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-transparent" />
+    ),
   },
   {
     name: "Document storage",
@@ -83,6 +111,9 @@ const features = [
     className: "lg:col-span-1",
     href: "#",
     cta: "Learn more",
+    background: (
+      <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-transparent" />
+    ),
   },
 ];
 
@@ -131,7 +162,7 @@ export default function Features() {
               description={feature.description}
               href={feature.href}
               cta={feature.cta}
-              background={<div className="absolute inset-0 bg-gradient-to-br from-[var(--color-accent)]/5 to-transparent" />}
+              background={feature.background}
             />
           ))}
         </BentoGrid>

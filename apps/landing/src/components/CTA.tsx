@@ -3,6 +3,8 @@
 import { BlurFade } from "@/components/ui/blur-fade";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { DotPattern } from "@/components/ui/dot-pattern";
+import { cn } from "@/lib/utils";
 
 export default function CTA() {
   return (
@@ -10,6 +12,14 @@ export default function CTA() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <BlurFade delay={0.1}>
           <div className="relative bg-[var(--color-text)] rounded-lg p-8 md:p-12 overflow-hidden">
+            {/* Dot pattern background */}
+            <DotPattern
+              className={cn(
+                "absolute inset-0 opacity-10",
+                "[mask-image:radial-gradient(400px_circle_at_center,white,transparent)]"
+              )}
+            />
+
             <BorderBeam
               size={300}
               duration={15}

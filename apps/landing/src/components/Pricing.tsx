@@ -3,6 +3,7 @@
 import { BlurFade } from "@/components/ui/blur-fade";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { NumberTicker } from "@/components/ui/number-ticker";
 
 const competitors = [
   { name: "PG Manager", price: "3,600/year", properties: "Limited" },
@@ -56,7 +57,9 @@ export default function Pricing() {
               />
               <div className="mb-6">
                 <h3 className="text-xl font-bold text-white mb-1">PGKhata</h3>
-                <div className="text-5xl font-bold text-white mb-1">0</div>
+                <div className="text-5xl font-bold text-white mb-1">
+                  <NumberTicker value={0} />
+                </div>
                 <p className="text-sm text-gray-400">rupees, forever</p>
               </div>
 

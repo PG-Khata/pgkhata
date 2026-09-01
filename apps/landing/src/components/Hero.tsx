@@ -1,14 +1,22 @@
 "use client";
 
 import { BlurFade } from "@/components/ui/blur-fade";
-import { TextReveal } from "@/components/ui/text-reveal";
 import { NumberTicker } from "@/components/ui/number-ticker";
 import { Globe } from "@/components/ui/globe";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
+import { DotPattern } from "@/components/ui/dot-pattern";
+import { cn } from "@/lib/utils";
 
 export default function Hero() {
   return (
     <section className="relative pt-32 pb-20 bg-[var(--color-bg)] overflow-hidden">
+      {/* Dot pattern background */}
+      <DotPattern
+        className={cn(
+          "[mask-image:radial-gradient(400px_circle_at_center,white,transparent)]"
+        )}
+      />
+
       {/* Background globe */}
       <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[600px] h-[600px] opacity-10 pointer-events-none">
         <Globe />
@@ -27,9 +35,13 @@ export default function Hero() {
               </div>
             </BlurFade>
 
-            <TextReveal className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight">
-              Stop paying for PG management
-            </TextReveal>
+            <BlurFade delay={0.2}>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight">
+                Stop paying for
+                <br />
+                PG management
+              </h1>
+            </BlurFade>
 
             <BlurFade delay={0.4}>
               <p className="text-lg md:text-xl text-[var(--color-text-secondary)] mb-8 max-w-lg leading-relaxed">
