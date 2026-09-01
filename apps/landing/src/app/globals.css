@@ -1,16 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+:root {
+  /* Warm color palette */
+  --color-bg: #faf9f7;
+  --color-surface: #ffffff;
+  --color-text: #1a1310;
+  --color-text-secondary: #6b5e54;
+  --color-border: #e8e2dc;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  
+  /* Typography */
+  --font-display: 'Manrope', sans-serif;
+  --font-body: 'Manrope', sans-serif;
+  
+  /* Spacing scale (4pt) */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+  --space-3xl: 4rem;
+  --space-4xl: 6rem;
+}
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  overflow-x: clip;
 }
 
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-style: normal;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+/* Tabular numbers for data */
+[data-tabular] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Selection */
 ::selection {
-  background-color: #111827;
+  background-color: var(--color-accent);
   color: white;
+}
+
+/* Focus states */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -17,44 +17,47 @@ export default function Navigation() {
     const handleScroll = () => {
       setScrolled(window.scrollY > 50);
     };
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 ${
         scrolled
-          ? "bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5"
+          ? "bg-[var(--color-bg)] border-b border-[var(--color-border)]"
           : "bg-transparent"
       }`}
+      style={{ transition: "background-color 200ms ease-out, border-color 200ms ease-out" }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <a href="/" className="text-xl font-bold text-white">
+          <a href="/" className="text-xl font-bold text-[var(--color-text)]">
             PGKhata
           </a>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+                className="text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
+                style={{ transition: "color 150ms ease-out" }}
               >
                 {link.label}
               </a>
             ))}
             <a
               href="https://app.pgkhata.com/register"
-              className="bg-white text-black px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-100 transition-colors"
+              className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-[var(--color-accent-hover)]"
+              style={{ transition: "background-color 150ms ease-out" }}
             >
-              Get Started Free
+              Start free
             </a>
           </div>
 
           <button
-            className="md:hidden p-2 text-white"
+            className="md:hidden p-2 text-[var(--color-text)]"
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Toggle menu"
           >
@@ -84,13 +87,13 @@ export default function Navigation() {
         </div>
 
         {isOpen && (
-          <div className="md:hidden py-4 border-t border-white/10">
+          <div className="md:hidden py-4 border-t border-[var(--color-border)]">
             <div className="flex flex-col gap-4">
               {navLinks.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
-                  className="text-sm font-medium text-gray-400 hover:text-white"
+                  className="text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
                   onClick={() => setIsOpen(false)}
                 >
                   {link.label}
@@ -98,9 +101,9 @@ export default function Navigation() {
               ))}
               <a
                 href="https://app.pgkhata.com/register"
-                className="bg-white text-black px-4 py-2 rounded-lg text-sm font-semibold text-center"
+                className="bg-[var(--color-accent)] text-white px-4 py-2 rounded-md text-sm font-semibold text-center"
               >
-                Get Started Free
+                Start free
               </a>
             </div>
           </div>

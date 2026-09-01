@@ -49,41 +49,52 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-24 bg-white">
+    <section id="faq" className="py-20 bg-[var(--color-bg)]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-            Frequently Asked Questions
+        <div className="mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
+            Frequently asked questions
           </h2>
-          <p className="text-xl text-gray-600">
+          <p className="text-lg text-[var(--color-text-secondary)]">
             Everything you need to know about PGKhata.
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {faqs.map((faq, index) => (
             <div
               key={faq.question}
-              className="border border-gray-200 rounded-xl overflow-hidden"
+              className="border border-[var(--color-border)] rounded-lg overflow-hidden"
             >
               <button
-                className="w-full px-6 py-4 text-left flex justify-between items-center hover:bg-gray-50 transition-colors"
+                className="w-full px-5 py-4 text-left flex justify-between items-center hover:bg-[var(--color-surface)]"
+                style={{ transition: "background-color 150ms ease-out" }}
                 onClick={() => setOpenIndex(openIndex === index ? null : index)}
               >
-                <span className="font-semibold text-gray-900 pr-4">{faq.question}</span>
+                <span className="font-semibold text-[var(--color-text)] pr-4 text-sm">
+                  {faq.question}
+                </span>
                 <svg
-                  className={`w-5 h-5 text-gray-500 flex-shrink-0 transition-transform ${
+                  className={`w-4 h-4 text-[var(--color-text-secondary)] flex-shrink-0 ${
                     openIndex === index ? "rotate-180" : ""
                   }`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  style={{ transition: "transform 150ms ease-out" }}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
               {openIndex === index && (
-                <div className="px-6 pb-4 text-gray-600">{faq.answer}</div>
+                <div className="px-5 pb-4 text-sm text-[var(--color-text-secondary)]">
+                  {faq.answer}
+                </div>
               )}
             </div>
           ))}
