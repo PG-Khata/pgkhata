@@ -1,0 +1,1648 @@
+Hover Feature Cards
+May 4, 2026
+A responsive grid of feature cards where a description panel slides in from below on hover, with spring animation and optional image support.
+
+
+
+Installation
+npm
+pnpm
+yarn
+bun
+
+npx shadcn@latest add @unlumen-ui/hover-feature-cards
+File Structure
+
+your-project
+
+components
+hover-feature-cards.tsx
+
+lib
+
+public
+Usage
+
+import {
+  HoverFeatureCards,
+  type HoverFeatureCard,
+} from "@/components/unlumen-ui/hover-feature-cards";
+import Link from "next/link";
+
+const items: HoverFeatureCard[] = [
+  {
+    name: "Components",
+    description:
+      "Real components, not just primitives. Ready to use and customize.",
+    href: "/components",
+    img: "/blocks.png",
+    imgLight: "/blocks-light.png",
+    imgClassName: "absolute -bottom-10 left-1/2 -translate-x-1/2",
+    imgWidth: 320,
+    containerClassName: "h-full rounded-3xl",
+    fadeBottom: true,
+  },
+  {
+    name: "primitives",
+    description: "Polished UI system, focused on aesthetics and smooth UX.",
+    href: "/docs/ui",
+    img: "/refined-ui.png",
+    imgWidth: 200,
+    containerClassName: "h-full rounded-3xl",
+  },
+];
+
+export default function Example() {
+  return (
+    <HoverFeatureCards
+      items={items}
+      renderLink={(href, children) => <Link href={href}>{children}</Link>}
+    />
+  );
+}
+API Reference
+HoverFeatureCards
+Prop	Type	Default	Description
+items	HoverFeatureCard[]	-	
+Array of feature card data objects.
+renderLink?	(href: string, children: React.ReactNode) => React.ReactNode	-	
+Optional render prop to wrap linked cards. Receives the href and card children. Use this to inject Next.js Link or any router link.
+className?	string	-	
+Extra classes applied to the grid wrapper.
+HoverFeatureCard (item shape)
+Prop	Type	Default	Description
+name	string	-	
+Card title displayed inside the illustration area.
+description	string	-	
+Text shown in the slide-in panel on hover.
+href?	string	-	
+Optional link target. When omitted the card is non-interactive.
+img?	string	-	
+Image URL shown in dark mode (or always when imgLight is not set).
+imgLight?	string	-	
+Image URL shown in light mode.
+imgClassName?	string	-	
+Extra classes applied to the image element.
+imgWidth?	number	-	
+Intrinsic width of the image in pixels.
+containerClassName?	string	-	
+Extra classes applied to the illustration container.
+fadeBottom?	boolean	-	
+When true, a gradient fades the bottom of the illustration area into the card background.
+soon?	boolean	-	
+When true, renders a 'Coming soon' badge and disables hover interaction.
+Notes
+The description panel slides up via Motion variant propagation: the parent motion.div owns the rest/hover variants, and the panel inherits them automatically.
+Cards without an href receive cursor-not-allowed and reduced opacity, with whileTap scale disabled.
+Use renderLink to decouple the component from any specific router — pass next/link, react-router, or a plain <a> tag.
+
+
+
+
+
+Docs
+/
+Components
+/
+Marquee
+Marquee
+Copy Page
+
+Previous
+Next
+An infinite scrolling component that can be used to display text, images, or videos.
+
+Preview
+Code
+Open in
+
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jane
+@jane
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jenny
+@jenny
+
+I'm at a loss for words. This is amazing. I love it.
+
+James
+@james
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jane
+@jane
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jenny
+@jenny
+
+I'm at a loss for words. This is amazing. I love it.
+
+James
+@james
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jane
+@jane
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jenny
+@jenny
+
+I'm at a loss for words. This is amazing. I love it.
+
+James
+@james
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jane
+@jane
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jenny
+@jenny
+
+I'm at a loss for words. This is amazing. I love it.
+
+James
+@james
+
+I'm at a loss for words. This is amazing. I love it.
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/marquee
+Copy
+Examples
+Vertical
+Preview
+Code
+Open in
+
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+3D
+Preview
+Code
+Open in
+
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jack
+@jack
+
+I've never seen anything like this before. It's amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+
+Jill
+@jill
+
+I don't know what to say. I'm speechless. This is amazing.
+
+John
+@john
+
+I'm at a loss for words. This is amazing. I love it.
+Usage
+Copy
+import { Marquee } from "@/components/ui/marquee"
+Copy
+<Marquee>
+  <span>Next.js</span>
+  <span>React</span>
+  <span>TypeScript</span>
+  <span>Tailwind CSS</span>
+</Marquee>
+Props
+Prop	Type	Default	Description
+className	string	-	The class name to apply to the component.
+reverse	boolean	false	Whether or not to reverse the direction of the marquee.
+pauseOnHover	boolean	false	Whether or not to pause the marquee when the user hovers over the component.
+vertical	boolean	false	Whether or not to display the marquee vertically.
+children	node	-	The content to display in the marquee.
+repeat	number	4	The number of times to repeat the content.
+
+
+Bento Grid
+Copy Page
+
+Previous
+Next
+Bento grid is a layout used to showcase the features of a product in a simple and elegant way.
+
+Preview
+Code
+Open in
+
+bitcoin.pdf
+Bitcoin is a cryptocurrency invented in 2008 by an unknown person or group of people using the name Satoshi Nakamoto.
+finances.xlsx
+A spreadsheet or worksheet is a file made of rows and columns that help sort data, arrange data easily, and calculate numerical data.
+logo.svg
+Scalable Vector Graphics is an Extensible Markup Language-based vector image format for two-dimensional graphics with support for interactivity and animation.
+keys.gpg
+GPG keys are used to encrypt and decrypt email, files, directories, and whole disk partitions and to authenticate messages.
+seed.txt
+A seed phrase, seed recovery phrase or backup seed phrase is a list of words which store all the information needed to recover Bitcoin funds on-chain.
+bitcoin.pdf
+Bitcoin is a cryptocurrency invented in 2008 by an unknown person or group of people using the name Satoshi Nakamoto.
+finances.xlsx
+A spreadsheet or worksheet is a file made of rows and columns that help sort data, arrange data easily, and calculate numerical data.
+logo.svg
+Scalable Vector Graphics is an Extensible Markup Language-based vector image format for two-dimensional graphics with support for interactivity and animation.
+keys.gpg
+GPG keys are used to encrypt and decrypt email, files, directories, and whole disk partitions and to authenticate messages.
+seed.txt
+A seed phrase, seed recovery phrase or backup seed phrase is a list of words which store all the information needed to recover Bitcoin funds on-chain.
+bitcoin.pdf
+Bitcoin is a cryptocurrency invented in 2008 by an unknown person or group of people using the name Satoshi Nakamoto.
+finances.xlsx
+A spreadsheet or worksheet is a file made of rows and columns that help sort data, arrange data easily, and calculate numerical data.
+logo.svg
+Scalable Vector Graphics is an Extensible Markup Language-based vector image format for two-dimensional graphics with support for interactivity and animation.
+keys.gpg
+GPG keys are used to encrypt and decrypt email, files, directories, and whole disk partitions and to authenticate messages.
+seed.txt
+A seed phrase, seed recovery phrase or backup seed phrase is a list of words which store all the information needed to recover Bitcoin funds on-chain.
+bitcoin.pdf
+Bitcoin is a cryptocurrency invented in 2008 by an unknown person or group of people using the name Satoshi Nakamoto.
+finances.xlsx
+A spreadsheet or worksheet is a file made of rows and columns that help sort data, arrange data easily, and calculate numerical data.
+logo.svg
+Scalable Vector Graphics is an Extensible Markup Language-based vector image format for two-dimensional graphics with support for interactivity and animation.
+keys.gpg
+GPG keys are used to encrypt and decrypt email, files, directories, and whole disk partitions and to authenticate messages.
+seed.txt
+A seed phrase, seed recovery phrase or backup seed phrase is a list of words which store all the information needed to recover Bitcoin funds on-chain.
+Save your files
+We automatically save your files as you type.
+
+Learn more
+👤
+User signed up
+·
+10m ago
+Magic UI
+
+💸
+Payment received
+·
+15m ago
+Magic UI
+
+🗞️
+New event
+·
+2m ago
+Magic UI
+
+💬
+New message
+·
+5m ago
+Magic UI
+
+👤
+User signed up
+·
+10m ago
+Magic UI
+
+💸
+Payment received
+·
+15m ago
+Magic UI
+
+🗞️
+New event
+·
+2m ago
+Magic UI
+
+💬
+New message
+·
+5m ago
+Magic UI
+
+👤
+User signed up
+·
+10m ago
+Magic UI
+
+💸
+Payment received
+·
+15m ago
+Magic UI
+
+Notifications
+Get notified when something happens.
+
+Learn more
+Integrations
+Supports 100+ integrations and counting.
+
+Learn more
+Calendar
+Use the calendar to filter your files by date.
+
+Learn more
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/bento-grid
+Copy
+Examples
+Preview
+Code
+Open in
+
+
+Save your files
+We automatically save your files as you type.
+
+Learn more
+
+Full text search
+Search through all your files in one place.
+
+Learn more
+
+Multilingual
+Supports 100+ languages and counting.
+
+Learn more
+
+Calendar
+Use the calendar to filter your files by date.
+
+Learn more
+
+Notifications
+Get notified when someone shares a file or mentions you in a comment.
+
+Learn more
+Usage
+Copy
+import { BentoCard, BentoGrid } from "@/components/ui/bento-grid"
+Copy
+<BentoGrid>
+  <BentoCard />
+</BentoGrid>
+
+
+Docs
+/
+Components
+/
+Animated List
+Animated List
+Copy Page
+
+Previous
+Next
+A list that animates each item in sequence with a delay. Used to showcase notifications or events on your landing page.
+
+Preview
+Code
+Open in
+
+🗞️
+New event
+·
+2m ago
+Magic UI
+
+💬
+New message
+·
+5m ago
+Magic UI
+
+👤
+User signed up
+·
+10m ago
+Magic UI
+
+💸
+Payment received
+·
+15m ago
+Magic UI
+
+🗞️
+New event
+·
+2m ago
+Magic UI
+
+💬
+New message
+·
+5m ago
+Magic UI
+
+👤
+User signed up
+·
+10m ago
+Magic UI
+
+💸
+Payment received
+·
+15m ago
+Magic UI
+
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/animated-list
+Copy
+Usage
+Copy
+import { AnimatedList } from "@/components/ui/animated-list"
+Copy
+<AnimatedList>
+  <p>Item 1</p>
+  <p>Item 2</p>
+  <p>Item 3</p>
+</AnimatedList>
+Props
+Animated List
+Prop	Type	Default	Description
+className	string	-	The class name for the component
+delay	number	1000	The delay between each item in ms
+
+
+
+
+
+Docs
+/
+Components
+/
+Dock
+Dock (for Mobile screen)
+Copy Page
+
+Previous
+Next
+An implementation of the MacOS dock using react + tailwindcss + framer motion
+
+Preview
+Code
+Open in
+
+Dock
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/dock
+Copy
+Examples
+Custom Direction
+Preview
+Code
+Open in
+
+Custom magnification
+Preview
+Code
+Open in
+
+Usage
+Copy
+import { Home, Search, Settings } from "lucide-react"
+ 
+import { Dock, DockIcon } from "@/components/ui/dock"
+Copy
+<Dock>
+  <DockIcon>
+    <Home />
+  </DockIcon>
+  <DockIcon>
+    <Settings />
+  </DockIcon>
+  <DockIcon>
+    <Search />
+  </DockIcon>
+</Dock>
+Props
+Dock
+Prop	Type	Default	Description
+className	string	-	Custom CSS class for styling
+children	ReactNode	-	Children elements
+iconSize	number	40	Size of the icon
+iconMagnification	number	60	Level of icon magnification
+iconDistance	number	140	Distance from cursor to magnify icon
+direction	string	"middle"	Direction of the dock
+disableMagnification	boolean	false	Disable Magnification on hover
+DockIcon
+Prop	Type	Default	Description
+size	number	40	Size of the icon
+magnification	number	60	Level of icon magnification
+distance	number	140	Distance from cursor to magnify icon
+mouseX	any	-	Mouse X position for magnification
+className	string	-	Custom CSS class for styling
+children	React.ReactNode	-	Children elements
+props	PropsWithChildren	-	Additional props
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Border Beam
+Border Beam(we can use this as multiple place not only at  landing page)
+Copy Page
+
+Previous
+Next
+An animated beam of light which travels along the border of its container.
+
+Preview
+Code
+Open in
+
+Login
+Enter your credentials to access your account.
+Email
+Enter your email
+Password
+Enter your password
+Register
+Login
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/border-beam
+Copy
+Examples
+2 Border Beams
+Preview
+Code
+Open in
+
+Now Playing
+Stairway to Heaven - Led Zeppelin
+2:45
+8:02
+
+
+
+Reverse
+Preview
+Code
+Open in
+
+Login
+Enter your credentials to access your account.
+Email
+Enter your email
+Password
+Enter your password
+Register
+Login
+Spring Animation
+Preview
+Code
+Open in
+
+Buy Now
+Usage
+Copy
+import { BorderBeam } from "@/components/ui/border-beam"
+Copy
+<div className="relative h-[500px] w-full overflow-hidden">
+  <BorderBeam />
+</div>
+Props
+Border Beam
+Prop	Type	Default	Description
+className	string	-	Custom class to apply to the component
+size	number	50	Size of the beam
+duration	number	6	Duration of the animation in seconds
+delay	number	0	Delay before the animation starts
+colorFrom	string	#ffaa40	Start color of the beam gradient
+colorTo	string	#9c40ff	End color of the beam gradient
+transition	Transition	-	Custom motion transition configuration
+style	React.CSSProperties	-	Custom CSS styles to apply
+reverse	boolean	false	Whether to reverse animation direction
+initialOffset	number	0	Initial offset position (0-100)
+borderWidth	number	1	Border width of the beam
+
+
+
+
+
+
+
+Toggle theme
+Rectangle
+Preview
+Code
+Open in
+
+Toggle theme
+Hexagon
+Preview
+Code
+Open in
+
+Toggle theme
+Triangle
+Preview
+Code
+Open in
+
+Toggle theme
+Star
+Preview
+Code
+Open in
+
+Toggle theme
+Next.js (next-themes)
+Pass theme and onThemeChange to keep useTheme() subscribers in sync on toggle. When controlled, the component skips localStorage and lets the parent own persistence.
+
+Preview
+Code
+Open in
+
+Toggle theme
+Props
+Prop	Type	Default	Description
+className	string	—	Additional classes for the button
+duration	number	400	Duration of the theme transition animation in milliseconds
+variant	TransitionVariant	"circle"	Shape used for the view-transition clip-path reveal
+fromCenter	boolean	false	If true, the clip expands from the viewport center instead of the button
+theme	"light" | "dark"	—	Controlled theme value. When set, the parent owns persistence (e.g. next-themes).
+onThemeChange	(theme: "light" | "dark") => void	—	Called on toggle. Pair with theme for controlled usage.
+Export TransitionVariant from the same module when you need typed props or menus.
+
+
+
+
+
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Typing Animation (we can use this as multiple place not only at
+  landing page)
+Typing Animation
+Copy Page
+
+Previous
+Next
+Characters appearing in typed animation
+
+Preview
+Code
+Open in
+
+Hello World! 👋
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/typing-animation
+Copy
+Examples
+Basic Usage
+Preview
+Code
+Open in
+
+Hello World! 👋
+Multiple Words with Loop
+Preview
+Code
+Open in
+
+Ship 🚀|
+Custom Speed
+Preview
+Code
+Open in
+
+|
+Start on View
+Preview
+Code
+Open in
+
+Starts typing when in view
+Without Cursor
+Preview
+Code
+Open in
+
+No cursor shown
+Single Play (No Loop)
+Preview
+Code
+Open in
+
+Final
+Cursor Blinking
+Preview
+Code
+Open in
+
+With blinking cursor (default) - watch during pause
+
+Paus|
+Without blinking cursor - static during pause
+
+Paus|
+Cursor Styles
+Preview
+Code
+Open in
+
+Line cursor (default)
+
+Line cursor|
+Block cursor (VSCode style)
+
+Block cursor▌
+Underscore cursor
+
+Underscore cursor_
+Usage
+Copy
+import { TypingAnimation } from "@/components/ui/typing-animation"
+Copy
+<TypingAnimation>Hello World! 👋</TypingAnimation>
+Props
+Prop	Type	Default	Description
+children	string	-	Single string to animate
+words	string[]	-	Array of strings to type and delete in sequence
+className	string	-	The class name to be applied to the component
+duration	number	100	Duration for each character
+typeSpeed	number	100	Speed of typing animation (ms per character)
+deleteSpeed	number	50	Speed of deleting animation (ms per character)
+delay	number	0	Delay before animation starts (in ms)
+pauseDelay	number	1000	Pause duration between words (in ms)
+loop	boolean	false	Whether to loop the animation
+as	"article" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "li" | "p" | "section" | "span"	"span"	Component to render as
+startOnView	boolean	true	Start animation when component is in view
+showCursor	boolean	true	Whether to show the typing cursor
+blinkCursor	boolean	true	Whether the cursor should blink
+cursorStyle	"line" | "block" | "underscore"	"line"	Style of the cursor (like VSCode)
+
+
+
+
+
+
+
+
+
+
+
+
+
+Line Shadow Text(we can use this as multiple place not only at
+  landing page)
+Copy Page
+
+Previous
+Next
+A text component with a moving line shadow.
+
+Preview
+Code
+Open in
+
+ShipFast
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/line-shadow-text
+Copy
+Usage
+Copy
+import { LineShadowText } from "@/components/ui/line-shadow-text"
+Copy
+<LineShadowText>Magic UI</LineShadowText>
+Props
+Prop	Type	Default	Description
+shadowColor	string	"black"	The color of the shadow effect
+children	string	-	The text to display with shadow effect
+as	"article" | "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "li" | "p" | "section" | "span"	"span"	The HTML element to render the text as
+
+
+
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Number Ticker
+Number Ticker (we can use this as multiple place not only at
+  landing page)
+Copy Page
+
+Previous
+Next
+Animate numbers to count up or down to a target number
+
+Preview
+Code
+Open in
+
+100
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/number-ticker
+Copy
+Example
+Decimal
+Preview
+Code
+Open in
+
+5.67
+Start Value
+Preview
+Code
+Open in
+
+100
+Usage
+Copy
+import { NumberTicker } from "@/components/ui/number-ticker"
+Copy
+<NumberTicker value={100} />
+Props
+Prop	Type	Default	Description
+value	int	0	The value to count to
+direction	up | down	"up"	The direction to count in
+delay	number	0	The delay before counting
+decimalPlaces	number	0	The number of decimal places to show
+startValue	number	0	The value to start counting from
+
+
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Text Highlighter
+Text Highlighter (we can use this as multiple place not only at
+  landing page)
+Copy Page
+
+Previous
+Next
+A text highlighter that mimics the effect of a human-drawn marker stroke.
+
+Preview
+Code
+Open in
+
+The Magic UI Highlighter makes important text stand out effortlessly.
+
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/highlighter
+Copy
+Usage
+Copy
+import { Highlighter } from "@/components/ui/highlighter"
+Copy
+<p>
+  The{" "}
+  <Highlighter action="underline" color="#FF9800">
+    Magic UI Highlighter
+  </Highlighter>{" "}
+  makes important{" "}
+  <Highlighter action="highlight" color="#87CEFA">
+    text stand out
+  </Highlighter>{" "}
+  effortlessly.
+</p>
+Props
+Here's the updated props table with units specified for the numerical values:
+
+Prop	Type	Default	Description
+children	React.ReactNode	Required	The content to be highlighted/annotated.
+color	string	"#ffd1dc"	The color of the highlight.
+action	"highlight" | "circle" | "box" | "bracket" | "crossed-off" | "strike-through" | "underline"	"highlight"	The type of annotation effect to apply.
+strokeWidth	number	1.5px	The width of the annotation stroke.
+animationDuration	number	500ms	Duration of the animation in milliseconds.
+iterations	number	2	Number of times to draw the annotation (adds a sketchy effect when > 1).
+padding	number	2px	Padding between the element and the annotation.
+multiline	boolean	true	Whether to annotate across multiple lines or treat content as a single line.
+isView	boolean	false	Controls whether the animation starts only when the element enters viewport.
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Ripple Button(we can use this as multiple place not only at
+  landing page)
+Ripple Button
+Copy Page
+
+Previous
+Next
+An animated button with ripple useful for user engagement.
+
+Preview
+Code
+Open in
+
+
+Click me
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/ripple-button
+Copy
+Usage
+Copy
+import { RippleButton } from "@/components/ui/ripple-button"
+Copy
+<RippleButton>Ripple Button</RippleButton>
+Props
+Prop	Type	Default	Description
+children	React.ReactNode	-	The content of the button.
+className	string	-	Additional class names for the button.
+rippleColor	string	-	The rbg numbers only for the color of the rippling waves.
+duration	string	-	The time span of one ripple.
+
+
+
+
+
+
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Dot Pattern
+Dot Pattern 
+Copy Page
+
+Previous
+Next
+A background dot pattern made with SVGs, fully customizable using Tailwind CSS.
+
+Preview
+Code
+Open in
+
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/dot-pattern
+Copy
+Examples
+Linear Gradient
+Preview
+Code
+Open in
+
+With Glow Effect
+Preview
+Code
+Open in
+
+Usage
+Copy
+import { DotPattern } from "@/components/ui/dot-pattern"
+Copy
+<div className="relative h-[500px] w-full overflow-hidden">
+  <DotPattern />
+</div>
+Props
+Dot Pattern
+Prop	Type	Default	Description
+width	any	16	Width of the dot pattern
+height	any	16	Height of the dot pattern
+x	any	0	X position of the dot
+y	any	0	Y position of the dot
+cx	any	1	X position of the circle
+cy	any	1	Y position of the circle
+cr	any	1	Radius of the circle
+className	string	-	Class name of the dot pattern
+glow	boolean	false	Activates the glow effect in the dot pattern
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Docs
+/
+Components
+/
+Interactive Hover Button(we can use this as multiple place not only at
+  landing page)
+Interactive Hover Button
+Copy Page
+
+Previous
+Next
+A visually engaging button component that responds to hover with dynamic transitions, adapting smoothly between light and dark modes for enhanced user interactivity.
+
+Preview
+Code
+Open in
+
+
+Hover Me
+Hover Me
+Installation
+CLI
+Manual
+pnpm
+npm
+yarn
+bun
+pnpm dlx shadcn@latest add @magicui/interactive-hover-button
+Copy
+Usage
+Copy
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
+Copy
+<InteractiveHoverButton>Interactive Hover Button</InteractiveHoverButton>
+Props
+Prop	Type	Default	Description
+text	string	Button	The text to be displayed inside the button
+className	string	-	Additional class names to style the component
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Components
+/
+Social Selector
+Documentation
+Code
+Social Selector
+Animated React social account selector with toggle animations, icon and label variants, keyboard and screen reader accessibility.
+
+Copy Markdown
+Open
+Add
+~2.0 kB
+Last updated: August 2, 2026
+
+Installation
+SmoothUI CLI
+shadcn CLI
+pnpm
+npm
+yarn
+bun
+
+npx smoothui-cli add social-selector
+Features
+
+Animated select/deselect
+Icon and label variants
+Keyboard and screen reader support
+Responsive layout
+Accessibility
+
+ARIA Attributes
+
+Attribute	Element	Purpose
+aria-label	Platform buttons	Describes the action (e.g., "Select X platform")
+Screen Reader
+
+Each platform icon button contains a visually hidden <span className="sr-only"> with the platform name.
+SVG icons include <title> elements (e.g., "X icon", "Bluesky icon", "Threads icon").
+External links use rel="noopener noreferrer" for security.
+Reduced Motion
+
+This component respects the prefers-reduced-motion media query via useReducedMotion from Motion. When reduced motion is preferred, the background pill sliding animation and the domain text blur/slide transitions are disabled.
+
+Props
+
+
+Components
+/
+User Account Avatar
+Documentation
+Code
+User Account Avatar
+React avatar component with image fallback support, multiple sizes, and animated presence transitions built with Radix UI.
+
+Copy Markdown
+Open
+Add
+~1.7 kB
+Last updated: August 2, 2026
+
+Installation
+SmoothUI CLI
+shadcn CLI
+pnpm
+npm
+yarn
+bun
+
+npx smoothui-cli add user-account-avatar
+Features
+
+Image with fallback support
+Multiple sizes
+Customizable fallback text
+Group avatars support
+Status indicators
+Built on Radix UI Avatar
+Accessibility
+
+Keyboard Interactions
+
+Key	Description
+Enter / Space	Toggle the "Edit Profile" or "Last Orders" sections
+ARIA Attributes
+
+Attribute	Element	Purpose
+aria-label="View Order"	View order button	Labels the order detail button for screen readers
+htmlFor	Form labels	Associates labels with their form inputs
+type="button"	All buttons	Prevents implicit form submission
+type="submit"	Save button	Submits the profile edit form
+Screen Reader
+
+The popover is built on Radix UI Popover, which manages focus trapping, return focus, and escape-to-close automatically.
+Form inputs include proper label elements linked via htmlFor/id attributes.
+Section toggle buttons include keyboard event handlers (onKeyDown) for Enter and Space keys.
+The avatar image includes an alt="User Avatar" attribute.
+Reduced Motion
+
+This component respects the prefers-reduced-motion media query via useReducedMotion from Motion. When reduced motion is preferred, section expand/collapse animations, progress bar animations, and height transitions are all disabled instantly.
+
+Props
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Components
+/
+Animated File Upload
+Documentation
+Code
+Animated File Upload
+Animated React drag-and-drop file upload component with animated file list, validation states, and smooth drag-over transitions.
+
+Copy Markdown
+Open
+Add
+Last updated: August 2, 2026
+
+Installation
+SmoothUI CLI
+shadcn CLI
+pnpm
+npm
+yarn
+bun
+
+npx smoothui-cli add animated-file-upload
+Features
+
+Drag-and-drop file upload zone
+Click to browse files
+Animated drag-over state
+File list with animated add/remove
+File size validation
+MIME type filtering
+Single or multiple file support
+Accessible with proper ARIA attributes
+Respects reduced motion preferences
+Accessibility
+
+Keyboard Interactions
+
+Key	Description
+Enter / Space	Open file browser
+Tab	Navigate between drop zone and file items
+ARIA Attributes
+
+Attribute	Element	Purpose
+role="button"	Drop zone	Identifies the clickable upload area
+aria-label	Drop zone	Describes the upload action
+aria-label="Selected files"	File list	Identifies the file list
+aria-label	Remove button	Announces which file will be removed
+role="alert"	Error message	Announces validation errors
+Reduced Motion
+
+This component respects the prefers-reduced-motion media query via useReducedMotion from Motion. When reduced motion is preferred, drag animations and file list transitions are disabled.
+
+
+
+
+
+
+
+
+
+
+Components
+/
+Animated OTP Input
+Documentation
+Code
+Animated OTP Input
+Animated React OTP input component with auto-advance, backspace support, focus animations, and validation state transitions.
+
+Copy Markdown
+Open
+Add
+~8.9 kB
+Last updated: August 2, 2026
+
+Installation
+SmoothUI CLI
+shadcn CLI
+pnpm
+npm
+yarn
+bun
+
+npx smoothui-cli add animated-o-t-p-input
+Features
+
+Auto-advance and backspace support
+Animated focus and validation
+Masking options
+Accessible and mobile-friendly
+Accessibility
+
+Keyboard Interactions
+
+Key	Description
+0-9	Enters a digit and auto-advances to the next slot
+Backspace	Deletes the current digit and moves focus to the previous slot
+Tab	Moves focus to/from the OTP input
+ARIA Attributes
+
+Attribute	Element	Purpose
+aria-label	OTP input	Provides an accessible name (defaults to "One-time password input")
+aria-describedby	OTP input	References an optional description element for additional context
+Reduced Motion
+
+This component respects the prefers-reduced-motion media query via useReducedMotion from Motion. When reduced motion is preferred, slot entrance animations, digit flip transitions, and the blinking caret are all disabled.
+
+
+
+
+
+
+
+

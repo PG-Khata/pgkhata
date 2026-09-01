@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { getAllPeople, getAvatarUrl, getImageKitUrl } from "@/lib/smoothui-data";
 import { ArrowDownRight, Star } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { AnimatedGroup, AnimatedText, Button, HeroHeader } from "@/components/ui/smoothui/shared";
@@ -42,13 +43,12 @@ export function HeroShowcase({
     },
   },
   reviews = {
-    avatars: [
-      { alt: "User 1", src: "https://api.dicebear.com/7.x/avataaars/svg?seed=1" },
-      { alt: "User 2", src: "https://api.dicebear.com/7.x/avataaars/svg?seed=2" },
-      { alt: "User 3", src: "https://api.dicebear.com/7.x/avataaars/svg?seed=3" },
-      { alt: "User 4", src: "https://api.dicebear.com/7.x/avataaars/svg?seed=4" },
-      { alt: "User 5", src: "https://api.dicebear.com/7.x/avataaars/svg?seed=5" },
-    ],
+    avatars: getAllPeople()
+      .slice(0, 5)
+      .map((person) => ({
+        alt: `${person.name} avatar`,
+        src: getAvatarUrl(person.avatar, 90),
+      })),
     count: 200,
     rating: 5.0,
   },
@@ -152,19 +152,20 @@ export function HeroShowcase({
                 ) : null}
               </AnimatedGroup>
             </AnimatedGroup>
-            {/* App screenshot placeholder */}
+            {/* Imagen completamente estática para que el blend mode funcione perfecto */}
             <div className="flex">
-              <div className="h-full w-full rounded-md bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center">
-                <div className="text-center p-8">
-                  <div className="text-6xl mb-4">🏠</div>
-                  <p className="text-lg font-semibold text-[var(--color-text)]">
-                    PGKhata Dashboard
-                  </p>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    Manage your PG properties
-                  </p>
-                </div>
-              </div>
+              <img
+                alt="app screen"
+                className="h-full w-full rounded-md object-cover"
+                draggable={false}
+                height={1842}
+                src={getImageKitUrl("/images/hero-example_xertaz.png", {
+                  format: "auto",
+                  quality: 85,
+                  width: 1200,
+                })}
+                width={2880}
+              />
             </div>
           </div>
         </motion.section>
