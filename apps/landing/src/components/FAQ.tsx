@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
 
 const faqs = [
   {
@@ -54,21 +53,21 @@ export default function FAQ() {
     <section id="faq" className="py-20 bg-[var(--color-bg)]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <BlurIn delay={0.1}>
+          <BlurFade delay={0.1}>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
               Frequently asked questions
             </h2>
-          </BlurIn>
-          <FadeIn delay={0.2} direction="up">
+          </BlurFade>
+          <BlurFade delay={0.2}>
             <p className="text-lg text-[var(--color-text-secondary)]">
               Everything you need to know about PGKhata.
             </p>
-          </FadeIn>
+          </BlurFade>
         </div>
 
         <div className="space-y-3">
           {faqs.map((faq, index) => (
-            <FadeIn key={faq.question} delay={0.3 + index * 0.05} direction="up">
+            <BlurFade key={faq.question} delay={0.3 + index * 0.05}>
               <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
                 <button
                   className="w-full px-5 py-4 text-left flex justify-between items-center hover:bg-[var(--color-surface)]"
@@ -103,7 +102,7 @@ export default function FAQ() {
                   </div>
                 )}
               </div>
-            </FadeIn>
+            </BlurFade>
           ))}
         </div>
       </div>

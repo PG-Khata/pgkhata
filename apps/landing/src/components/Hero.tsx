@@ -1,10 +1,10 @@
 "use client";
 
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
 import { TextReveal } from "@/components/ui/text-reveal";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { NumberTicker } from "@/components/ui/number-ticker";
 import { Globe } from "@/components/ui/globe";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
 
 export default function Hero() {
   return (
@@ -18,38 +18,34 @@ export default function Hero() {
         <div className="grid lg:grid-cols-5 gap-12 items-start">
           {/* Left: Copy (3/5) */}
           <div className="lg:col-span-3">
-            <BlurIn delay={0.1}>
+            <BlurFade delay={0.1}>
               <div className="inline-flex items-center gap-2 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-full px-3 py-1 mb-6">
                 <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
                 <span className="text-xs font-medium text-[var(--color-accent)]">
                   Free forever
                 </span>
               </div>
-            </BlurIn>
+            </BlurFade>
 
-            <TextReveal
-              text="Stop paying for PG management"
-              className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight"
-              delay={0.2}
-            />
+            <TextReveal className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight">
+              Stop paying for PG management
+            </TextReveal>
 
-            <FadeIn delay={0.4} direction="up">
+            <BlurFade delay={0.4}>
               <p className="text-lg md:text-xl text-[var(--color-text-secondary)] mb-8 max-w-lg leading-relaxed">
                 PGKhata is the only free, open-source PG management software in
                 India. Manage properties, tenants, billing, and WhatsApp
                 notifications, all for zero rupees.
               </p>
-            </FadeIn>
+            </BlurFade>
 
-            <FadeIn delay={0.5} direction="up">
+            <BlurFade delay={0.5}>
               <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                <a
-                  href="https://app.pgkhata.com/register"
-                  className="bg-[var(--color-accent)] text-white px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-accent-hover)]"
-                  style={{ transition: "background-color 150ms ease-out" }}
-                >
-                  Start managing your PG
-                </a>
+                <ShimmerButton>
+                  <a href="https://app.pgkhata.com/register">
+                    Start managing your PG
+                  </a>
+                </ShimmerButton>
                 <a
                   href="#features"
                   className="border border-[var(--color-border)] text-[var(--color-text)] px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-surface)]"
@@ -58,10 +54,10 @@ export default function Hero() {
                   See what it does
                 </a>
               </div>
-            </FadeIn>
+            </BlurFade>
 
             {/* Stats */}
-            <FadeIn delay={0.6} direction="up">
+            <BlurFade delay={0.6}>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-6" data-tabular>
                 {[
                   { label: "Properties", value: 147, suffix: "" },
@@ -71,10 +67,8 @@ export default function Hero() {
                 ].map((stat) => (
                   <div key={stat.label}>
                     <div className="text-2xl font-bold text-[var(--color-text)] mb-1">
-                      <AnimatedCounter
-                        value={stat.value}
-                        suffix={stat.suffix}
-                      />
+                      <NumberTicker value={stat.value} />
+                      {stat.suffix}
                     </div>
                     <div className="text-sm text-[var(--color-text-secondary)]">
                       {stat.label}
@@ -82,11 +76,11 @@ export default function Hero() {
                   </div>
                 ))}
               </div>
-            </FadeIn>
+            </BlurFade>
           </div>
 
           {/* Right: Product Preview (2/5) */}
-          <FadeIn delay={0.3} direction="right" className="lg:col-span-2">
+          <BlurFade delay={0.3} className="lg:col-span-2">
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden shadow-lg">
               {/* Dashboard content */}
               <div className="p-5">
@@ -108,8 +102,8 @@ export default function Hero() {
                   {[
                     { label: "Properties", value: 12, change: "+2" },
                     { label: "Tenants", value: 156, change: "+8" },
-                    { label: "Collected", value: 8.4, suffix: "L", change: "+12%" },
-                    { label: "Occupancy", value: 94, suffix: "%", change: "+3%" },
+                    { label: "Collected", value: "8.4L", change: "+12%" },
+                    { label: "Occupancy", value: "94%", change: "+3%" },
                   ].map((stat) => (
                     <div
                       key={stat.label}
@@ -120,7 +114,6 @@ export default function Hero() {
                         data-tabular
                       >
                         {stat.value}
-                        {stat.suffix}
                       </div>
                       <div className="text-xs text-[var(--color-text-secondary)] mb-1">
                         {stat.label}
@@ -227,7 +220,7 @@ export default function Hero() {
                 </div>
               </div>
             </div>
-          </FadeIn>
+          </BlurFade>
         </div>
       </div>
     </section>

@@ -1,7 +1,6 @@
 "use client";
 
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
 
 const problems = [
   {
@@ -41,25 +40,24 @@ export default function Problems() {
     <section className="py-20 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <BlurIn delay={0.1}>
+          <BlurFade delay={0.1}>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
               Stop managing PGs
               <br />
               the hard way
             </h2>
-          </BlurIn>
-          <FadeIn delay={0.2} direction="up">
+          </BlurFade>
+          <BlurFade delay={0.2}>
             <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
               Managing a PG should not feel like a full-time job. Here is what
               is broken.
             </p>
-          </FadeIn>
+          </BlurFade>
         </div>
 
-        {/* Icon list instead of cards */}
         <div className="space-y-4 max-w-2xl">
           {problems.map((problem, index) => (
-            <FadeIn key={problem.title} delay={0.3 + index * 0.1} direction="left">
+            <BlurFade key={problem.title} delay={0.3 + index * 0.1}>
               <div className="flex gap-4 items-start">
                 <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] mt-2 flex-shrink-0" />
                 <div>
@@ -71,11 +69,11 @@ export default function Problems() {
                   </p>
                 </div>
               </div>
-            </FadeIn>
+            </BlurFade>
           ))}
         </div>
 
-        <FadeIn delay={0.8} direction="up">
+        <BlurFade delay={0.8}>
           <div className="mt-12">
             <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-md px-4 py-2">
               <svg
@@ -96,7 +94,7 @@ export default function Problems() {
               </span>
             </div>
           </div>
-        </FadeIn>
+        </BlurFade>
       </div>
     </section>
   );

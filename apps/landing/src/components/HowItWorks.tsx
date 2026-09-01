@@ -1,7 +1,6 @@
 "use client";
 
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
 
 const steps = [
   {
@@ -40,25 +39,21 @@ export default function HowItWorks() {
     <section className="py-20 bg-[var(--color-bg)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <BlurIn delay={0.1}>
+          <BlurFade delay={0.1}>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
               Get started in 5 minutes
             </h2>
-          </BlurIn>
-          <FadeIn delay={0.2} direction="up">
+          </BlurFade>
+          <BlurFade delay={0.2}>
             <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
               From signup to fully operational PG in minutes, not days.
             </p>
-          </FadeIn>
+          </BlurFade>
         </div>
 
         <div className="space-y-6 max-w-2xl">
           {steps.map((step, index) => (
-            <FadeIn
-              key={step.number}
-              delay={0.3 + index * 0.1}
-              direction="left"
-            >
+            <BlurFade key={step.number} delay={0.3 + index * 0.1}>
               <div className="flex gap-4 items-start">
                 <div className="w-10 h-10 bg-[var(--color-text)] rounded-md flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                   {step.number}
@@ -72,7 +67,7 @@ export default function HowItWorks() {
                   </p>
                 </div>
               </div>
-            </FadeIn>
+            </BlurFade>
           ))}
         </div>
       </div>

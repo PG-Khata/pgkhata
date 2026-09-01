@@ -1,68 +1,88 @@
 "use client";
 
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
+import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
 
 const features = [
   {
-    title: "Multi-property management",
+    name: "Multi-property management",
     description:
       "Manage multiple PG properties from a single dashboard. Track occupancy, rooms, and beds across all locations.",
-    size: "large",
+    className: "lg:col-span-2",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Tenant management",
+    name: "Tenant management",
     description:
       "Approval workflow, KYC documents, emergency contacts, and complete tenant lifecycle management.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Auto bill generation",
+    name: "Auto bill generation",
     description:
       "Generate monthly bills automatically with line-item billing. Rent, electricity, and other charges calculated automatically.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "WhatsApp notifications",
+    name: "WhatsApp notifications",
     description:
       "Send bill notifications and payment reminders via WhatsApp automatically. No more manual follow-ups.",
-    size: "medium",
+    className: "lg:col-span-2",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Expense tracking",
+    name: "Expense tracking",
     description:
       "Track expenses with categories, approval workflow, and detailed reports. Know where your money goes.",
-    size: "medium",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Police verification",
+    name: "Police verification",
     description:
       "Track tenant verification status for compliance. Generate police verification forms automatically.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Staff management",
+    name: "Staff management",
     description:
       "Role-based permissions and module-level access control. Manage wardens, cleaners, and other staff.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Reports and analytics",
+    name: "Reports and analytics",
     description:
       "Dashboard with charts, due rent list, aging buckets, and profit/loss reports. Make data-driven decisions.",
-    size: "large",
+    className: "lg:col-span-2",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "QR code signup",
+    name: "QR code signup",
     description:
       "Generate QR codes for your PG. Tenants scan to instantly open a pre-linked signup form.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
   {
-    title: "Document storage",
+    name: "Document storage",
     description:
       "Store KYC documents, agreements, and other files securely in the cloud with Cloudflare R2.",
-    size: "small",
+    className: "lg:col-span-1",
+    href: "#",
+    cta: "Learn more",
   },
 ];
 
@@ -71,48 +91,50 @@ export default function Features() {
     <section id="features" className="py-20 bg-[var(--color-surface)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <BlurIn delay={0.1}>
+          <BlurFade delay={0.1}>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
               Everything you need
               <br />
               to manage your PG
             </h2>
-          </BlurIn>
-          <FadeIn delay={0.2} direction="up">
+          </BlurFade>
+          <BlurFade delay={0.2}>
             <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
               All features included, no hidden charges.
             </p>
-          </FadeIn>
+          </BlurFade>
         </div>
 
-        {/* Bento grid - varied sizes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((feature, index) => {
-            const isLarge = feature.size === "large";
-
-            return (
-              <FadeIn
-                key={feature.title}
-                delay={0.1 + index * 0.05}
-                direction="up"
-              >
-                <div
-                  className={`bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-5 hover:border-[var(--color-accent)]/30 ${
-                    isLarge ? "md:col-span-2" : ""
-                  }`}
-                  style={{ transition: "border-color 200ms ease-out" }}
-                >
-                  <h3 className="text-base font-semibold text-[var(--color-text)] mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    {feature.description}
-                  </p>
+        <BentoGrid className="lg:grid-cols-3">
+          {features.map((feature, index) => (
+            <BentoCard
+              key={feature.name}
+              name={feature.name}
+              className={feature.className}
+              Icon={() => (
+                <div className="w-8 h-8 rounded-md bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <svg
+                    className="w-4 h-4 text-[var(--color-accent)]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
                 </div>
-              </FadeIn>
-            );
-          })}
-        </div>
+              )}
+              description={feature.description}
+              href={feature.href}
+              cta={feature.cta}
+              background={<div className="absolute inset-0 bg-gradient-to-br from-[var(--color-accent)]/5 to-transparent" />}
+            />
+          ))}
+        </BentoGrid>
       </div>
     </section>
   );

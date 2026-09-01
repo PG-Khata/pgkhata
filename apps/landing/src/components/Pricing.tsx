@@ -1,8 +1,8 @@
 "use client";
 
-import { FadeIn } from "@/components/ui/fade-in";
-import { BlurIn } from "@/components/ui/blur-in";
+import { BlurFade } from "@/components/ui/blur-fade";
 import { BorderBeam } from "@/components/ui/border-beam";
+import { ShimmerButton } from "@/components/ui/shimmer-button";
 
 const competitors = [
   { name: "PG Manager", price: "3,600/year", properties: "Limited" },
@@ -30,22 +30,22 @@ export default function Pricing() {
     <section id="pricing" className="py-20 bg-[var(--color-surface)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <BlurIn delay={0.1}>
+          <BlurFade delay={0.1}>
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
               100% free forever
             </h2>
-          </BlurIn>
-          <FadeIn delay={0.2} direction="up">
+          </BlurFade>
+          <BlurFade delay={0.2}>
             <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
               No hidden charges, no premium tiers, no per-tenant fees.
               Everything included.
             </p>
-          </FadeIn>
+          </BlurFade>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           {/* PGKhata Card */}
-          <FadeIn delay={0.3} direction="left">
+          <BlurFade delay={0.3}>
             <div className="relative bg-[var(--color-text)] rounded-lg p-6 overflow-hidden">
               <BorderBeam
                 size={250}
@@ -81,18 +81,14 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              <a
-                href="https://app.pgkhata.com/register"
-                className="block w-full bg-white text-[var(--color-text)] text-center py-3 rounded-md font-semibold hover:bg-gray-100"
-                style={{ transition: "background-color 150ms ease-out" }}
-              >
-                Start free
-              </a>
+              <ShimmerButton className="w-full">
+                <a href="https://app.pgkhata.com/register">Start free</a>
+              </ShimmerButton>
             </div>
-          </FadeIn>
+          </BlurFade>
 
           {/* Comparison Table */}
-          <FadeIn delay={0.4} direction="right">
+          <BlurFade delay={0.4}>
             <div>
               <h3 className="text-lg font-semibold text-[var(--color-text)] mb-4">
                 How we compare
@@ -157,7 +153,7 @@ export default function Pricing() {
                 </p>
               </div>
             </div>
-          </FadeIn>
+          </BlurFade>
         </div>
       </div>
     </section>

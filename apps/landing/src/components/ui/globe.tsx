@@ -1,122 +1,128 @@
-"use client";
+"use client"
 
-import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react"
+import createGlobe, { type COBEOptions } from "cobe"
+import { useMotionValue, useSpring } from "motion/react"
 
-interface GlobeProps {
-  className?: string;
+import { cn } from "@/lib/utils"
+
+const MOVEMENT_DAMPING = 1400
+
+const GLOBE_CONFIG: COBEOptions = {
+  width: 800,
+  height: 800,
+  onRender: () => {},
+  devicePixelRatio: 2,
+  phi: 0,
+  theta: 0.3,
+  dark: 0,
+  diffuse: 0.4,
+  mapSamples: 16000,
+  mapBrightness: 1.2,
+  baseColor: [1, 1, 1],
+  markerColor: [251 / 255, 100 / 255, 21 / 255],
+  glowColor: [1, 1, 1],
+  markers: [
+    { location: [14.5995, 120.9842], size: 0.03 },
+    { location: [19.076, 72.8777], size: 0.1 },
+    { location: [23.8103, 90.4125], size: 0.05 },
+    { location: [30.0444, 31.2357], size: 0.07 },
+    { location: [39.9042, 116.4074], size: 0.08 },
+    { location: [-23.5505, -46.6333], size: 0.1 },
+    { location: [19.4326, -99.1332], size: 0.1 },
+    { location: [40.7128, -74.006], size: 0.1 },
+    { location: [34.6937, 135.5022], size: 0.05 },
+    { location: [41.0082, 28.9784], size: 0.06 },
+  ],
 }
 
-export function Globe({ className = "" }: GlobeProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function Globe({
+  className,
+  config = GLOBE_CONFIG,
+}: {
+  className?: string
+  config?: COBEOptions
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const phiRef = useRef(0)
+  const widthRef = useRef(0)
+  const pointerInteracting = useRef<number | null>(null)
+  const pointerInteractionMovement = useRef(0)
+
+  const r = useMotionValue(0)
+  const rs = useSpring(r, {
+    mass: 1,
+    damping: 30,
+    stiffness: 100,
+  })
+
+  const updatePointerInteraction = (value: number | null) => {
+    pointerInteracting.current = value
+    if (canvasRef.current) {
+      canvasRef.current.style.cursor = value !== null ? "grabbing" : "grab"
+    }
+  }
+
+  const updateMovement = (clientX: number) => {
+    if (pointerInteracting.current !== null) {
+      const delta = clientX - pointerInteracting.current
+      pointerInteractionMovement.current = delta
+      r.set(r.get() + delta / MOVEMENT_DAMPING)
+    }
+  }
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const width = canvas.width;
-    const height = canvas.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 2 - 20;
-
-    let animationFrame: number;
-    let angle = 0;
-
-    function draw() {
-      if (!ctx) return;
-
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw globe outline
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(59, 130, 246, 0.3)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // Draw meridians
-      for (let i = 0; i < 6; i++) {
-        const meridianAngle = (i * Math.PI) / 3 + angle;
-        ctx.beginPath();
-        ctx.ellipse(
-          centerX,
-          centerY,
-          radius * Math.abs(Math.cos(meridianAngle)),
-          radius,
-          0,
-          0,
-          Math.PI * 2
-        );
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
+    const onResize = () => {
+      if (canvasRef.current) {
+        widthRef.current = canvasRef.current.offsetWidth
       }
-
-      // Draw parallels
-      for (let i = 1; i < 5; i++) {
-        const y = centerY - radius + (i * radius * 2) / 5;
-        const parallelRadius = Math.sqrt(
-          radius * radius - (y - centerY) * (y - centerY)
-        );
-        ctx.beginPath();
-        ctx.ellipse(centerX, y, parallelRadius, parallelRadius * 0.3, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.15)";
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      }
-
-      // Draw dots for locations
-      const locations = [
-        { lat: 28.6, lng: 77.2 }, // Delhi
-        { lat: 19.0, lng: 72.8 }, // Mumbai
-        { lat: 12.9, lng: 77.5 }, // Bangalore
-        { lat: 22.5, lng: 88.3 }, // Kolkata
-        { lat: 13.0, lng: 80.2 }, // Chennai
-      ];
-
-      locations.forEach((loc) => {
-        const x =
-          centerX +
-          radius *
-            Math.cos((loc.lat * Math.PI) / 180) *
-            Math.sin(((loc.lng + angle * 50) * Math.PI) / 180);
-        const y =
-          centerY -
-          radius * Math.sin((loc.lat * Math.PI) / 180);
-
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
-        ctx.fill();
-
-        // Glow effect
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(59, 130, 246, 0.2)";
-        ctx.fill();
-      });
-
-      angle += 0.005;
-      animationFrame = requestAnimationFrame(draw);
     }
 
-    draw();
+    window.addEventListener("resize", onResize)
+    onResize()
 
+    const globe = createGlobe(canvasRef.current!, {
+      ...config,
+      width: widthRef.current * 2,
+      height: widthRef.current * 2,
+      onRender: (state) => {
+        if (!pointerInteracting.current) phiRef.current += 0.005
+        state.phi = phiRef.current + rs.get()
+        state.width = widthRef.current * 2
+        state.height = widthRef.current * 2
+      },
+    })
+
+    setTimeout(() => (canvasRef.current!.style.opacity = "1"), 0)
     return () => {
-      cancelAnimationFrame(animationFrame);
-    };
-  }, []);
+      globe.destroy()
+      window.removeEventListener("resize", onResize)
+    }
+  }, [rs, config])
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={400}
-      height={400}
-      className={cn("w-full h-full", className)}
-    />
-  );
+    <div
+      className={cn(
+        "absolute inset-0 mx-auto aspect-square w-full max-w-150",
+        className
+      )}
+    >
+      <canvas
+        className={cn(
+          "size-full opacity-0 transition-opacity duration-500 contain-[layout_paint_size]"
+        )}
+        ref={canvasRef}
+        onPointerDown={(e) => {
+          pointerInteracting.current = e.clientX
+          updatePointerInteraction(e.clientX)
+        }}
+        onPointerUp={() => updatePointerInteraction(null)}
+        onPointerOut={() => updatePointerInteraction(null)}
+        onMouseMove={(e) => updateMovement(e.clientX)}
+        onTouchMove={(e) =>
+          e.touches[0] && updateMovement(e.touches[0].clientX)
+        }
+      />
+    </div>
+  )
 }
