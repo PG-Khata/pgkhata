@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FadeIn } from "@/components/ui/fade-in";
+import { BlurIn } from "@/components/ui/blur-in";
 
 const faqs = [
   {
@@ -52,51 +54,56 @@ export default function FAQ() {
     <section id="faq" className="py-20 bg-[var(--color-bg)]">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
-            Frequently asked questions
-          </h2>
-          <p className="text-lg text-[var(--color-text-secondary)]">
-            Everything you need to know about PGKhata.
-          </p>
+          <BlurIn delay={0.1}>
+            <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
+              Frequently asked questions
+            </h2>
+          </BlurIn>
+          <FadeIn delay={0.2} direction="up">
+            <p className="text-lg text-[var(--color-text-secondary)]">
+              Everything you need to know about PGKhata.
+            </p>
+          </FadeIn>
         </div>
 
         <div className="space-y-3">
           {faqs.map((faq, index) => (
-            <div
-              key={faq.question}
-              className="border border-[var(--color-border)] rounded-lg overflow-hidden"
-            >
-              <button
-                className="w-full px-5 py-4 text-left flex justify-between items-center hover:bg-[var(--color-surface)]"
-                style={{ transition: "background-color 150ms ease-out" }}
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-              >
-                <span className="font-semibold text-[var(--color-text)] pr-4 text-sm">
-                  {faq.question}
-                </span>
-                <svg
-                  className={`w-4 h-4 text-[var(--color-text-secondary)] flex-shrink-0 ${
-                    openIndex === index ? "rotate-180" : ""
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  style={{ transition: "transform 150ms ease-out" }}
+            <FadeIn key={faq.question} delay={0.3 + index * 0.05} direction="up">
+              <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+                <button
+                  className="w-full px-5 py-4 text-left flex justify-between items-center hover:bg-[var(--color-surface)]"
+                  style={{ transition: "background-color 150ms ease-out" }}
+                  onClick={() =>
+                    setOpenIndex(openIndex === index ? null : index)
+                  }
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {openIndex === index && (
-                <div className="px-5 pb-4 text-sm text-[var(--color-text-secondary)]">
-                  {faq.answer}
-                </div>
-              )}
-            </div>
+                  <span className="font-semibold text-[var(--color-text)] pr-4 text-sm">
+                    {faq.question}
+                  </span>
+                  <svg
+                    className={`w-4 h-4 text-[var(--color-text-secondary)] flex-shrink-0 ${
+                      openIndex === index ? "rotate-180" : ""
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    style={{ transition: "transform 150ms ease-out" }}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {openIndex === index && (
+                  <div className="px-5 pb-4 text-sm text-[var(--color-text-secondary)]">
+                    {faq.answer}
+                  </div>
+                )}
+              </div>
+            </FadeIn>
           ))}
         </div>
       </div>

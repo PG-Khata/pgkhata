@@ -1,62 +1,93 @@
+"use client";
+
+import { FadeIn } from "@/components/ui/fade-in";
+import { BlurIn } from "@/components/ui/blur-in";
+import { TextReveal } from "@/components/ui/text-reveal";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { Globe } from "@/components/ui/globe";
+
 export default function Hero() {
   return (
-    <section className="pt-32 pb-20 bg-[var(--color-bg)]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="relative pt-32 pb-20 bg-[var(--color-bg)] overflow-hidden">
+      {/* Background globe */}
+      <div className="absolute top-1/2 right-0 -translate-y-1/2 w-[600px] h-[600px] opacity-10 pointer-events-none">
+        <Globe />
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="grid lg:grid-cols-5 gap-12 items-start">
           {/* Left: Copy (3/5) */}
           <div className="lg:col-span-3">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight">
-              Stop paying for
-              <br />
-              PG management
-            </h1>
+            <BlurIn delay={0.1}>
+              <div className="inline-flex items-center gap-2 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 rounded-full px-3 py-1 mb-6">
+                <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                <span className="text-xs font-medium text-[var(--color-accent)]">
+                  Free forever
+                </span>
+              </div>
+            </BlurIn>
 
-            <p className="text-lg md:text-xl text-[var(--color-text-secondary)] mb-8 max-w-lg leading-relaxed">
-              PGKhata is the only free, open-source PG management software in
-              India. Manage properties, tenants, billing, and WhatsApp
-              notifications, all for zero rupees.
-            </p>
+            <TextReveal
+              text="Stop paying for PG management"
+              className="text-4xl md:text-5xl lg:text-6xl font-bold text-[var(--color-text)] mb-6 leading-tight tracking-tight"
+              delay={0.2}
+            />
 
-            <div className="flex flex-col sm:flex-row gap-4 mb-12">
-              <a
-                href="https://app.pgkhata.com/register"
-                className="bg-[var(--color-accent)] text-white px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-accent-hover)]"
-                style={{ transition: "background-color 150ms ease-out" }}
-              >
-                Start managing your PG
-              </a>
-              <a
-                href="#features"
-                className="border border-[var(--color-border)] text-[var(--color-text)] px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-surface)]"
-                style={{ transition: "background-color 150ms ease-out" }}
-              >
-                See what it does
-              </a>
-            </div>
+            <FadeIn delay={0.4} direction="up">
+              <p className="text-lg md:text-xl text-[var(--color-text-secondary)] mb-8 max-w-lg leading-relaxed">
+                PGKhata is the only free, open-source PG management software in
+                India. Manage properties, tenants, billing, and WhatsApp
+                notifications, all for zero rupees.
+              </p>
+            </FadeIn>
 
-            {/* Stats - real numbers, left-aligned */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6" data-tabular>
-              {[
-                { label: "Properties", value: "147" },
-                { label: "Tenants", value: "2,341" },
-                { label: "Bills sent", value: "14,892" },
-                { label: "Collection rate", value: "97.3%" },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <div className="text-2xl font-bold text-[var(--color-text)] mb-1">
-                    {stat.value}
+            <FadeIn delay={0.5} direction="up">
+              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+                <a
+                  href="https://app.pgkhata.com/register"
+                  className="bg-[var(--color-accent)] text-white px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-accent-hover)]"
+                  style={{ transition: "background-color 150ms ease-out" }}
+                >
+                  Start managing your PG
+                </a>
+                <a
+                  href="#features"
+                  className="border border-[var(--color-border)] text-[var(--color-text)] px-6 py-3 rounded-md text-base font-semibold hover:bg-[var(--color-surface)]"
+                  style={{ transition: "background-color 150ms ease-out" }}
+                >
+                  See what it does
+                </a>
+              </div>
+            </FadeIn>
+
+            {/* Stats */}
+            <FadeIn delay={0.6} direction="up">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6" data-tabular>
+                {[
+                  { label: "Properties", value: 147, suffix: "" },
+                  { label: "Tenants", value: 2341, suffix: "" },
+                  { label: "Bills sent", value: 14892, suffix: "" },
+                  { label: "Collection rate", value: 97, suffix: "%" },
+                ].map((stat) => (
+                  <div key={stat.label}>
+                    <div className="text-2xl font-bold text-[var(--color-text)] mb-1">
+                      <AnimatedCounter
+                        value={stat.value}
+                        suffix={stat.suffix}
+                      />
+                    </div>
+                    <div className="text-sm text-[var(--color-text-secondary)]">
+                      {stat.label}
+                    </div>
                   </div>
-                  <div className="text-sm text-[var(--color-text-secondary)]">
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </FadeIn>
           </div>
 
           {/* Right: Product Preview (2/5) */}
-          <div className="lg:col-span-2">
-            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+          <FadeIn delay={0.3} direction="right" className="lg:col-span-2">
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden shadow-lg">
               {/* Dashboard content */}
               <div className="p-5">
                 {/* Header */}
@@ -75,24 +106,26 @@ export default function Hero() {
                 {/* Stats cards */}
                 <div className="grid grid-cols-2 gap-3 mb-5">
                   {[
-                    { label: "Properties", value: "12", change: "+2" },
-                    { label: "Tenants", value: "156", change: "+8" },
-                    { label: "Collected", value: "8.4L", change: "+12%" },
-                    { label: "Occupancy", value: "94%", change: "+3%" },
+                    { label: "Properties", value: 12, change: "+2" },
+                    { label: "Tenants", value: 156, change: "+8" },
+                    { label: "Collected", value: 8.4, suffix: "L", change: "+12%" },
+                    { label: "Occupancy", value: 94, suffix: "%", change: "+3%" },
                   ].map((stat) => (
                     <div
                       key={stat.label}
                       className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-md p-3"
                     >
-                      <div className="text-lg font-bold text-[var(--color-text)] mb-1" data-tabular>
+                      <div
+                        className="text-lg font-bold text-[var(--color-text)] mb-1"
+                        data-tabular
+                      >
                         {stat.value}
+                        {stat.suffix}
                       </div>
                       <div className="text-xs text-[var(--color-text-secondary)] mb-1">
                         {stat.label}
                       </div>
-                      <div className="text-xs text-green-600">
-                        {stat.change}
-                      </div>
+                      <div className="text-xs text-green-600">{stat.change}</div>
                     </div>
                   ))}
                 </div>
@@ -177,7 +210,10 @@ export default function Hero() {
                         </div>
                         <div className="text-right">
                           {activity.amount && (
-                            <div className="text-xs font-medium text-green-600" data-tabular>
+                            <div
+                              className="text-xs font-medium text-green-600"
+                              data-tabular
+                            >
                               {activity.amount}
                             </div>
                           )}
@@ -191,7 +227,7 @@ export default function Hero() {
                 </div>
               </div>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </div>
     </section>

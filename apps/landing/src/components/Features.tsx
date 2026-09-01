@@ -1,3 +1,8 @@
+"use client";
+
+import { FadeIn } from "@/components/ui/fade-in";
+import { BlurIn } from "@/components/ui/blur-in";
+
 const features = [
   {
     title: "Multi-property management",
@@ -66,36 +71,45 @@ export default function Features() {
     <section id="features" className="py-20 bg-[var(--color-surface)]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
-            Everything you need
-            <br />
-            to manage your PG
-          </h2>
-          <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
-            All features included, no hidden charges.
-          </p>
+          <BlurIn delay={0.1}>
+            <h2 className="text-3xl md:text-4xl font-bold text-[var(--color-text)] mb-4">
+              Everything you need
+              <br />
+              to manage your PG
+            </h2>
+          </BlurIn>
+          <FadeIn delay={0.2} direction="up">
+            <p className="text-lg text-[var(--color-text-secondary)] max-w-lg">
+              All features included, no hidden charges.
+            </p>
+          </FadeIn>
         </div>
 
         {/* Bento grid - varied sizes */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((feature) => {
+          {features.map((feature, index) => {
             const isLarge = feature.size === "large";
-            const isMedium = feature.size === "medium";
 
             return (
-              <div
+              <FadeIn
                 key={feature.title}
-                className={`bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-5 ${
-                  isLarge ? "md:col-span-2" : ""
-                } ${isMedium ? "lg:col-span-1" : ""}`}
+                delay={0.1 + index * 0.05}
+                direction="up"
               >
-                <h3 className="text-base font-semibold text-[var(--color-text)] mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-sm text-[var(--color-text-secondary)]">
-                  {feature.description}
-                </p>
-              </div>
+                <div
+                  className={`bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-5 hover:border-[var(--color-accent)]/30 ${
+                    isLarge ? "md:col-span-2" : ""
+                  }`}
+                  style={{ transition: "border-color 200ms ease-out" }}
+                >
+                  <h3 className="text-base font-semibold text-[var(--color-text)] mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-[var(--color-text-secondary)]">
+                    {feature.description}
+                  </p>
+                </div>
+              </FadeIn>
             );
           })}
         </div>
