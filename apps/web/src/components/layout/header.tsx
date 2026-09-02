@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/auth-client"
-import { usePathname, useRouter } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +30,6 @@ import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } fro
 
 export function Header() {
   const router = useRouter()
-  const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const { selectedProperty, setSelectedProperty, properties } = useSelectedProperty()
   const { data: unreadData } = useUnreadCount(selectedProperty?.id)
@@ -50,12 +49,11 @@ export function Header() {
 
     setSelectedProperty(property)
 
-    let destination = pathname
-    if (pathname.startsWith("/dashboard/properties/")) {
-      destination = property
-        ? pathname.replace(/^\/dashboard\/properties\/[^/]+/, `/dashboard/properties/${property.id}`)
-        : "/dashboard/properties"
-    }
+    // The selector is also the property navigator: owners should land on the
+    // selected PG profile immediately, without needing a second sidebar click.
+    const destination = property
+      ? `/dashboard/properties/${property.id}`
+      : "/dashboard/properties"
 
     // Add the selection to the URL as well. In particular, choosing "All
     // properties" while already on /dashboard/properties must still navigate
