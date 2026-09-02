@@ -250,6 +250,8 @@ export interface BillLineItem {
   code: string
   name: string
   amount: number
+  units?: number
+  ratePerUnit?: number
 }
 
 export interface Bill {

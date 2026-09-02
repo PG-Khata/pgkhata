@@ -26,13 +26,6 @@ import { calculateLateFee } from "../lib/late-fee";
 
 const router = Router({ mergeParams: true });
 
-/** Returns the previous month in YYYY-MM format. */
-function previousMonth(month: string): string {
-  const [y, m] = month.split("-").map(Number) as [number, number];
-  const d = new Date(y, m - 2, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
 const generateBillsSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "Format: YYYY-MM"),
   tenantId: z.string().uuid().optional(),
@@ -169,6 +162,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
     // The whole run is one transaction: either every bill this month lands
     // together, or none do. A partial run previously left some tenants billed
     // and others not with no way to tell which had already happened.
+    const issuedAt = new Date();
+    const dueDate = computeDueDate(issuedAt);
+
     const { generatedBills, skipped } = await db.transaction(async (tx) => {
       const generatedBills: (typeof bill.$inferSelect)[] = [];
       let skipped = 0;
@@ -182,12 +178,13 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
         const rentProration = rentProrationForMonth(t.joiningDate, month);
         if (rentProration === 0) continue;
 
-        // Electricity is billed for the previous month's usage. It is derived
-        // from the first and second actual meter readings, not from the date a
-        // bill happens to be generated.
+        // Electricity is defined by the first and second actual meter
+        // readings, not by the date a bill happens to be generated. The
+        // second (closing) reading belongs to the selected invoice month, so
+        // an Aug 1 → Sep 2 pair correctly appears on September's bill.
         const readingPair = readingPairForMonth(
           readingsByRoom.get(r.id) ?? [],
-          previousMonth(month),
+          month,
         );
         const roomOccupants = tenantsByRoom.get(r.id) ?? [];
         const totalOccupancyDays = readingPair
@@ -227,8 +224,6 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
           recurringCharges,
         });
 
-        const dueDate = plan ? computeDueDate(month, plan.dueDay) : computeDueDate(month, 1);
-
         // Check if a bill already exists for this tenant+month
         const [existingBill] = await tx
           .select({ id: bill.id, voidedAt: bill.voidedAt })
@@ -258,6 +253,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             totalAmount: calculated.totalAmount,
             balance: calculated.totalAmount,
             dueDate,
+            createdAt: issuedAt,
             approved: false,
           })
           .returning();

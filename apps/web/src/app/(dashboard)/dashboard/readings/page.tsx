@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import { useProperty, useUpdateProperty } from "@/hooks/use-properties"
-import { useReadings, useCreateReading } from "@/hooks/use-readings"
+import { useReadings, useCreateReading, useDeleteReading, useUpdateReading, type ReadingWithRoom } from "@/hooks/use-readings"
 import { useRooms } from "@/hooks/use-rooms"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,6 +13,7 @@ import { StatCard } from "@/components/dashboard/stat-card"
 import { formatDateShort, formatCurrency } from "@/lib/utils"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api-client"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,8 @@ import {
   Activity,
   Hash,
   CalendarDays,
+  Pencil,
+  Trash2,
 } from "lucide-react"
 
 function getLast12Months() {
@@ -94,6 +97,8 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
   const { data: rooms } = useRooms(propertyId)
   const { data: property } = useProperty(propertyId)
   const createReading = useCreateReading(propertyId)
+  const updateReading = useUpdateReading(propertyId)
+  const deleteReading = useDeleteReading(propertyId)
   const updateProperty = useUpdateProperty(propertyId)
 
   const [addOpen, setAddOpen] = useState(false)
@@ -102,6 +107,8 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
   const [search, setSearch] = useState("")
   const [monthFilter, setMonthFilter] = useState("")
   const [form, setForm] = useState({ roomId: "", reading: "", readingDate: new Date().toISOString().split("T")[0] })
+  const [editTarget, setEditTarget] = useState<ReadingWithRoom | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ReadingWithRoom | null>(null)
 
   const allReadings = readings ?? []
   const totalReadings = allReadings.length
@@ -135,6 +142,41 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
           toast.error(error instanceof ApiError ? error.message : "Failed to record reading"),
       },
     )
+  }
+
+  function handleEdit() {
+    if (!editTarget || !form.reading || !form.readingDate) return
+    updateReading.mutate(
+      { readingId: editTarget.reading.id, reading: Number(form.reading), readingDate: form.readingDate },
+      {
+        onSuccess: () => {
+          toast.success("Reading updated")
+          setEditTarget(null)
+          setForm({ roomId: "", reading: "", readingDate: new Date().toISOString().split("T")[0] })
+        },
+        onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to update reading"),
+      },
+    )
+  }
+
+  function openEdit(reading: ReadingWithRoom) {
+    setEditTarget(reading)
+    setForm({
+      roomId: reading.reading.roomId,
+      reading: String(reading.reading.reading),
+      readingDate: reading.reading.readingDate.slice(0, 10),
+    })
+  }
+
+  function handleDelete() {
+    if (!deleteTarget) return
+    deleteReading.mutate(deleteTarget.reading.id, {
+      onSuccess: () => {
+        toast.success("Reading deleted")
+        setDeleteTarget(null)
+      },
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to delete reading"),
+    })
   }
 
   function openRateDialog() {
@@ -225,6 +267,7 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
                   <th className="px-3 py-2.5 font-medium text-right">CURRENT</th>
                   <th className="px-3 py-2.5 font-medium text-right">UNITS</th>
                   <th className="px-3 py-2.5 font-medium">DATE</th>
+                  <th className="px-3 py-2.5 font-medium"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -242,6 +285,16 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
                       <td className="px-3 py-2.5 text-right font-mono">{r.reading.reading}</td>
                       <td className="px-3 py-2.5 text-right font-mono font-medium">{r.reading.units}</td>
                       <td className="px-3 py-2.5 text-muted-foreground">{formatDateShort(r.reading.readingDate)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex justify-end gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => openEdit(r)} aria-label={`Edit reading for room ${r.roomNumber}`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(r)} aria-label={`Delete reading for room ${r.roomNumber}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
@@ -273,8 +326,8 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
           <p className="pl-4">Example: Room 101 uses 100 units at ₹8/unit = ₹800. A tenant who stayed half the reading period pays ₹400.</p>
           <p className="mt-2 font-medium text-foreground">PG billing cycle</p>
           <p>5. <strong>Rent</strong> is collected in advance and is automatically prorated from a new tenant&apos;s joining date.</p>
-          <p>6. <strong>Electricity</strong> is billed for the previous month — September bill includes August&apos;s electricity usage.</p>
-          <p>7. Record an opening reading, then the closing reading at the end of the month. The closing reading is used with the immediately previous reading.</p>
+          <p>6. <strong>Electricity</strong> uses the two readings ending in the invoice month — an Aug 1 opening and Sep 2 closing reading appear on the September bill.</p>
+          <p>7. Record an opening reading, then the closing reading. The closing reading is used with the immediately previous reading, even if you generate the bill later.</p>
         </div>
       </div>
 
@@ -326,6 +379,35 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit meter reading</DialogTitle>
+            <DialogDescription>Update the reading. Adjacent units will be recalculated automatically.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Room</label>
+              <Input value={editTarget ? `Room ${editTarget.roomNumber}` : ""} disabled />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Meter reading <span className="text-destructive">*</span></label>
+              <Input type="number" value={form.reading} onChange={(e) => setForm({ ...form, reading: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Reading date <span className="text-destructive">*</span></label>
+              <Input type="date" value={form.readingDate} onChange={(e) => setForm({ ...form, readingDate: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleEdit} disabled={updateReading.isPending || !form.reading}>
+              {updateReading.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Electricity rate dialog */}
       <Dialog open={rateOpen} onOpenChange={setRateOpen}>
         <DialogContent className="sm:max-w-sm">
@@ -360,6 +442,17 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete meter reading"
+        description={`Delete the ${deleteTarget?.reading.reading} reading for Room ${deleteTarget?.roomNumber}? The next reading will be recalculated.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteReading.isPending}
+        onConfirm={handleDelete}
+      />
     </div>
   )
 }

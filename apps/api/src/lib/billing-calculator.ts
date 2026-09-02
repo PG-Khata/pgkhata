@@ -4,6 +4,9 @@ export interface BillLineItem {
   code: string;
   name: string;
   amount: number;
+  /** Present for a metered electricity line; values are stored for invoices. */
+  units?: number;
+  ratePerUnit?: number;
 }
 
 export interface CalculatedBill {
@@ -71,6 +74,8 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
       code: "ELEC",
       name: "Electricity",
       amount: electricityAmount,
+      units: Math.max(0, inputs.electricity.unitsForMonth ?? 0),
+      ratePerUnit: Math.max(0, inputs.electricity.ratePerUnit ?? 0),
     });
   }
 

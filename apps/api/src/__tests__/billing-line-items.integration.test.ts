@@ -148,11 +148,11 @@ describeDb("billing on line items (database)", () => {
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 100, readingDate: "2026-05-01T00:00:00.000Z" });
+      .send({ roomId, reading: 100, readingDate: "2026-06-01T00:00:00.000Z" });
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 150, readingDate: "2026-05-30T00:00:00.000Z" });
+      .send({ roomId, reading: 150, readingDate: "2026-06-30T00:00:00.000Z" });
 
     const generated = await request(app)
       .post(bills("/generate"))
@@ -167,10 +167,11 @@ describeDb("billing on line items (database)", () => {
     expect(theBill.electricityAmount).toBe(500); // 50 units * 10/unit
     expect(theBill.lineItems).toEqual([
       { code: "RENT", name: "Rent", amount: 6500 },
-      { code: "ELEC", name: "Electricity", amount: 500 },
+      { code: "ELEC", name: "Electricity", amount: 500, units: 50, ratePerUnit: 10 },
     ]);
     expect(theBill.totalAmount).toBe(7000);
-    expect(theBill.dueDate).toContain("2026-06-07");
+    expect(new Date(theBill.dueDate).getTime()).toBeGreaterThan(new Date(theBill.createdAt).getTime());
+    expect(Math.round((new Date(theBill.dueDate).getTime() - new Date(theBill.createdAt).getTime()) / 86_400_000)).toBe(5);
   });
 
   it("bills the correct month's reading, not the latest one", async () => {
@@ -222,11 +223,11 @@ describeDb("billing on line items (database)", () => {
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 0, readingDate: "2026-08-01T00:00:00.000Z" });
+      .send({ roomId, reading: 0, readingDate: "2026-09-01T00:00:00.000Z" });
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 100, readingDate: "2026-08-28T00:00:00.000Z" });
+      .send({ roomId, reading: 100, readingDate: "2026-09-28T00:00:00.000Z" });
 
     const generated = await request(app)
       .post(bills("/generate"))
@@ -275,7 +276,7 @@ describeDb("billing on line items (database)", () => {
     const generated = await request(app)
       .post(bills("/generate"))
       .set("Cookie", alice.cookie)
-      .send({ month: "2026-06" });
+      .send({ month: "2026-05" });
 
     const establishedBill = generated.body.bills.find((b: { tenantId: string }) => b.tenantId === established.body.id);
     const midMonthBill = generated.body.bills.find((b: { tenantId: string }) => b.tenantId === midMonth.body.id);

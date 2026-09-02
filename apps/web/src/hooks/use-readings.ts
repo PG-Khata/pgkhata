@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api-client"
 
-interface ElectricityReading {
+export interface ElectricityReading {
   id: string
   roomId: string
   reading: number
@@ -12,7 +12,7 @@ interface ElectricityReading {
   createdAt: string
 }
 
-interface ReadingWithRoom {
+export interface ReadingWithRoom {
   reading: ElectricityReading
   roomNumber: string
 }
@@ -34,5 +34,22 @@ export function useCreateReading(propertyId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["readings", propertyId] })
     },
+  })
+}
+
+export function useUpdateReading(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ readingId, ...data }: { readingId: string; reading: number; readingDate: string }) =>
+      api.patch<ElectricityReading>(`/v1/properties/${propertyId}/readings/${readingId}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["readings", propertyId] }),
+  })
+}
+
+export function useDeleteReading(propertyId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (readingId: string) => api.delete(`/v1/properties/${propertyId}/readings/${readingId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["readings", propertyId] }),
   })
 }

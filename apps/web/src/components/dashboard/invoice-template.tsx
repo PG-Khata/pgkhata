@@ -7,6 +7,8 @@ interface InvoiceLineItem {
   code: string
   name: string
   amount: number
+  units?: number
+  ratePerUnit?: number
 }
 
 interface InvoiceProps {
@@ -106,8 +108,14 @@ export function InvoiceTemplate({
               <p className="text-[11px] font-medium">{item.name}</p>
               <p className="text-[10px] text-[#494949]">{item.code}</p>
             </div>
-            <p className="w-[75px] text-right text-[11px]">1</p>
-            <p className="w-[75px] text-right text-[11px]">{formatCurrency(item.amount)}</p>
+            <p className="w-[75px] text-right text-[11px]">
+              {item.code === "ELEC" ? `${item.units ?? 0} units` : "1"}
+            </p>
+            <p className="w-[75px] text-right text-[11px]">
+              {item.code === "ELEC" && item.ratePerUnit !== undefined
+                ? `${formatCurrency(item.ratePerUnit)}/unit`
+                : formatCurrency(item.amount)}
+            </p>
             <p className="w-[75px] text-right text-[11px] font-medium">{formatCurrency(item.amount)}</p>
           </div>
         ))}

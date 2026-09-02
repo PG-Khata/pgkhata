@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { AddPropertyModal } from "@/components/dashboard/add-property-modal"
+import { EditPropertyModal } from "@/components/dashboard/edit-property-modal"
+import type { Property } from "@/types"
 import {
   Bed,
   Building2,
@@ -24,6 +26,7 @@ export default function PropertiesPage() {
   const { data: dashboard } = useOwnerDashboard()
   const [search, setSearch] = useState("")
   const [addOpen, setAddOpen] = useState(false)
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null)
 
   const filteredProperties = properties?.filter(
     (p) =>
@@ -150,12 +153,10 @@ export default function PropertiesPage() {
                           <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                         </Button>
                       </Link>
-                      <Link href={`/dashboard/properties/${p.id}/edit`}>
-                        <Button variant="ghost" size="sm" className="h-8">
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => setEditingProperty(p)}>
                           <Pencil className="mr-1.5 h-3.5 w-3.5" />
                           Edit
                         </Button>
-                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -187,6 +188,11 @@ export default function PropertiesPage() {
       )}
 
       <AddPropertyModal open={addOpen} onOpenChange={setAddOpen} />
+      <EditPropertyModal
+        property={editingProperty}
+        open={editingProperty !== null}
+        onOpenChange={(open) => !open && setEditingProperty(null)}
+      />
     </div>
   )
 }

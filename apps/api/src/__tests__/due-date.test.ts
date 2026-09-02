@@ -2,29 +2,24 @@ import { describe, expect, it } from "vitest";
 import { computeDueDate } from "../lib/due-date";
 
 describe("computeDueDate", () => {
-  it("places the due date within the bill month", () => {
-    const due = computeDueDate("2026-05", 5);
+  it("sets the due date five days after the issue date", () => {
+    const due = computeDueDate(new Date("2026-09-03T10:00:00.000Z"));
 
     expect(due.getUTCFullYear()).toBe(2026);
-    expect(due.getUTCMonth()).toBe(4); // 0-indexed May
-    expect(due.getUTCDate()).toBe(5);
+    expect(due.getUTCMonth()).toBe(8); // 0-indexed September
+    expect(due.getUTCDate()).toBe(8);
   });
 
-  it("supports the full 1-28 range without a February overflow", () => {
-    const due = computeDueDate("2026-02", 28);
+  it("crosses a month boundary safely", () => {
+    const due = computeDueDate(new Date("2026-02-27T10:00:00.000Z"));
 
-    expect(due.getUTCMonth()).toBe(1);
-    expect(due.getUTCDate()).toBe(28);
+    expect(due.getUTCMonth()).toBe(2);
+    expect(due.getUTCDate()).toBe(4);
   });
 
-  it("supports the earliest day of the month", () => {
-    const due = computeDueDate("2026-01", 1);
+  it("allows a custom payment window", () => {
+    const due = computeDueDate(new Date("2026-01-01T10:00:00.000Z"), 10);
 
-    expect(due.getUTCDate()).toBe(1);
-  });
-
-  it("rejects a month not in YYYY-MM form", () => {
-    expect(() => computeDueDate("May 2026", 5)).toThrow();
-    expect(() => computeDueDate("2026-5", 5)).toThrow();
+    expect(due.getUTCDate()).toBe(11);
   });
 });

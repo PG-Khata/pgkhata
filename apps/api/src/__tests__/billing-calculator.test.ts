@@ -30,6 +30,8 @@ describe("calculateBill", () => {
       code: "ELEC",
       name: "Electricity",
       amount: 500,
+      units: 50,
+      ratePerUnit: 10,
     });
   });
 
@@ -66,6 +68,8 @@ describe("calculateBill", () => {
       code: "ELEC",
       name: "Electricity",
       amount: 0,
+      units: 0,
+      ratePerUnit: 10,
     });
   });
 

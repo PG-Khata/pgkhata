@@ -4,8 +4,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { NAV_GROUPS, isNavItemActive, type NavItem } from "./nav-config"
+import { useSelectedProperty } from "./property-context"
 
-function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
+function NavRow({ item, pathname, href }: { item: NavItem; pathname: string; href?: string }) {
+  const destination = href ?? item.href
   const active = isNavItemActive(pathname, item.href)
 
   if (item.upcoming) {
@@ -25,7 +27,7 @@ function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
 
   return (
     <Link
-      href={item.href}
+      href={destination}
       aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all",
@@ -42,6 +44,7 @@ function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const { selectedProperty } = useSelectedProperty()
 
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar md:flex">
@@ -66,9 +69,14 @@ export function AppSidebar() {
               </p>
             ) : null}
             <div className="space-y-0.5">
-              {group.items.map((item) => (
-                <NavRow key={item.href} item={item} pathname={pathname} />
-              ))}
+              {group.items.map((item) => {
+                const href =
+                  item.label === "Properties" && selectedProperty
+                    ? `/dashboard/properties/${selectedProperty.id}`
+                    : item.href
+
+                return <NavRow key={item.href} item={item} pathname={pathname} href={href} />
+              })}
             </div>
           </div>
         ))}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useParams } from "next/navigation"
+import { useState } from "react"
 import Link from "next/link"
 import { useProperty } from "@/hooks/use-properties"
 import {
@@ -13,10 +14,12 @@ import { StatGroup } from "@/components/dashboard/stat-row"
 import { MonthlyTrendChart } from "@/components/dashboard/monthly-trend-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { EditPropertyModal } from "@/components/dashboard/edit-property-modal"
 import { formatCurrency } from "@/lib/utils"
-import { ArrowLeft, Pencil } from "lucide-react"
+import { Pencil } from "lucide-react"
 
 export default function PropertyDetailPage() {
+  const [editOpen, setEditOpen] = useState(false)
   const params = useParams()
   const propertyId = params.propertyId as string
   const { data: property, isLoading: propLoading } = useProperty(propertyId)
@@ -47,39 +50,35 @@ export default function PropertyDetailPage() {
   }
 
   const tabs = [
-    { label: "Overview", href: `/dashboard/properties/${propertyId}` },
-    { label: "Rooms", href: `/dashboard/properties/${propertyId}/rooms` },
-    { label: "Tenants", href: `/dashboard/properties/${propertyId}/tenants` },
-    { label: "Billing", href: `/dashboard/properties/${propertyId}/billing` },
-    { label: "Payments", href: `/dashboard/properties/${propertyId}/payments` },
-    { label: "Readings", href: `/dashboard/properties/${propertyId}/readings` },
+    { label: "Overview", href: "/dashboard" },
+    { label: "Rooms", href: "/dashboard/structure" },
+    { label: "Tenants", href: "/dashboard/tenants" },
+    { label: "Billing", href: "/dashboard/billing" },
+    { label: "Readings", href: "/dashboard/readings" },
   ]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/properties" className="text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div>
-            <h1 className="text-lg font-semibold">{property.name}</h1>
-            <p className="text-xs text-muted-foreground">
-              {[property.address, property.city, property.state, property.pincode]
-                .filter(Boolean)
-                .join(", ")}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-lg font-semibold">{property.name}</h1>
+          <p className="text-xs text-muted-foreground">
+            {[property.address, property.city, property.state, property.pincode]
+              .filter(Boolean)
+              .join(", ")}
+          </p>
         </div>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="mr-1.5 h-3.5 w-3.5" />
           Edit
         </Button>
       </div>
 
+      <EditPropertyModal property={property} open={editOpen} onOpenChange={setEditOpen} />
+
       <div className="flex gap-1 overflow-x-auto border-b">
         {tabs.map((tab) => {
-          const isActive = tab.href === `/dashboard/properties/${propertyId}`
+          const isActive = tab.label === "Overview"
           return (
             <Link
               key={tab.href}
