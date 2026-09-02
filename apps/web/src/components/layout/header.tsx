@@ -10,6 +10,7 @@ import {
   Sun,
   User,
   Bell,
+  KeyRound,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/auth-client"
@@ -205,6 +206,10 @@ export function Header() {
               <p className="text-xs text-muted-foreground">Owner</p>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile?change-password=1")}>
+              <KeyRound className="mr-2 h-4 w-4" />
+              Change password
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
               <User className="mr-2 h-4 w-4" />
               Profile
