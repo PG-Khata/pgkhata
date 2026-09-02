@@ -50,20 +50,17 @@ export function Header() {
 
     setSelectedProperty(property)
 
+    let destination = pathname
     if (pathname.startsWith("/dashboard/properties/")) {
-      if (property) {
-        router.replace(
-          pathname.replace(/^\/dashboard\/properties\/[^/]+/, `/dashboard/properties/${property.id}`),
-        )
-      } else {
-        router.replace("/dashboard/properties")
-      }
-      return
+      destination = property
+        ? pathname.replace(/^\/dashboard\/properties\/[^/]+/, `/dashboard/properties/${property.id}`)
+        : "/dashboard/properties"
     }
 
-    // Refresh server-rendered data too; PropertyPageContent remounts client
-    // pages so their local filters and query state cannot leak between PGs.
-    router.refresh()
+    // This is intentionally a browser navigation, not a soft router refresh.
+    // It guarantees every sidebar screen and property profile starts with data
+    // for the newly selected PG on every switch.
+    window.location.assign(`${destination}${window.location.search}`)
   }
 
   return (
