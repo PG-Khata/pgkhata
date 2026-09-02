@@ -57,10 +57,17 @@ export function Header() {
         : "/dashboard/properties"
     }
 
+    // Add the selection to the URL as well. In particular, choosing "All
+    // properties" while already on /dashboard/properties must still navigate
+    // to a different URL; otherwise the browser may keep the existing page.
+    const url = new URL(window.location.href)
+    url.pathname = destination
+    url.searchParams.set("pg", property?.id ?? "all")
+
     // This is intentionally a browser navigation, not a soft router refresh.
     // It guarantees every sidebar screen and property profile starts with data
     // for the newly selected PG on every switch.
-    window.location.assign(`${destination}${window.location.search}`)
+    window.location.assign(url.toString())
   }
 
   return (
