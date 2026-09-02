@@ -85,6 +85,12 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
       .orderBy(desc(electricityReading.readingDate))
       .limit(1);
 
+    if (lastReading && body.readingDate <= lastReading.readingDate) {
+      return res.status(400).json({
+        error: "Reading date must be after the previous reading date",
+      });
+    }
+
     if (lastReading && body.reading < lastReading.reading) {
       return res.status(400).json({ error: "Reading cannot be less than previous reading" });
     }

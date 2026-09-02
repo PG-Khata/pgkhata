@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import { useTenants } from "@/hooks/use-tenants"
-import { useBills, useGenerateBills, useApplyLateFees, useVoidBill, useSetPromisedDate } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate } from "@/hooks/use-bills"
 import { useRecordPayment } from "@/hooks/use-payments"
 import { useSecurityDeposits, useCreateSecurityDeposit } from "@/hooks/use-security-deposits"
 import { useAdvancePayments, useCreateAdvancePayment } from "@/hooks/use-advance-payments"
@@ -110,6 +110,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const [monthFilter, setMonthFilter] = useState(currentMonth())
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generateMonth, setGenerateMonth] = useState(currentMonth())
+  const [generateTenantId, setGenerateTenantId] = useState("")
   const [paymentOpen, setPaymentOpen] = useState<{ billId: string; tenantName: string; balance: number } | null>(null)
   const [promiseOpen, setPromiseOpen] = useState<{ billId: string; tenantName: string } | null>(null)
   const [voidConfirm, setVoidConfirm] = useState<{ billId: string; tenantName: string } | null>(null)
@@ -124,7 +125,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const { data: bills, isLoading, error: billsError } = useBills(propertyId, monthFilter)
   const generateBills = useGenerateBills(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
-  const voidBill = useVoidBill(propertyId)
+  const voidBill = useDeleteBill(propertyId)
   const setPromisedDate = useSetPromisedDate(propertyId)
   const recordPayment = useRecordPayment(propertyId)
   const { data: deposits } = useSecurityDeposits(propertyId)
@@ -134,27 +135,34 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const { data: dueRent } = useDueRent(propertyId)
   const { data: tenants } = useTenants(propertyId)
 
-  const activeBills = (bills ?? []).filter((b: any) => !b.voidedAt)
+  const activeBills = bills ?? []
   const filtered = activeBills.filter((b: any) => statusFilter === "all" || b.status === statusFilter)
 
   const totalInvoices = activeBills.length
   const pending = activeBills.filter((b: any) => b.status === "pending").length
   const partial = activeBills.filter((b: any) => b.status === "partial").length
   const overdue = activeBills.filter((b: any) => b.status === "overdue").length
-  const totalDue = activeBills.reduce((s: number, b: any) => s + b.balance, 0)
   const collectedThisMonth = activeBills.reduce((s: number, b: any) => s + b.paidAmount, 0)
 
+  // Use dueRent API for actual outstanding amounts (across all months, not just filtered)
+  const totalDue = (dueRent ?? []).reduce((s, r) => s + r.amountDue, 0)
+  const overdueCount = (dueRent ?? []).filter((r) => r.daysOverdue > 0).length
+
   function handleGenerate() {
-    generateBills.mutate(generateMonth, {
-      onSuccess: (data) => {
-        toast.success(data.message || "Bills generated")
-        setGenerateOpen(false)
-        setMonthFilter(generateMonth)
+    generateBills.mutate(
+      { month: generateMonth, tenantId: generateTenantId || undefined },
+      {
+        onSuccess: (data) => {
+          toast.success(data.message || "Bills generated")
+          setGenerateOpen(false)
+          setMonthFilter(generateMonth)
+          setGenerateTenantId("")
+        },
+        onError: (error) => {
+          toast.error(error instanceof ApiError ? error.message : "Failed to generate bills")
+        },
       },
-      onError: (error) => {
-        toast.error(error instanceof ApiError ? error.message : "Failed to generate bills")
-      },
-    })
+    )
   }
 
   function handleApplyLateFees() {
@@ -200,14 +208,14 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
     )
   }
 
-  function handleVoid() {
+  function handleDelete() {
     if (!voidConfirm) return
     voidBill.mutate(voidConfirm.billId, {
       onSuccess: () => {
-        toast.success("Bill voided")
+        toast.success("Bill deleted")
         setVoidConfirm(null)
       },
-      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed"),
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to delete"),
     })
   }
 
@@ -273,17 +281,17 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
             <StatCard label="Total invoices" value={totalInvoices} icon={FileText} />
             <StatCard label="Pending" value={pending} icon={CalendarClock} />
             <StatCard label="Partial" value={partial} icon={Minus} />
-            <StatCard label="Overdue" value={overdue} icon={AlertTriangle} />
+            <StatCard label="Overdue" value={overdueCount} icon={AlertTriangle} />
             <StatCard label="Total due" value={formatCurrency(totalDue)} icon={CreditCard} />
             <StatCard label="Collected this month" value={formatCurrency(collectedThisMonth)} icon={Banknote} />
           </div>
 
           {/* Action bar */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto">
             <select
               value={monthFilter}
               onChange={(e) => setMonthFilter(e.target.value)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
+              className="h-9 shrink-0 rounded-lg border bg-background px-3 text-sm"
             >
               {getLast12Months().map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
@@ -292,7 +300,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-lg border bg-background px-3 text-sm"
+              className="h-9 shrink-0 rounded-lg border bg-background px-3 text-sm"
             >
               <option value="all">All statuses</option>
               <option value="pending">Pending</option>
@@ -300,21 +308,21 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               <option value="paid">Paid</option>
               <option value="overdue">Overdue</option>
             </select>
-            <Button variant="outline" size="sm" onClick={handleApplyLateFees}>
-              <AlertTriangle className="mr-1.5 h-3.5 w-3.5" /> Apply late fees
+            <Button variant="outline" size="sm" className="shrink-0" onClick={handleApplyLateFees}>
+              <AlertTriangle className="mr-1 h-3 w-3" /> Late fees
             </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Reminders not yet implemented")}>
-              <Send className="mr-1.5 h-3.5 w-3.5" /> Due-soon reminders
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => toast.info("Reminders not yet implemented")}>
+              <Send className="mr-1 h-3 w-3" /> Reminders
             </Button>
-            <Button variant="outline" size="sm" onClick={handleAutoAllocate}>
-              <Zap className="mr-1.5 h-3.5 w-3.5" /> Auto-allocate payment
+            <Button variant="outline" size="sm" className="shrink-0" onClick={handleAutoAllocate}>
+              <Zap className="mr-1 h-3 w-3" /> Auto-allocate
             </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Raise charge not yet implemented")}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Raise charge
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => toast.info("Raise charge not yet implemented")}>
+              <Plus className="mr-1 h-3 w-3" /> Raise charge
             </Button>
-            <div className="ml-auto">
+            <div className="ml-auto shrink-0">
               <Button size="sm" onClick={() => setGenerateOpen(true)}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" /> Generate Invoice
+                <Plus className="mr-1 h-3 w-3" /> Generate Invoice
               </Button>
             </div>
           </div>
@@ -361,7 +369,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                               Promise
                             </Button>
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
-                              Void
+                              Delete
                             </Button>
                           </div>
                         </td>
@@ -504,17 +512,32 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
             <DialogTitle>Generate invoices</DialogTitle>
             <DialogDescription>Select a month and generate bills for all active tenants.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Month</label>
-            <select
-              value={generateMonth}
-              onChange={(e) => setGenerateMonth(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {getLast12Months().map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Month</label>
+              <select
+                value={generateMonth}
+                onChange={(e) => setGenerateMonth(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                {getLast12Months().map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Tenant</label>
+              <select
+                value={generateTenantId}
+                onChange={(e) => setGenerateTenantId(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                <option value="">All tenants</option>
+                {(tenants ?? []).filter((t) => t.status === "active").map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setGenerateOpen(false)}>Cancel</Button>
@@ -580,16 +603,16 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         </DialogContent>
       </Dialog>
 
-      {/* Void confirmation */}
+      {/* Delete confirmation */}
       <ConfirmDialog
         open={!!voidConfirm}
         onOpenChange={() => setVoidConfirm(null)}
-        title="Void invoice"
-        description={`Void the invoice for ${voidConfirm?.tenantName}? This will zero out the balance and cannot be undone.`}
-        confirmLabel="Void"
+        title="Delete invoice"
+        description={`Delete the invoice for ${voidConfirm?.tenantName}? This will permanently remove the bill and cannot be undone.`}
+        confirmLabel="Delete"
         variant="destructive"
         loading={voidBill.isPending}
-        onConfirm={handleVoid}
+        onConfirm={handleDelete}
       />
 
       {/* Collect deposit dialog */}

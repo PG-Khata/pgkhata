@@ -21,6 +21,12 @@ export interface ElectricityInputs {
   unitsForMonth?: number | null;
   /** Active occupants of the room, for an even split. At least 1. */
   occupants: number;
+  /**
+   * A tenant's bed-day share of the reading period. When present this wins
+   * over the legacy equal occupant split, so a mid-month move-in is charged
+   * only for the days they actually occupied the room.
+   */
+  occupancyShare?: number | null;
 }
 
 export interface RecurringCharge {
@@ -35,6 +41,8 @@ export interface BillCalculationInputs {
     bedRent?: number | null;
     planRent?: number | null;
     roomRent: number;
+    /** Portion of the calendar month the tenant occupied the property. */
+    proration?: number;
   };
   electricity: ElectricityInputs;
   /** Active, is_recurring charge types for the property, excluding ELEC —
@@ -53,7 +61,8 @@ export interface BillCalculationInputs {
 export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
   const lineItems: BillLineItem[] = [];
 
-  const { amount: rentAmount } = resolveMonthlyRent(inputs.rent);
+  const { amount: monthlyRent } = resolveMonthlyRent(inputs.rent);
+  const rentAmount = Math.round(monthlyRent * Math.max(0, Math.min(1, inputs.rent.proration ?? 1)));
   lineItems.push({ code: "RENT", name: "Rent", amount: rentAmount });
 
   const electricityAmount = calculateElectricity(inputs.electricity);
@@ -82,6 +91,6 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
 function calculateElectricity(inputs: ElectricityInputs): number {
   if (!inputs.ratePerUnit || !inputs.unitsForMonth) return 0;
 
-  const occupants = Math.max(1, inputs.occupants);
-  return Math.round((inputs.unitsForMonth * inputs.ratePerUnit) / occupants);
+  const share = inputs.occupancyShare ?? 1 / Math.max(1, inputs.occupants);
+  return Math.round(inputs.unitsForMonth * inputs.ratePerUnit * Math.max(0, Math.min(1, share)));
 }

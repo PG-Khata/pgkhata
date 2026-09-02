@@ -141,18 +141,18 @@ describeDb("billing on line items (database)", () => {
       name: "Line Item Tenant",
       phone: nextPhone(),
       roomId,
-      joiningDate: new Date().toISOString(),
+      joiningDate: "2026-05-01T00:00:00.000Z",
     });
     expect(tenantRes.status).toBe(200);
 
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 100, readingDate: "2026-06-01T00:00:00.000Z" });
+      .send({ roomId, reading: 100, readingDate: "2026-05-01T00:00:00.000Z" });
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 150, readingDate: "2026-06-30T00:00:00.000Z" });
+      .send({ roomId, reading: 150, readingDate: "2026-05-30T00:00:00.000Z" });
 
     const generated = await request(app)
       .post(bills("/generate"))
@@ -222,11 +222,11 @@ describeDb("billing on line items (database)", () => {
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 0, readingDate: "2026-09-01T00:00:00.000Z" });
+      .send({ roomId, reading: 0, readingDate: "2026-08-01T00:00:00.000Z" });
     await request(app)
       .post(readings())
       .set("Cookie", alice.cookie)
-      .send({ roomId, reading: 100, readingDate: "2026-09-28T00:00:00.000Z" });
+      .send({ roomId, reading: 100, readingDate: "2026-08-28T00:00:00.000Z" });
 
     const generated = await request(app)
       .post(bills("/generate"))
@@ -239,6 +239,51 @@ describeDb("billing on line items (database)", () => {
     const sharedBill = roomBills.find((b: { electricityAmount: number }) => b.electricityAmount === 500);
     // 1000 total / 2 occupants = 500 each.
     expect(sharedBill).toBeDefined();
+  });
+
+  it("prorates a mid-month tenant's electricity from the two readings", async () => {
+    const roomRes = await request(app)
+      .post(rooms())
+      .set("Cookie", alice.cookie)
+      .send({ number: "302", capacity: 2, monthlyRent: 6200 });
+    const roomId = roomRes.body.id;
+
+    const established = await addAndApproveTenant({
+      name: "Established Tenant",
+      phone: nextPhone(),
+      roomId,
+      joiningDate: "2026-04-01T00:00:00.000Z",
+    });
+    const midMonth = await addAndApproveTenant({
+      name: "Mid Month Tenant",
+      phone: nextPhone(),
+      roomId,
+      joiningDate: "2026-05-16T00:00:00.000Z",
+    });
+    expect(established.status).toBe(200);
+    expect(midMonth.status).toBe(200);
+
+    await request(app)
+      .post(readings())
+      .set("Cookie", alice.cookie)
+      .send({ roomId, reading: 1000, readingDate: "2026-05-01T00:00:00.000Z" });
+    await request(app)
+      .post(readings())
+      .set("Cookie", alice.cookie)
+      .send({ roomId, reading: 1100, readingDate: "2026-05-31T00:00:00.000Z" });
+
+    const generated = await request(app)
+      .post(bills("/generate"))
+      .set("Cookie", alice.cookie)
+      .send({ month: "2026-06" });
+
+    const establishedBill = generated.body.bills.find((b: { tenantId: string }) => b.tenantId === established.body.id);
+    const midMonthBill = generated.body.bills.find((b: { tenantId: string }) => b.tenantId === midMonth.body.id);
+
+    // 100 units × ₹10 = ₹1,000. The first tenant stayed 30 days and the
+    // second stayed 15, so their electricity shares are ₹667 and ₹333.
+    expect(establishedBill.electricityAmount).toBe(667);
+    expect(midMonthBill.electricityAmount).toBe(333);
   });
 
   it("adds an active recurring charge type as its own line", async () => {

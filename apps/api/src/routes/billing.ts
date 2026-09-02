@@ -9,20 +9,33 @@ import {
   rentPlan,
   chargeType,
   electricityReading,
+  payment,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { calculateBill } from "../lib/billing-calculator";
-import { readingForMonth } from "../lib/electricity";
+import {
+  occupiedDaysInReadingPeriod,
+  readingPairForMonth,
+  rentProrationForMonth,
+} from "../lib/electricity";
 import { computeDueDate } from "../lib/due-date";
 import { calculateLateFee } from "../lib/late-fee";
 
 const router = Router({ mergeParams: true });
 
+/** Returns the previous month in YYYY-MM format. */
+function previousMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 const generateBillsSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/, "Format: YYYY-MM"),
+  tenantId: z.string().uuid().optional(),
 });
 
 const applyLateFeesSchema = z.object({
@@ -92,20 +105,24 @@ router.get("/:billId", async (req: AuthenticatedRequest, res) => {
 // Generate monthly bills
 router.post("/generate", async (req: AuthenticatedRequest, res) => {
   try {
-    const { month } = generateBillsSchema.parse(req.body);
+    const { month, tenantId } = generateBillsSchema.parse(req.body);
     const prop = req.property!;
 
     // Everything this run needs, read once outside the transaction: active
     // tenants with their room, bed and rent plan, plus the property's active
     // recurring charge types (excluding electricity, which is always computed
     // from readings rather than a flat default).
+    const tenantFilter = tenantId
+      ? and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active"), eq(tenant.id, tenantId))
+      : and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active"));
+
     const activeTenants = await db
       .select({ tenant: tenant, room: room, bed: bed, plan: rentPlan })
       .from(tenant)
       .leftJoin(room, eq(tenant.roomId, room.id))
       .leftJoin(bed, eq(tenant.bedId, bed.id))
       .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
-      .where(and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active")));
+      .where(tenantFilter);
 
     const recurringCharges = await db
       .select({ code: chargeType.code, name: chargeType.name, amount: chargeType.defaultAmount })
@@ -123,13 +140,13 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       ...new Set(activeTenants.map((row) => row.room?.id).filter((id): id is string => Boolean(id))),
     ];
 
-    const readingsByRoom = new Map<string, Array<{ readingDate: Date; units: number }>>();
+    const readingsByRoom = new Map<string, Array<{ readingDate: Date; reading: number }>>();
     if (roomIds.length > 0) {
       const readings = await db
         .select({
           roomId: electricityReading.roomId,
           readingDate: electricityReading.readingDate,
-          units: electricityReading.units,
+          reading: electricityReading.reading,
         })
         .from(electricityReading)
         .where(inArray(electricityReading.roomId, roomIds));
@@ -141,10 +158,12 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       }
     }
 
-    const occupantsByRoom = new Map<string, number>();
+    const tenantsByRoom = new Map<string, (typeof activeTenants)[number][]>();
     for (const row of activeTenants) {
       if (!row.room) continue;
-      occupantsByRoom.set(row.room.id, (occupantsByRoom.get(row.room.id) ?? 0) + 1);
+      const occupants = tenantsByRoom.get(row.room.id);
+      if (occupants) occupants.push(row);
+      else tenantsByRoom.set(row.room.id, [row]);
     }
 
     // The whole run is one transaction: either every bill this month lands
@@ -157,7 +176,39 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       for (const { tenant: t, room: r, bed: b, plan } of activeTenants) {
         if (!r) continue;
 
-        const reading = readingForMonth(readingsByRoom.get(r.id) ?? [], month);
+        // Do not create a historical bill for someone who had not moved in.
+        // This also makes a late billing run safe: its result is anchored to
+        // the requested month and tenant move-in date, never today's date.
+        const rentProration = rentProrationForMonth(t.joiningDate, month);
+        if (rentProration === 0) continue;
+
+        // Electricity is billed for the previous month's usage. It is derived
+        // from the first and second actual meter readings, not from the date a
+        // bill happens to be generated.
+        const readingPair = readingPairForMonth(
+          readingsByRoom.get(r.id) ?? [],
+          previousMonth(month),
+        );
+        const roomOccupants = tenantsByRoom.get(r.id) ?? [];
+        const totalOccupancyDays = readingPair
+          ? roomOccupants.reduce(
+              (sum, occupant) =>
+                sum +
+                occupiedDaysInReadingPeriod(
+                  occupant.tenant.joiningDate,
+                  readingPair.first.readingDate,
+                  readingPair.second.readingDate,
+                ),
+              0,
+            )
+          : 0;
+        const tenantOccupancyDays = readingPair
+          ? occupiedDaysInReadingPeriod(
+              t.joiningDate,
+              readingPair.first.readingDate,
+              readingPair.second.readingDate,
+            )
+          : 0;
 
         const calculated = calculateBill({
           rent: {
@@ -165,19 +216,37 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             bedRent: b?.monthlyRent,
             planRent: plan?.monthlyRent,
             roomRent: r.monthlyRent,
+            proration: rentProration,
           },
           electricity: {
             ratePerUnit: prop.electricityRatePerUnit,
-            unitsForMonth: reading?.units,
-            occupants: occupantsByRoom.get(r.id) ?? 1,
+            unitsForMonth: readingPair?.units,
+            occupants: roomOccupants.length || 1,
+            occupancyShare: totalOccupancyDays > 0 ? tenantOccupancyDays / totalOccupancyDays : undefined,
           },
           recurringCharges,
         });
 
         const dueDate = plan ? computeDueDate(month, plan.dueDay) : computeDueDate(month, 1);
 
-        // Idempotency is enforced by bill_tenant_month_uq rather than by a
-        // read-then-insert check, which two concurrent runs both passed.
+        // Check if a bill already exists for this tenant+month
+        const [existingBill] = await tx
+          .select({ id: bill.id, voidedAt: bill.voidedAt })
+          .from(bill)
+          .where(and(eq(bill.tenantId, t.id), eq(bill.billMonth, month)))
+          .limit(1);
+
+        if (existingBill) {
+          if (existingBill.voidedAt) {
+            // Voided bill exists — delete it so we can regenerate
+            await tx.delete(bill).where(eq(bill.id, existingBill.id));
+          } else {
+            // Active bill already exists — skip
+            skipped += 1;
+            continue;
+          }
+        }
+
         const [newBill] = await tx
           .insert(bill)
           .values({
@@ -191,7 +260,6 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             dueDate,
             approved: false,
           })
-          .onConflictDoNothing({ target: [bill.tenantId, bill.billMonth] })
           .returning();
 
         if (newBill) {
@@ -353,7 +421,8 @@ router.patch("/:billId/promised-date", async (req: AuthenticatedRequest, res) =>
 });
 
 // Void a bill — sets voidedAt, zeros balance, preserves the record for audit.
-router.post("/:billId/void", async (req: AuthenticatedRequest, res) => {
+// Delete a bill permanently
+router.delete("/:billId", async (req: AuthenticatedRequest, res) => {
   try {
     const billId = param(req, "billId");
 
@@ -366,23 +435,15 @@ router.post("/:billId/void", async (req: AuthenticatedRequest, res) => {
 
     if (!target) return res.status(404).json({ error: "Bill not found" });
 
-    if (target.bill.voidedAt) {
-      return res.status(409).json({ error: "Bill is already voided" });
-    }
+    // Delete associated payments first
+    await db.delete(payment).where(eq(payment.billId, billId));
 
-    const [voided] = await db
-      .update(bill)
-      .set({
-        voidedAt: new Date(),
-        balance: 0,
-        updatedAt: new Date(),
-      })
-      .where(eq(bill.id, billId))
-      .returning();
+    // Delete the bill
+    await db.delete(bill).where(eq(bill.id, billId));
 
-    res.json({ message: "Bill voided", bill: voided });
+    res.json({ message: "Bill deleted" });
   } catch (error) {
-    res.status(500).json({ error: "Failed to void bill" });
+    res.status(500).json({ error: "Failed to delete bill" });
   }
 });
 

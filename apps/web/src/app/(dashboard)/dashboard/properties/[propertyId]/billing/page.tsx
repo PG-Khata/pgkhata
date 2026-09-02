@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { useBills, useGenerateBills, useApproveBills, useApplyLateFees, useVoidBill, useSetPromisedDate } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApproveBills, useApplyLateFees, useDeleteBill, useSetPromisedDate } from "@/hooks/use-bills"
 import { useProperty } from "@/hooks/use-properties"
 import { useTenantAdvancePayments, useApplyAdvancePayment } from "@/hooks/use-advance-payments"
 import { StatusBadge } from "@/components/dashboard/status-badge"
@@ -50,7 +50,7 @@ export default function BillingPage() {
   const generateBills = useGenerateBills(propertyId)
   const approveBills = useApproveBills(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
-  const voidBill = useVoidBill(propertyId)
+  const voidBill = useDeleteBill(propertyId)
   const setPromisedDate = useSetPromisedDate(propertyId)
   const applyAdvance = useApplyAdvancePayment(propertyId)
 
@@ -88,7 +88,7 @@ export default function BillingPage() {
   }
 
   function handleGenerate() {
-    generateBills.mutate(month, {
+    generateBills.mutate({ month }, {
       onSuccess: (res) => toast.success(res.message),
       onError: () => toast.error("Failed to generate bills"),
     })
@@ -117,9 +117,9 @@ export default function BillingPage() {
   function handleVoid(billId: string, tenantName: string) {
     if (!confirm(`Void this bill for ${tenantName}? The record will be preserved but the balance zeroed.`)) return
     voidBill.mutate(billId, {
-      onSuccess: (res) => toast.success(res.message),
+      onSuccess: () => toast.success("Bill deleted"),
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Failed to void bill"),
+        toast.error(error instanceof ApiError ? error.message : "Failed to delete bill"),
     })
   }
 

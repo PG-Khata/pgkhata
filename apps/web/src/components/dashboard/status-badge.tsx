@@ -39,6 +39,8 @@ export type Status =
   | "applied"
   // expenses
   | "draft"
+  // general
+  | "inactive"
 
 const styles: Record<Status, string> = {
   active: "bg-emerald-50 text-emerald-700",
@@ -68,6 +70,7 @@ const styles: Record<Status, string> = {
   applied: "bg-zinc-100 text-zinc-700",
   voided: "bg-zinc-100 text-zinc-700",
   draft: "bg-zinc-100 text-zinc-700",
+  inactive: "bg-zinc-100 text-zinc-700",
 }
 
 const labels: Record<Status, string> = {
@@ -94,6 +97,7 @@ const labels: Record<Status, string> = {
   forfeited: "Forfeited",
   applied: "Applied",
   draft: "Draft",
+  inactive: "Inactive",
 }
 
 interface StatusBadgeProps {

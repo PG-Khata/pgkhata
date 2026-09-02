@@ -16,10 +16,10 @@ export function useBills(propertyId: string, month?: string) {
 export function useGenerateBills(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (month: string) =>
+    mutationFn: (data: { month: string; tenantId?: string }) =>
       api.post<{ message: string; bills: Bill[] }>(
         `/v1/properties/${propertyId}/bills/generate`,
-        { month },
+        data,
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
   })
@@ -49,13 +49,11 @@ export function useApproveBills(propertyId: string) {
   })
 }
 
-export function useVoidBill(propertyId: string) {
+export function useDeleteBill(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (billId: string) =>
-      api.post<{ message: string; bill: Bill }>(
-        `/v1/properties/${propertyId}/bills/${billId}/void`,
-      ),
+      api.delete(`/v1/properties/${propertyId}/bills/${billId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
   })
 }

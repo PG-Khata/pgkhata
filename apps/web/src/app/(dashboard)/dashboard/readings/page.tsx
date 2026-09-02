@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
+import { useProperty, useUpdateProperty } from "@/hooks/use-properties"
 import { useReadings, useCreateReading } from "@/hooks/use-readings"
 import { useRooms } from "@/hooks/use-rooms"
 import { Button } from "@/components/ui/button"
@@ -91,9 +92,13 @@ function PropertySelector() {
 function ReadingsContent({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
   const { data: readings, isLoading } = useReadings(propertyId)
   const { data: rooms } = useRooms(propertyId)
+  const { data: property } = useProperty(propertyId)
   const createReading = useCreateReading(propertyId)
+  const updateProperty = useUpdateProperty(propertyId)
 
   const [addOpen, setAddOpen] = useState(false)
+  const [rateOpen, setRateOpen] = useState(false)
+  const [electricityRate, setElectricityRate] = useState("")
   const [search, setSearch] = useState("")
   const [monthFilter, setMonthFilter] = useState("")
   const [form, setForm] = useState({ roomId: "", reading: "", readingDate: new Date().toISOString().split("T")[0] })
@@ -128,6 +133,30 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
         },
         onError: (error) =>
           toast.error(error instanceof ApiError ? error.message : "Failed to record reading"),
+      },
+    )
+  }
+
+  function openRateDialog() {
+    setElectricityRate(property?.electricityRatePerUnit?.toString() || "")
+    setRateOpen(true)
+  }
+
+  function handleSaveRate() {
+    const rate = Number(electricityRate)
+    if (isNaN(rate) || rate < 0) {
+      toast.error("Enter a valid rate")
+      return
+    }
+    updateProperty.mutate(
+      { electricityRatePerUnit: rate, electricityMode: "meter" },
+      {
+        onSuccess: () => {
+          toast.success("Electricity rate updated")
+          setRateOpen(false)
+        },
+        onError: (error) =>
+          toast.error(error instanceof ApiError ? error.message : "Failed to update rate"),
       },
     )
   }
@@ -169,7 +198,11 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
             className="pl-9"
           />
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={openRateDialog}>
+            <Zap className="mr-1.5 h-3.5 w-3.5" /> Electricity rate
+            {property?.electricityRatePerUnit ? ` (₹${property.electricityRatePerUnit}/unit)` : ""}
+          </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" /> Add reading
           </Button>
@@ -235,8 +268,13 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
           <p>1. Meter readings are recorded <strong>per room</strong> (not per bed).</p>
           <p>2. Units consumed = Current reading - Previous reading.</p>
-          <p>3. When bills are generated, the cost is split equally among all occupants in the room.</p>
-          <p className="pl-4">Example: Room 101 has 2 tenants, 100 units consumed at ₹8/unit = ₹800 total → ₹400 per tenant.</p>
+          <p>3. The <strong>first reading is the opening reading</strong>; the <strong>second reading closes the period</strong>. Only their difference is billed.</p>
+          <p>4. When a tenant joins during that period, their share is based on the days they actually stayed. Bills generated late still use the same two reading dates.</p>
+          <p className="pl-4">Example: Room 101 uses 100 units at ₹8/unit = ₹800. A tenant who stayed half the reading period pays ₹400.</p>
+          <p className="mt-2 font-medium text-foreground">PG billing cycle</p>
+          <p>5. <strong>Rent</strong> is collected in advance and is automatically prorated from a new tenant&apos;s joining date.</p>
+          <p>6. <strong>Electricity</strong> is billed for the previous month — September bill includes August&apos;s electricity usage.</p>
+          <p>7. Record an opening reading, then the closing reading at the end of the month. The closing reading is used with the immediately previous reading.</p>
         </div>
       </div>
 
@@ -283,6 +321,41 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
             <Button variant="outline" size="sm" onClick={() => setAddOpen(false)}>Cancel</Button>
             <Button size="sm" onClick={handleAdd} disabled={createReading.isPending || !form.roomId || !form.reading}>
               {createReading.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Electricity rate dialog */}
+      <Dialog open={rateOpen} onOpenChange={setRateOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Electricity rate</DialogTitle>
+            <DialogDescription>
+              Set the per-unit rate for electricity billing. This is used when generating bills to calculate each tenant's share.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Rate per unit (₹) <span className="text-destructive">*</span></label>
+              <Input
+                type="number"
+                value={electricityRate}
+                onChange={(e) => setElectricityRate(e.target.value)}
+                placeholder="8"
+              />
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">How it works</p>
+              <p className="mt-1">When bills are generated, each tenant's electricity charge is calculated as:</p>
+              <p className="mt-1 font-mono">(units consumed × rate) ÷ occupants in room</p>
+              <p className="mt-1">Example: 100 units at ₹8/unit with 2 tenants in the room = ₹400 each.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRateOpen(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleSaveRate} disabled={updateProperty.isPending}>
+              {updateProperty.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
