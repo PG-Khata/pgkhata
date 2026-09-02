@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { signOut } from "@/lib/auth-client"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +30,7 @@ import { useNotifications, useUnreadCount, useMarkAsRead, useMarkAllAsRead } fro
 
 export function Header() {
   const router = useRouter()
+  const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const { selectedProperty, setSelectedProperty, properties } = useSelectedProperty()
   const { data: unreadData } = useUnreadCount(selectedProperty?.id)
@@ -42,6 +43,27 @@ export function Header() {
   async function handleSignOut() {
     await signOut()
     router.push("/login")
+  }
+
+  function handlePropertyChange(property: (typeof properties)[number] | null) {
+    if (property?.id === selectedProperty?.id) return
+
+    setSelectedProperty(property)
+
+    if (pathname.startsWith("/dashboard/properties/")) {
+      if (property) {
+        router.replace(
+          pathname.replace(/^\/dashboard\/properties\/[^/]+/, `/dashboard/properties/${property.id}`),
+        )
+      } else {
+        router.replace("/dashboard/properties")
+      }
+      return
+    }
+
+    // Refresh server-rendered data too; PropertyPageContent remounts client
+    // pages so their local filters and query state cannot leak between PGs.
+    router.refresh()
   }
 
   return (
@@ -67,7 +89,7 @@ export function Header() {
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => setSelectedProperty(null)}
+                onClick={() => handlePropertyChange(null)}
                 className={!selectedProperty ? "bg-accent" : ""}
               >
                 {!selectedProperty && <Check className="mr-2 h-4 w-4" />}
@@ -78,7 +100,7 @@ export function Header() {
               {properties.map((p) => (
                 <DropdownMenuItem
                   key={p.id}
-                  onClick={() => setSelectedProperty(p)}
+                  onClick={() => handlePropertyChange(p)}
                   className={p.id === selectedProperty?.id ? "bg-accent" : ""}
                 >
                   {p.id === selectedProperty?.id && (
