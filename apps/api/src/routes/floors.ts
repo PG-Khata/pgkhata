@@ -11,6 +11,7 @@ const router = Router({ mergeParams: true });
 const createFloorSchema = z.object({
   name: z.string().min(1).max(50),
   position: z.number().int().min(0).max(200).optional(),
+  description: z.string().optional(),
 });
 
 const updateFloorSchema = createFloorSchema.partial();

@@ -17,16 +17,23 @@ export interface Property {
   id: string
   ownerId: string
   name: string
+  code?: string
   address?: string
+  landmark?: string
   city?: string
   state?: string
   pincode?: string
+  latitude?: string
+  longitude?: string
+  description?: string
   electricityMode: "flat" | "meter"
   electricityRatePerUnit?: number
   signupToken?: string
   complaintToken?: string
   createdAt: string
   updatedAt: string
+  totalBeds?: number
+  occupiedBeds?: number
 }
 
 export interface Floor {
@@ -34,6 +41,7 @@ export interface Floor {
   propertyId: string
   name: string
   position: number
+  description?: string
   createdAt: string
   updatedAt: string
 }
@@ -215,6 +223,16 @@ export interface Tenant {
   name: string
   email?: string
   phone: string
+  alternatePhone?: string
+  gender?: "male" | "female" | "other"
+  occupation?: string
+  dateOfBirth?: string
+  aadhaarNumber?: string
+  panNumber?: string
+  permanentAddress?: string
+  permanentAddressCity?: string
+  permanentAddressState?: string
+  permanentAddressPincode?: string
   status: "pending" | "active" | "vacating" | "vacated" | "rejected"
   joiningDate: string
   vacatingDate?: string
@@ -305,6 +323,7 @@ export interface PropertyDashboard {
   monthlyBilled: number
   monthlyCollected: number
   monthlyPending: number
+  overdueRent: number
 }
 
 export interface MonthlyTrendPoint {

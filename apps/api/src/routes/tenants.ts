@@ -19,6 +19,16 @@ const createTenantSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email().optional(),
   phone: z.string().regex(/^[6-9]\d{9}$/, "Invalid Indian phone number"),
+  alternatePhone: z.string().regex(/^[6-9]\d{9}$/, "Invalid Indian phone number").optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  occupation: z.string().max(100).optional(),
+  dateOfBirth: z.string().transform((str) => new Date(str)).optional(),
+  aadhaarNumber: z.string().regex(/^\d{12}$/, "Aadhaar must be 12 digits").optional(),
+  panNumber: z.string().regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Invalid PAN format").optional(),
+  permanentAddress: z.string().optional(),
+  permanentAddressCity: z.string().optional(),
+  permanentAddressState: z.string().optional(),
+  permanentAddressPincode: z.string().optional(),
   /** Precise target, from the structure view. */
   bedId: z.string().uuid().optional(),
   /** Older shape: name a room and the first vacant bed in it is used. */
@@ -164,7 +174,7 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
       return res.status(400).json({ error: "Validation error", details: error.errors });
     }
     if (error instanceof HttpError) return next(error);
-    res.status(500).json({ error: "Failed to create tenant" });
+    next(error);
   }
 });
 

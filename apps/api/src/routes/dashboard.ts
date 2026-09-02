@@ -195,6 +195,15 @@ router.get(
         { totalPaid: 0 },
       );
 
+      const { overdueAmount } = aggregate(
+        await db
+          .select({ overdueAmount: sql<number>`coalesce(sum(${bill.balance}), 0)::int` })
+          .from(bill)
+          .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+          .where(and(eq(tenant.propertyId, prop.id), eq(bill.status, "overdue"))),
+        { overdueAmount: 0 },
+      );
+
       res.json({
         property: prop,
         totalRooms: roomCount,
@@ -205,6 +214,7 @@ router.get(
         monthlyBilled: totalBilled,
         monthlyCollected: totalPaid,
         monthlyPending: totalBilled - totalPaid,
+        overdueRent: overdueAmount,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch property dashboard" });

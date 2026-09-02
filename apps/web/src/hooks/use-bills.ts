@@ -8,7 +8,7 @@ export function useBills(propertyId: string, month?: string) {
   const params = month ? `?month=${month}` : ""
   return useQuery({
     queryKey: ["bills", propertyId, month],
-    queryFn: () => api.get<BillWithDetails[]>(`/v1/properties/${propertyId}/bills${params}`),
+    queryFn: () => api.get<any[]>(`/v1/properties/${propertyId}/bills${params}`),
     enabled: !!propertyId,
   })
 }

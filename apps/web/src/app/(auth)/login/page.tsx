@@ -9,6 +9,7 @@ import Link from "next/link"
 import { signIn } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { BorderBeam } from "@/components/ui/border-beam"
 import { toast } from "sonner"
 
 const schema = z.object({
@@ -48,62 +49,81 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold tracking-tight">pgkhata</h1>
-        <p className="text-sm text-muted-foreground">Sign in to your account</p>
-      </div>
+    <div className="relative rounded-xl border bg-card p-6 shadow-sm">
+      <BorderBeam
+        size={80}
+        duration={8}
+        colorFrom="#059669"
+        colorTo="#10b981"
+        borderWidth={1.5}
+      />
+      <BorderBeam
+        size={60}
+        duration={12}
+        colorFrom="#10b981"
+        colorTo="#059669"
+        borderWidth={1.5}
+        reverse
+        delay={4}
+      />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="space-y-6">
         <div className="space-y-1.5">
-          <label htmlFor="email" className="text-sm font-medium">
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="owner@example.com"
-            {...register("email")}
-          />
-          {errors.email && (
-            <p className="text-xs text-destructive">{errors.email.message}</p>
-          )}
+          <h1 className="text-xl font-bold">Welcome back</h1>
+          <p className="text-sm text-muted-foreground">Enter your credentials to access your account.</p>
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="text-sm font-medium">
+              Email
             </label>
-            <Link
-              href="/forgot-password"
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Forgot password?
-            </Link>
+            <Input
+              id="email"
+              type="email"
+              placeholder="owner@example.com"
+              {...register("email")}
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive">{errors.email.message}</p>
+            )}
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            {...register("password")}
-          />
-          {errors.password && (
-            <p className="text-xs text-destructive">{errors.password.message}</p>
-          )}
-        </div>
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
-        </Button>
-      </form>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              {...register("password")}
+            />
+            {errors.password && (
+              <p className="text-xs text-destructive">{errors.password.message}</p>
+            )}
+          </div>
 
-      <p className="text-center text-sm text-muted-foreground">
-        New here?{" "}
-        <Link href="/register" className="font-medium text-foreground hover:underline">
-          Create an account
-        </Link>
-      </p>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </Button>
+        </form>
+
+        <p className="text-center text-sm text-muted-foreground">
+          New here?{" "}
+          <Link href="/register" className="font-medium text-foreground hover:underline">
+            Register
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

@@ -310,7 +310,7 @@ export default function BillingPage() {
                           <td />
                           <td colSpan={7} className="py-2 pl-1">
                             <ul className="space-y-0.5 text-xs">
-                              {b.bill.lineItems.map((line, i) => (
+                              {b.bill.lineItems.map((line: any, i: number) => (
                                 <li
                                   key={`${b.bill.id}-${line.code}-${i}`}
                                   className="flex justify-between gap-4 text-muted-foreground"

@@ -52,8 +52,15 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .leftJoin(room, eq(tenant.roomId, room.id))
       .where(where);
 
-    res.json(bills);
+    res.json(
+      bills.map((row) => ({
+        ...row.bill,
+        tenantName: row.tenantName,
+        roomNumber: row.roomNumber,
+      })),
+    );
   } catch (error) {
+    console.error("[Billing] List error:", error);
     res.status(500).json({ error: "Failed to fetch bills" });
   }
 });

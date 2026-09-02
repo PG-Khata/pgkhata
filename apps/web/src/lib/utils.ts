@@ -17,11 +17,15 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: string | Date): string {
-  return format(new Date(date), "d MMM yyyy")
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return "-"
+  return format(d, "d MMM yyyy")
 }
 
 export function formatDateShort(date: string | Date): string {
-  return format(new Date(date), "d MMM")
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return "-"
+  return format(d, "d MMM")
 }
 
 export function formatMonth(month: string): string {

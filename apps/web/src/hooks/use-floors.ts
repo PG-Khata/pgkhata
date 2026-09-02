@@ -16,7 +16,7 @@ export function useFloors(propertyId: string) {
 export function useCreateFloor(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { name: string; position?: number }) =>
+    mutationFn: (data: { name: string; position?: number; description?: string }) =>
       api.post<Floor>(`/v1/properties/${propertyId}/floors`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["floors", propertyId] })

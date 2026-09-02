@@ -1,8 +1,12 @@
 import {
+  Bed,
+  Bell,
+  BookOpen,
   Building2,
   ClipboardList,
   IndianRupee,
   LayoutDashboard,
+  Layers,
   MessageSquare,
   PiggyBank,
   Receipt,
@@ -39,7 +43,13 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Operations",
     items: [
       { label: "Properties", href: "/dashboard/properties", icon: Building2 },
+      { label: "Structure", href: "/dashboard/structure", icon: Layers },
       { label: "Tenants", href: "/dashboard/tenants", icon: Users },
+      { label: "Tenant report", href: "/dashboard/tenants/report", icon: ClipboardList },
+      { label: "Occupancy", href: "/dashboard/occupancy", icon: Bed },
+      { label: "Bookings", href: "/dashboard/bookings", icon: BookOpen },
+      { label: "Documents", href: "/dashboard/documents", icon: ClipboardList },
+      { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
       { label: "Complaints", href: "/dashboard/complaints", icon: MessageSquare },
     ],
   },
@@ -56,7 +66,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Setup",
     items: [
-      { label: "Readings", href: "/dashboard/readings", icon: Zap },
+      { label: "Meter reading", href: "/dashboard/readings", icon: Zap },
       { label: "Rent plans", href: "/dashboard/rent-plans", icon: ClipboardList },
       { label: "Charge types", href: "/dashboard/charge-types", icon: Tags },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },

@@ -40,6 +40,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         bed: bed,
         roomId: room.id,
         roomNumber: room.number,
+        roomRent: room.monthlyRent,
         floorName: floor.name,
       })
       .from(bed)

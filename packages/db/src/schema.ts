@@ -84,10 +84,15 @@ export const property = pgTable("property", {
     .notNull()
     .references(() => ownerProfile.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  code: text("code"),
   address: text("address"),
+  landmark: text("landmark"),
   city: text("city"),
   state: text("state"),
   pincode: text("pincode"),
+  latitude: text("latitude"),
+  longitude: text("longitude"),
+  description: text("description"),
   electricityMode: text("electricity_mode").notNull().default("flat"),
   electricityRatePerUnit: integer("electricity_rate_per_unit"),
   signupToken: text("signup_token").unique(),
@@ -106,6 +111,7 @@ export const floor = pgTable(
     name: text("name").notNull(),
     /** Display order within the property; lower comes first. */
     position: integer("position").notNull().default(0),
+    description: text("description"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -262,6 +268,10 @@ export const tenant = pgTable(
     name: text("name").notNull(),
     email: text("email"),
     phone: text("phone").notNull().unique(),
+    alternatePhone: text("alternate_phone"),
+    gender: text("gender"),
+    occupation: text("occupation"),
+    dateOfBirth: timestamp("date_of_birth"),
     status: text("status").notNull().default("active"),
     joiningDate: timestamp("joining_date").notNull(),
     vacatingDate: timestamp("vacating_date"),
@@ -272,6 +282,9 @@ export const tenant = pgTable(
     aadhaarNumber: text("aadhaar_number"),
     panNumber: text("pan_number"),
     permanentAddress: text("permanent_address"),
+    permanentAddressCity: text("permanent_address_city"),
+    permanentAddressState: text("permanent_address_state"),
+    permanentAddressPincode: text("permanent_address_pincode"),
     policeVerificationStatus: text("police_verification_status").default("pending"),
     policeVerificationDate: timestamp("police_verification_date"),
     policeVerificationNotes: text("police_verification_notes"),
@@ -529,6 +542,19 @@ export const notificationPreference = pgTable("notification_preference", {
   whatsapp: boolean("whatsapp").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const notification = pgTable("notification", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id")
+    .notNull()
+    .references(() => property.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // payment_received, tenant_checkin, tenant_checkout, rent_due, booking_created, etc.
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").notNull().default(false),
+  link: text("link"), // optional link to related entity
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const tenantDocument = pgTable("tenant_document", {

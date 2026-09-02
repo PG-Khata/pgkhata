@@ -1,19 +1,24 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property } from "@pgkhata/db";
-import { eq, and } from "drizzle-orm";
+import { db, property, bed, room } from "@pgkhata/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
-import { param } from "../lib/http";
+import { param, aggregate } from "../lib/http";
 import { seedElectricityChargeType } from "../lib/charge-types";
 
 const router = Router();
 
 const createPropertySchema = z.object({
   name: z.string().min(1).max(100),
+  code: z.string().max(20).optional(),
   address: z.string().optional(),
+  landmark: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
+  description: z.string().optional(),
   electricityMode: z.enum(["flat", "meter"]).default("flat"),
   electricityRatePerUnit: z.number().optional(),
 });
@@ -28,7 +33,35 @@ router.get("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res
       .from(property)
       .where(eq(property.ownerId, req.ownerId!));
 
-    res.json(properties);
+    if (properties.length === 0) {
+      return res.json([]);
+    }
+
+    const propertyIds = properties.map((p) => p.id);
+
+    // Get bed counts per property
+    const bedCounts = await db
+      .select({
+        propertyId: room.propertyId,
+        totalBeds: sql<number>`count(${bed.id})::int`,
+        occupiedBeds: sql<number>`count(case when ${bed.status} = 'occupied' then 1 end)::int`,
+      })
+      .from(bed)
+      .innerJoin(room, eq(bed.roomId, room.id))
+      .where(inArray(room.propertyId, propertyIds))
+      .groupBy(room.propertyId);
+
+    const bedCountMap = new Map(
+      bedCounts.map((bc) => [bc.propertyId, { totalBeds: bc.totalBeds, occupiedBeds: bc.occupiedBeds }])
+    );
+
+    const result = properties.map((p) => ({
+      ...p,
+      totalBeds: bedCountMap.get(p.id)?.totalBeds ?? 0,
+      occupiedBeds: bedCountMap.get(p.id)?.occupiedBeds ?? 0,
+    }));
+
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch properties" });
   }
