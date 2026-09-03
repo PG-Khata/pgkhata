@@ -1,0 +1,46 @@
+services:
+  # API Service (Express Backend)
+  - type: web
+    name: pgkhata-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    region: singapore
+    branch: staging
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+
+  # Web Service (Next.js Frontend)
+  - type: web
+    name: pgkhata-web
+    runtime: docker
+    dockerfilePath: ./apps/web/Dockerfile
+    region: singapore
+    branch: staging
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false

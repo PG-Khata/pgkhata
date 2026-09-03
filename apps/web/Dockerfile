@@ -4,23 +4,22 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/api/package.json ./apps/api/
+COPY apps/web/package.json ./apps/web/
 COPY packages/ ./packages/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages ./packages
-COPY apps/api/ ./apps/api/
-RUN pnpm --filter @pgkhata/api build
+COPY apps/web/ ./apps/web/
+RUN pnpm --filter web build
 
 FROM base AS runner
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-EXPOSE 3001
-CMD ["node", "dist/server.js"]
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+EXPOSE 3000
+CMD ["node", "apps/web/server.js"]
