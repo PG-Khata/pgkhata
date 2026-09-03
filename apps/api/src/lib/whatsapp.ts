@@ -16,9 +16,8 @@ const WHATSAPP_BUSINESS_ACCOUNT_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const WHATSAPP_API_URL = `https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
 const WHATSAPP_TEMPLATES_URL = `https://graph.facebook.com/v21.0/${WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`;
 
-// Default header image URL - served from the web app's public folder
-const WHATSAPP_HEADER_IMAGE_URL = process.env.WHATSAPP_HEADER_IMAGE_URL || 
-  `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/whatsapp-bill-header.png`;
+// Header image URL - must be set in environment
+const WHATSAPP_HEADER_IMAGE_URL = process.env.WHATSAPP_HEADER_IMAGE_URL;
 
 export interface WhatsAppMessage {
   to: string; // Phone number with country code (e.g., "919876543210")

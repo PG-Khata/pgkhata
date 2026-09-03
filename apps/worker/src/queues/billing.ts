@@ -4,9 +4,13 @@ import pino from "pino";
 
 const logger = pino({ level: "info" });
 
-const connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL environment variable is required");
+}
+
+const connection = new IORedis(process.env.REDIS_URL, {
   maxRetriesPerRequest: null,
-  tls: process.env.REDIS_URL?.includes("upstash.io") ? {} : undefined,
+  tls: process.env.REDIS_URL.includes("upstash.io") ? {} : undefined,
 });
 
 export const billingQueue = new Queue("billing", { connection });

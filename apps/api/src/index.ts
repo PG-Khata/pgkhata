@@ -22,7 +22,6 @@ import expensesRouter from "./routes/expenses";
 import dashboardRouter from "./routes/dashboard";
 import remindersRouter from "./routes/reminders";
 import publicRouter from "./routes/public";
-import subscriptionsRouter from "./routes/subscriptions";
 import adminRouter from "./routes/admin";
 import emergencyContactsRouter from "./routes/emergency-contacts";
 import bedBookingsRouter from "./routes/bed-bookings";
@@ -55,9 +54,12 @@ app.use((req, res, next) => {
 
 // Security middleware
 app.use(helmet());
+if (!process.env.CORS_ORIGIN) {
+  throw new Error("CORS_ORIGIN environment variable is required");
+}
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    origin: process.env.CORS_ORIGIN,
     credentials: true,
   })
 );
@@ -168,7 +170,6 @@ app.use("/v1/properties/:propertyId/structure", structureRouter);
 app.use("/v1/properties/:propertyId/whatsapp", whatsappRouter);
 app.use("/v1/properties/:propertyId/police-verification", policeVerificationRouter);
 app.use("/v1/dashboard", dashboardRouter);
-app.use("/v1/subscriptions", subscriptionsRouter);
 app.use("/v1/admin", adminRouter);
 
 // Public routes (no auth required)

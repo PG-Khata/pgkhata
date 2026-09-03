@@ -194,7 +194,10 @@ router.get("/:id/qr-code", requireAuth, requireOwner, async (req: AuthenticatedR
 
     // Generate QR code as base64 PNG
     // Using a simple QR code generation approach
-    const signupUrl = `${process.env.APP_URL || "https://pgkhata.com"}/public/signup/${prop.signupToken}`;
+    if (!process.env.APP_URL) {
+  throw new Error("APP_URL environment variable is required");
+}
+const signupUrl = `${process.env.APP_URL}/public/signup/${prop.signupToken}`;
 
     // For now, return the URL - QR generation will be added when qrcode package is installed
     res.json({

@@ -1,7 +1,5 @@
 import { Resend } from "resend";
 
-const DEFAULT_FROM = "PGKhata <no-reply@pgkhata.com>";
-
 let client: Resend | undefined;
 
 /**
@@ -29,8 +27,12 @@ export async function sendEmail({
   subject: string;
   html: string;
 }) {
+  if (!process.env.RESEND_FROM_EMAIL) {
+    throw new Error("RESEND_FROM_EMAIL environment variable is required");
+  }
+
   const { data, error } = await resend().emails.send({
-    from: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
+    from: process.env.RESEND_FROM_EMAIL,
     to,
     subject,
     html,
