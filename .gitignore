@@ -29,3 +29,6 @@ next-env.d.ts
 # Local task and build-tool state
 .turbo/
 .commandcode/
+
+# Local scripts (not for production)
+scripts/
