@@ -20,8 +20,6 @@ import {
   Users,
 } from "lucide-react"
 import { OnboardTenantModal } from "@/components/dashboard/onboard-tenant-modal"
-import { EditTenantModal } from "@/components/dashboard/edit-tenant-modal"
-import type { Tenant } from "@/types"
 
 function getInitials(name: string) {
   return name
@@ -42,7 +40,6 @@ export default function TenantsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [onboardOpen, setOnboardOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [editTenant, setEditTenant] = useState<Tenant | null>(null)
 
   function handleExport() {
     if (!filtered.length) {
@@ -237,22 +234,12 @@ export default function TenantsPage() {
                       <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Link
-                          href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
-                          className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
-                        >
-                          View
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setEditTenant(t)}
-                        >
-                          Edit
-                        </Button>
-                      </div>
+                      <Link
+                        href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
+                        className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
+                      >
+                        View
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -278,15 +265,6 @@ export default function TenantsPage() {
       <OnboardTenantModal
         open={onboardOpen}
         onOpenChange={setOnboardOpen}
-        propertyId={propertyId}
-      />
-
-      <EditTenantModal
-        tenant={editTenant}
-        open={!!editTenant}
-        onOpenChange={(open) => {
-          if (!open) setEditTenant(null)
-        }}
         propertyId={propertyId}
       />
 
