@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, user, ownerProfile, property, tenant } from "@pgkhata/db";
+import { db, user, ownerProfile, property, tenant, platformAdmin } from "@pgkhata/db";
 import { eq, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { param, aggregate } from "../lib/http";
@@ -7,14 +7,25 @@ import { param, aggregate } from "../lib/http";
 const router = Router();
 
 // Middleware to require super-admin role
-// TODO(security): checks nothing — every authenticated owner reaches the
-// platform console. Tracked as a deferred authorization defect; needs a
-// super_admin table plus MFA before this router is exposed.
 async function requireSuperAdmin(
   req: AuthenticatedRequest,
-  res: unknown,
+  res: any,
   next: () => void,
 ) {
+  if (!req.user?.id) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+
+  const [admin] = await db
+    .select({ id: platformAdmin.id })
+    .from(platformAdmin)
+    .where(eq(platformAdmin.userId, req.user.id))
+    .limit(1);
+
+  if (!admin) {
+    return res.status(403).json({ error: "Platform admin access required" });
+  }
+
   next();
 }
 

@@ -15,8 +15,14 @@ export function usePayments(propertyId: string) {
 export function useRecordPayment(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { billId: string; amount: number; paymentDate: string; method?: string; notes?: string }) =>
-      api.post<Payment>(`/v1/properties/${propertyId}/payments`, data),
+    mutationFn: (data: { billId: string; amount: number; paymentDate: string; method?: string; notes?: string }) => {
+      // Generate idempotency key to prevent duplicate payments
+      const idempotencyKey = `${data.billId}-${data.amount}-${data.paymentDate}-${Date.now()}`
+      return api.post<Payment>(`/v1/properties/${propertyId}/payments`, {
+        ...data,
+        idempotencyKey,
+      })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payments", propertyId] })
       qc.invalidateQueries({ queryKey: ["bills", propertyId] })

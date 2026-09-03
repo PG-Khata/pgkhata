@@ -127,6 +127,20 @@
       "when": 1788428325702,
       "tag": "0017_add_upi_vpa",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788429367478,
+      "tag": "0018_add_platform_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788429547511,
+      "tag": "0019_add_payment_idempotency",
+      "breakpoints": true
     }
   ]
 }

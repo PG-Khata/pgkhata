@@ -15,6 +15,7 @@ const recordPaymentSchema = z.object({
   paymentDate: z.string().transform((str) => new Date(str)),
   method: z.enum(["cash", "upi", "bank_transfer", "advance", "other"]).optional(),
   notes: z.string().optional(),
+  idempotencyKey: z.string().optional(),
 });
 
 router.use(requireAuth, requireOwner, requireProperty);
@@ -82,7 +83,33 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 
     if (!b) return res.status(404).json({ error: "Bill not found" });
 
-    const [newPayment] = await db.insert(payment).values(body).returning();
+    // Check for duplicate idempotency key
+    if (body.idempotencyKey) {
+      const [existing] = await db
+        .select({ id: payment.id })
+        .from(payment)
+        .where(
+          and(
+            eq(payment.billId, body.billId),
+            eq(payment.idempotencyKey, body.idempotencyKey)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        // Payment with this idempotency key already exists - return success
+        return res.status(200).json({ message: "Payment already recorded", id: existing.id });
+      }
+    }
+
+    const [newPayment] = await db.insert(payment).values({
+      billId: body.billId,
+      amount: body.amount,
+      paymentDate: body.paymentDate,
+      method: body.method,
+      notes: body.notes,
+      idempotencyKey: body.idempotencyKey,
+    }).returning();
 
     await syncBillTotals(body.billId, b.bill.totalAmount);
 

@@ -349,18 +349,33 @@ export const bill = pgTable(
   ],
 );
 
-export const payment = pgTable("payment", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  billId: uuid("bill_id")
-    .notNull()
-    // restrict: payments are the source of truth for what a tenant has paid.
-    .references(() => bill.id, { onDelete: "restrict" }),
-  amount: integer("amount").notNull(),
-  paymentDate: timestamp("payment_date").notNull(),
-  method: text("method"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const payment = pgTable(
+  "payment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billId: uuid("bill_id")
+      .notNull()
+      // restrict: payments are the source of truth for what a tenant has paid.
+      .references(() => bill.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    paymentDate: timestamp("payment_date").notNull(),
+    method: text("method"),
+    notes: text("notes"),
+    /**
+     * Idempotency key to prevent duplicate payments.
+     * Generated client-side and sent with each payment request.
+     * If a payment with this key already exists for this bill, the request is rejected.
+     */
+    idempotencyKey: text("idempotency_key"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // Prevent duplicate payments with the same idempotency key for a bill
+    uniqueIndex("payment_bill_idempotency_uq")
+      .on(table.billId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} is not null`),
+  ],
+);
 
 export const advancePayment = pgTable(
   "advance_payment",
@@ -612,4 +627,13 @@ export const complaint = pgTable("complaint", {
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const platformAdmin = pgTable("platform_admin", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" })
+    .unique(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
