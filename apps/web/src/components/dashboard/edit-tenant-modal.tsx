@@ -44,24 +44,23 @@ const schema = z.object({
     .regex(/^\d{10}$/, "Must be 10 digits")
     .optional()
     .or(z.literal("")),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
-  dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  occupation: z.string().max(100).optional().or(z.literal("")),
+  email: z.string().min(1, "Email is required").email("Invalid email"),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  gender: z.string().min(1, "Gender is required"),
+  occupation: z.string().min(1, "Occupation is required").max(100),
   aadhaarNumber: z
     .string()
-    .regex(/^\d{12}$/, "Must be 12 digits")
-    .optional()
-    .or(z.literal("")),
+    .min(1, "Aadhaar number is required")
+    .regex(/^\d{12}$/, "Must be 12 digits"),
   panNumber: z
     .string()
     .regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Invalid PAN format")
     .optional()
     .or(z.literal("")),
-  permanentAddress: z.string().optional().or(z.literal("")),
-  permanentAddressCity: z.string().optional().or(z.literal("")),
-  permanentAddressState: z.string().optional().or(z.literal("")),
-  permanentAddressPincode: z.string().regex(/^\d{6}$/, "Must be 6 digits").optional().or(z.literal("")),
+  permanentAddress: z.string().min(1, "Permanent address is required"),
+  permanentAddressCity: z.string().min(1, "City is required"),
+  permanentAddressState: z.string().min(1, "State is required"),
+  permanentAddressPincode: z.string().min(1, "Pincode is required").regex(/^\d{6}$/, "Must be 6 digits"),
   notes: z.string().optional().or(z.literal("")),
 })
 
@@ -269,18 +268,19 @@ export function EditTenantModal({
                 {errors.alternatePhone && <p className="text-xs text-destructive">{errors.alternatePhone.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">Email <span className="text-destructive">*</span></label>
                 <Input type="email" {...register("email")} />
                 {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Date of birth</label>
+                <label className="text-sm font-medium">Date of birth <span className="text-destructive">*</span></label>
                 <Input type="date" {...register("dateOfBirth")} />
+                {errors.dateOfBirth && <p className="text-xs text-destructive">{errors.dateOfBirth.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Gender</label>
+                <label className="text-sm font-medium">Gender <span className="text-destructive">*</span></label>
                 <select
                   {...register("gender")}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
@@ -290,10 +290,12 @@ export function EditTenantModal({
                   <option value="female">Female</option>
                   <option value="other">Other</option>
                 </select>
+                {errors.gender && <p className="text-xs text-destructive">{errors.gender.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Occupation</label>
+                <label className="text-sm font-medium">Occupation <span className="text-destructive">*</span></label>
                 <Input {...register("occupation")} />
+                {errors.occupation && <p className="text-xs text-destructive">{errors.occupation.message}</p>}
               </div>
             </div>
           </div>
@@ -305,7 +307,7 @@ export function EditTenantModal({
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Aadhaar number</label>
+                <label className="text-sm font-medium">Aadhaar number <span className="text-destructive">*</span></label>
                 <Input {...register("aadhaarNumber")} maxLength={12} />
                 {errors.aadhaarNumber && <p className="text-xs text-destructive">{errors.aadhaarNumber.message}</p>}
               </div>
@@ -323,16 +325,18 @@ export function EditTenantModal({
               Permanent Address
             </p>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Address</label>
+              <label className="text-sm font-medium">Address <span className="text-destructive">*</span></label>
               <Textarea rows={2} {...register("permanentAddress")} />
+              {errors.permanentAddress && <p className="text-xs text-destructive">{errors.permanentAddress.message}</p>}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">City</label>
+                <label className="text-sm font-medium">City <span className="text-destructive">*</span></label>
                 <Input {...register("permanentAddressCity")} />
+                {errors.permanentAddressCity && <p className="text-xs text-destructive">{errors.permanentAddressCity.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">State</label>
+                <label className="text-sm font-medium">State <span className="text-destructive">*</span></label>
                 <select
                   {...register("permanentAddressState")}
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
@@ -342,9 +346,10 @@ export function EditTenantModal({
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
+                {errors.permanentAddressState && <p className="text-xs text-destructive">{errors.permanentAddressState.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Pincode</label>
+                <label className="text-sm font-medium">Pincode <span className="text-destructive">*</span></label>
                 <Input {...register("permanentAddressPincode")} maxLength={6} />
                 {errors.permanentAddressPincode && <p className="text-xs text-destructive">{errors.permanentAddressPincode.message}</p>}
               </div>

@@ -5,9 +5,9 @@ import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useTenant, useUpdateTenant } from "@/hooks/use-tenants"
 import { StatusBadge } from "@/components/dashboard/status-badge"
+import { EditTenantModal } from "@/components/dashboard/edit-tenant-modal"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
@@ -32,40 +32,6 @@ export default function TenantProfilePage() {
   const updateTenant = useUpdateTenant(propertyId, tenantId)
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
-  const [editForm, setEditForm] = useState({
-    name: "", email: "", phone: "", alternatePhone: "",
-    gender: "", occupation: "", dateOfBirth: "",
-    aadhaarNumber: "", panNumber: "",
-    permanentAddress: "", permanentAddressCity: "",
-    permanentAddressState: "", permanentAddressPincode: "",
-  })
-
-  function openEdit() {
-    if (!tenant) return
-    setEditForm({
-      name: tenant.name || "", email: tenant.email || "", phone: tenant.phone || "",
-      alternatePhone: tenant.alternatePhone || "", gender: tenant.gender || "",
-      occupation: tenant.occupation || "",
-      dateOfBirth: tenant.dateOfBirth ? tenant.dateOfBirth.split("T")[0] : "",
-      aadhaarNumber: tenant.aadhaarNumber || "", panNumber: tenant.panNumber || "",
-      permanentAddress: tenant.permanentAddress || "",
-      permanentAddressCity: tenant.permanentAddressCity || "",
-      permanentAddressState: tenant.permanentAddressState || "",
-      permanentAddressPincode: tenant.permanentAddressPincode || "",
-    })
-    setEditOpen(true)
-  }
-
-  function handleEditSave() {
-    const payload: Record<string, string> = {}
-    for (const [key, val] of Object.entries(editForm)) {
-      if (val) payload[key] = val
-    }
-    updateTenant.mutate(payload as any, {
-      onSuccess: () => { toast.success("Tenant updated"); setEditOpen(false) },
-      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to update"),
-    })
-  }
 
   function handleDeactivate() {
     updateTenant.mutate({ status: "vacated" } as any, {
@@ -104,7 +70,7 @@ export default function TenantProfilePage() {
           <p className="mt-0.5 text-sm text-muted-foreground">Onboarded {formatDateShort(tenant.joiningDate)}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
           <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeactivateOpen(true)}><ShieldOff className="mr-1.5 h-3.5 w-3.5" /> Deactivate</Button>
         </div>
       </div>
@@ -163,40 +129,12 @@ export default function TenantProfilePage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit tenant</DialogTitle><DialogDescription>Update {tenant.name}'s details.</DialogDescription></DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><label className="text-sm font-medium">Full name</label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Phone</label><Input value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><label className="text-sm font-medium">Alternate phone</label><Input value={editForm.alternatePhone} onChange={(e) => setEditForm({...editForm, alternatePhone: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Email</label><Input value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5"><label className="text-sm font-medium">Date of birth</label><Input type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({...editForm, dateOfBirth: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Gender</label><select value={editForm.gender} onChange={(e) => setEditForm({...editForm, gender: e.target.value})} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"><option value="">Select</option><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Occupation</label><Input value={editForm.occupation} onChange={(e) => setEditForm({...editForm, occupation: e.target.value})} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><label className="text-sm font-medium">Aadhaar</label><Input value={editForm.aadhaarNumber} onChange={(e) => setEditForm({...editForm, aadhaarNumber: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">PAN</label><Input value={editForm.panNumber} onChange={(e) => setEditForm({...editForm, panNumber: e.target.value})} /></div>
-            </div>
-            <div className="space-y-1.5"><label className="text-sm font-medium">Permanent address</label><Input value={editForm.permanentAddress} onChange={(e) => setEditForm({...editForm, permanentAddress: e.target.value})} /></div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5"><label className="text-sm font-medium">City</label><Input value={editForm.permanentAddressCity} onChange={(e) => setEditForm({...editForm, permanentAddressCity: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">State</label><Input value={editForm.permanentAddressState} onChange={(e) => setEditForm({...editForm, permanentAddressState: e.target.value})} /></div>
-              <div className="space-y-1.5"><label className="text-sm font-medium">Pincode</label><Input value={editForm.permanentAddressPincode} onChange={(e) => setEditForm({...editForm, permanentAddressPincode: e.target.value})} /></div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button>
-            <Button size="sm" onClick={handleEditSave} disabled={updateTenant.isPending}>{updateTenant.isPending ? "Saving..." : "Save"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EditTenantModal
+        tenant={tenant}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        propertyId={propertyId}
+      />
 
       <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
         <DialogContent className="sm:max-w-sm">
