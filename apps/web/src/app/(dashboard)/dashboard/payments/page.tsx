@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { IndianRupee, Plus, Trash2 } from "lucide-react"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import { useTenants } from "@/hooks/use-tenants"
 import { useBills } from "@/hooks/use-bills"
@@ -25,8 +26,47 @@ import { ApiError } from "@/lib/api-client"
 import { Banknote, CalendarClock, CreditCard, FileText } from "lucide-react"
 
 export default function PaymentsPage() {
-  const { data: properties, isLoading: propertiesLoading } = useProperties()
-  const [propertyId, setPropertyId] = useState("")
+  const { selectedProperty, setSelectedProperty } = useSelectedProperty()
+  const { data: properties, isLoading: propsLoading } = useProperties()
+
+  if (!selectedProperty) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Payments</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Select a property to view payments.</p>
+        </div>
+        {propsLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+          </div>
+        ) : properties && properties.length > 0 ? (
+          <div className="space-y-2">
+            {properties.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedProperty(p)}
+                className="flex w-full items-center justify-between rounded-xl border p-4 text-left hover:bg-muted/30 transition-colors"
+              >
+                <span className="text-sm font-medium">{p.name}</span>
+                <span className="text-xs text-muted-foreground">View payments</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed p-12 text-center">
+            <IndianRupee className="mx-auto h-10 w-10 text-muted-foreground/30" />
+            <p className="mt-3 text-sm font-medium text-muted-foreground">No properties</p>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return <PaymentsContent propertyId={selectedProperty.id} propertyName={selectedProperty.name} />
+}
+
+function PaymentsContent({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
   const [recordOpen, setRecordOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; tenantName: string } | null>(null)
   const [paymentForm, setPaymentForm] = useState({
@@ -36,12 +76,11 @@ export default function PaymentsPage() {
     notes: "",
   })
 
-  const activeProperty = propertyId || properties?.[0]?.id || ""
-  const { data: payments, isLoading } = usePayments(activeProperty)
-  const { data: tenants } = useTenants(activeProperty)
-  const { data: bills } = useBills(activeProperty)
-  const recordPayment = useRecordPayment(activeProperty)
-  const deletePayment = useDeletePayment(activeProperty)
+  const { data: payments, isLoading } = usePayments(propertyId)
+  const { data: tenants } = useTenants(propertyId)
+  const { data: bills } = useBills(propertyId)
+  const recordPayment = useRecordPayment(propertyId)
+  const deletePayment = useDeletePayment(propertyId)
 
   const paymentsList = payments ?? []
   const totalCollected = paymentsList.reduce((sum, p) => sum + p.payment.amount, 0)
@@ -93,28 +132,13 @@ export default function PaymentsPage() {
         <div>
           <h1 className="text-lg font-semibold">Payments</h1>
           <p className="text-xs text-muted-foreground">
-            Payment ledger — all recorded payments across tenants.
+            Payment ledger for {propertyName}.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {properties && properties.length > 1 && (
-            <select
-              value={activeProperty}
-              onChange={(event) => setPropertyId(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button size="sm" onClick={() => setRecordOpen(true)} disabled={!activeProperty}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Record Payment
-          </Button>
-        </div>
+        <Button size="sm" onClick={() => setRecordOpen(true)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Record Payment
+        </Button>
       </div>
 
       {/* Summary cards */}
@@ -129,16 +153,11 @@ export default function PaymentsPage() {
         />
       </div>
 
-      {propertiesLoading || isLoading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full rounded-xl" />
           ))}
-        </div>
-      ) : !activeProperty ? (
-        <div className="rounded-xl border border-dashed p-12 text-center">
-          <IndianRupee className="mx-auto h-10 w-10 text-muted-foreground/30" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">Select a property</p>
         </div>
       ) : paymentsList.length === 0 ? (
         <div className="rounded-xl border border-dashed p-12 text-center">
