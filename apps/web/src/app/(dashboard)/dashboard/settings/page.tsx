@@ -5,16 +5,12 @@ import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import {
   Bell,
-  BookOpen,
   Building2,
   CreditCard,
-  FileText,
   Layers,
   Receipt,
-  Settings,
   Shield,
   Tags,
-  Users,
   Zap,
 } from "lucide-react"
 
@@ -63,22 +59,10 @@ const SETTINGS_CARDS: SettingCard[] = [
     href: "/dashboard/properties",
   },
   {
-    title: "Staff",
-    description: "Create employee accounts and manage access.",
-    icon: Users,
-    href: "/dashboard/bookings",
-  },
-  {
     title: "Meter Reading",
     description: "Configure electricity rates and manage meter readings.",
     icon: Zap,
     href: "/dashboard/readings",
-  },
-  {
-    title: "Documents",
-    description: "Manage property-level documents and agreements.",
-    icon: FileText,
-    href: "/dashboard/properties",
   },
   {
     title: "Security",
