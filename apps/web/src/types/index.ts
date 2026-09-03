@@ -28,6 +28,7 @@ export interface Property {
   description?: string
   electricityMode: "flat" | "meter"
   electricityRatePerUnit?: number
+  upiVpa?: string
   signupToken?: string
   complaintToken?: string
   createdAt: string

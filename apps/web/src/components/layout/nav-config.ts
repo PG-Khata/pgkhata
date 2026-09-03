@@ -48,7 +48,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Tenant report", href: "/dashboard/tenants/report", icon: ClipboardList },
       { label: "Occupancy", href: "/dashboard/occupancy", icon: Bed },
       { label: "Bookings", href: "/dashboard/bookings", icon: BookOpen },
-      { label: "Documents", href: "/dashboard/documents", icon: ClipboardList },
       { label: "Notifications", href: "/dashboard/notifications", icon: Bell },
       { label: "Complaints", href: "/dashboard/complaints", icon: MessageSquare },
     ],
@@ -57,7 +56,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Money",
     items: [
       { label: "Billing", href: "/dashboard/billing", icon: Receipt },
-      { label: "Payments", href: "/dashboard/payments", icon: IndianRupee, upcoming: true },
+      { label: "Payments", href: "/dashboard/payments", icon: IndianRupee },
       { label: "Advances", href: "/dashboard/advance-payments", icon: PiggyBank },
       { label: "Expenses", href: "/dashboard/expenses", icon: TrendingDown },
       { label: "Deposits", href: "/dashboard/deposits", icon: PiggyBank },
@@ -84,7 +83,7 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/dashboard", icon: LayoutDashboard },
   { label: "Tenants", href: "/dashboard/tenants", icon: Users },
   { label: "Billing", href: "/dashboard/billing", icon: Receipt },
-  { label: "Money", href: "/dashboard/payments", icon: IndianRupee, upcoming: true },
+  { label: "Money", href: "/dashboard/payments", icon: IndianRupee },
 ]
 
 /**

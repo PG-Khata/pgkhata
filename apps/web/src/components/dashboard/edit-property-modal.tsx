@@ -31,6 +31,7 @@ const schema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   description: z.string().optional(),
+  upiVpa: z.string().max(100).optional(),
 })
 
 type FormData = z.infer<typeof schema>
@@ -60,6 +61,7 @@ export function EditPropertyModal({ property, open, onOpenChange }: EditProperty
       latitude: property.latitude ?? "",
       longitude: property.longitude ?? "",
       description: property.description ?? "",
+      upiVpa: property.upiVpa ?? "",
     })
   }, [property, reset])
 
@@ -120,6 +122,14 @@ export function EditPropertyModal({ property, open, onOpenChange }: EditProperty
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Description</label>
             <Textarea rows={3} {...register("description")} />
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Payment</p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">UPI ID (VPA)</label>
+              <Input {...register("upiVpa")} placeholder="yourname@upi" />
+              <p className="text-xs text-muted-foreground">Used in WhatsApp bill notifications for UPI payments.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>

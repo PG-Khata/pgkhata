@@ -95,6 +95,7 @@ export const property = pgTable("property", {
   description: text("description"),
   electricityMode: text("electricity_mode").notNull().default("flat"),
   electricityRatePerUnit: integer("electricity_rate_per_unit"),
+  upiVpa: text("upi_vpa"),
   signupToken: text("signup_token").unique(),
   complaintToken: text("complaint_token").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),

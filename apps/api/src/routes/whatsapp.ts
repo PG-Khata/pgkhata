@@ -67,7 +67,7 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
         tenantPhone: tenant.phone,
         roomNumber: room.number,
         propertyName: property.name,
-        upiId: property.signupToken, // Using signupToken as placeholder for UPI ID
+        upiId: property.upiVpa,
       })
       .from(bill)
       .innerJoin(tenant, eq(bill.tenantId, tenant.id))

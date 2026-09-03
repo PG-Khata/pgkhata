@@ -21,6 +21,7 @@ const createPropertySchema = z.object({
   description: z.string().optional(),
   electricityMode: z.enum(["flat", "meter"]).default("flat"),
   electricityRatePerUnit: z.number().optional(),
+  upiVpa: z.string().max(100).optional(),
 });
 
 const updatePropertySchema = createPropertySchema.partial();
