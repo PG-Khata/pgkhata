@@ -32,3 +32,12 @@ next-env.d.ts
 
 # Local scripts (not for production)
 scripts/
+
+# Internal documentation and business files
+data-points/
+PRODUCT.md
+README.md
+.env.example
+temp_tenant_page.txt
+temp_tenant_page.tsx
+whatsapp-bill-header.png
