@@ -21,9 +21,10 @@ const recordPaymentSchema = z.object({
 router.use(requireAuth, requireOwner, requireProperty);
 
 /** Recomputes bill totals from the payment ledger, the source of truth. */
-export async function syncBillTotals(billId: string, totalAmount: number) {
+export async function syncBillTotals(billId: string, totalAmount: number, tx?: any) {
+  const dbConn = tx || db;
   const { totalPaid } = aggregate(
-    await db
+    await dbConn
       .select({ totalPaid: sql<number>`coalesce(sum(${payment.amount}), 0)::int` })
       .from(payment)
       .where(eq(payment.billId, billId)),
@@ -33,7 +34,7 @@ export async function syncBillTotals(billId: string, totalAmount: number) {
   const newBalance = totalAmount - totalPaid;
   const newStatus = newBalance <= 0 ? "paid" : totalPaid > 0 ? "partial" : "pending";
 
-  await db
+  await dbConn
     .update(bill)
     .set({
       paidAmount: totalPaid,
@@ -66,7 +67,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Record payment
+// Record payment — wrapped in transaction for idempotency and consistency
 router.post("/", async (req: AuthenticatedRequest, res) => {
   try {
     const body = recordPaymentSchema.parse(req.body);
@@ -83,37 +84,44 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 
     if (!b) return res.status(404).json({ error: "Bill not found" });
 
-    // Check for duplicate idempotency key
-    if (body.idempotencyKey) {
-      const [existing] = await db
-        .select({ id: payment.id })
-        .from(payment)
-        .where(
-          and(
-            eq(payment.billId, body.billId),
-            eq(payment.idempotencyKey, body.idempotencyKey)
+    const result = await db.transaction(async (tx) => {
+      // Check for duplicate idempotency key inside transaction
+      if (body.idempotencyKey) {
+        const [existing] = await tx
+          .select({ id: payment.id })
+          .from(payment)
+          .where(
+            and(
+              eq(payment.billId, body.billId),
+              eq(payment.idempotencyKey, body.idempotencyKey)
+            )
           )
-        )
-        .limit(1);
+          .limit(1);
 
-      if (existing) {
-        // Payment with this idempotency key already exists - return success
-        return res.status(200).json({ message: "Payment already recorded", id: existing.id });
+        if (existing) {
+          return { type: "duplicate" as const, id: existing.id };
+        }
       }
+
+      const [newPayment] = await tx.insert(payment).values({
+        billId: body.billId,
+        amount: body.amount,
+        paymentDate: body.paymentDate,
+        method: body.method,
+        notes: body.notes,
+        idempotencyKey: body.idempotencyKey,
+      }).returning();
+
+      await syncBillTotals(body.billId, b.bill.totalAmount, tx);
+
+      return { type: "created" as const, payment: newPayment };
+    });
+
+    if (result.type === "duplicate") {
+      return res.status(200).json({ message: "Payment already recorded", id: result.id });
     }
 
-    const [newPayment] = await db.insert(payment).values({
-      billId: body.billId,
-      amount: body.amount,
-      paymentDate: body.paymentDate,
-      method: body.method,
-      notes: body.notes,
-      idempotencyKey: body.idempotencyKey,
-    }).returning();
-
-    await syncBillTotals(body.billId, b.bill.totalAmount);
-
-    res.status(201).json(newPayment);
+    res.status(201).json(result.payment);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Validation error", details: error.errors });

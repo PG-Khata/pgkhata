@@ -70,11 +70,11 @@ router.post("/signup/:token", async (req, res) => {
 
     if (!r) return res.status(404).json({ error: "Room not found" });
 
-    // Check duplicate phone
+    // Check duplicate phone within this property
     const [existing] = await db
       .select()
       .from(tenant)
-      .where(eq(tenant.phone, body.phone))
+      .where(and(eq(tenant.phone, body.phone), eq(tenant.propertyId, prop.id)))
       .limit(1);
 
     if (existing) {

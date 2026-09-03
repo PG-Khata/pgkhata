@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, notification, property } from "@pgkhata/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param } from "../lib/http";
 
@@ -8,24 +8,41 @@ const router = Router({ mergeParams: true });
 
 router.use(requireAuth, requireOwner);
 
+/** Get property IDs owned by the authenticated owner. */
+async function getOwnerPropertyIds(ownerId: string): Promise<string[]> {
+  const props = await db
+    .select({ id: property.id })
+    .from(property)
+    .where(eq(property.ownerId, ownerId));
+  return props.map((p) => p.id);
+}
+
+/** Build a WHERE clause scoped to the owner's properties, optionally filtered to one. */
+function buildOwnerScopedWhere(
+  ownerPropertyIds: string[],
+  filterPropertyId?: string,
+) {
+  if (ownerPropertyIds.length === 0) return undefined;
+
+  if (filterPropertyId) {
+    // Verify the requested propertyId belongs to this owner
+    if (!ownerPropertyIds.includes(filterPropertyId)) {
+      return undefined; // Will result in empty results
+    }
+    return eq(notification.propertyId, filterPropertyId);
+  }
+
+  return inArray(notification.propertyId, ownerPropertyIds);
+}
+
 // List notifications for a property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
     const propertyId = req.query.propertyId as string | undefined;
 
-    let where;
-    if (propertyId) {
-      where = eq(notification.propertyId, propertyId);
-    } else {
-      // Get all properties for owner
-      const props = await db
-        .select({ id: property.id })
-        .from(property)
-        .where(eq(property.ownerId, req.ownerId!));
-      const ids = props.map((p) => p.id);
-      if (ids.length === 0) return res.json([]);
-      where = sql`${notification.propertyId} in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`;
-    }
+    const where = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    if (!where) return res.json([]);
 
     const rows = await db
       .select()
@@ -43,23 +60,13 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 // Get unread count
 router.get("/unread-count", async (req: AuthenticatedRequest, res) => {
   try {
+    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
     const propertyId = req.query.propertyId as string | undefined;
 
-    let where;
-    if (propertyId) {
-      where = and(eq(notification.propertyId, propertyId), eq(notification.read, false));
-    } else {
-      const props = await db
-        .select({ id: property.id })
-        .from(property)
-        .where(eq(property.ownerId, req.ownerId!));
-      const ids = props.map((p) => p.id);
-      if (ids.length === 0) return res.json({ count: 0 });
-      where = and(
-        sql`${notification.propertyId} in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`,
-        eq(notification.read, false),
-      );
-    }
+    const scopedWhere = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    if (!scopedWhere) return res.json({ count: 0 });
+
+    const where = and(scopedWhere, eq(notification.read, false));
 
     const [row] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -72,13 +79,25 @@ router.get("/unread-count", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Mark single as read
+// Mark single as read — scoped to owner's properties
 router.put("/:notificationId/read", async (req: AuthenticatedRequest, res) => {
   try {
+    const notificationId = param(req, "notificationId");
+    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
+
+    if (ownerPropertyIds.length === 0) {
+      return res.status(404).json({ error: "Notification not found" });
+    }
+
     const [updated] = await db
       .update(notification)
       .set({ read: true })
-      .where(eq(notification.id, param(req, "notificationId")))
+      .where(
+        and(
+          eq(notification.id, notificationId),
+          inArray(notification.propertyId, ownerPropertyIds),
+        )
+      )
       .returning();
 
     if (!updated) return res.status(404).json({ error: "Notification not found" });
@@ -88,28 +107,18 @@ router.put("/:notificationId/read", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Mark all as read
+// Mark all as read — scoped to owner's properties
 router.post("/mark-all-read", async (req: AuthenticatedRequest, res) => {
   try {
+    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
     const propertyId = req.body.propertyId as string | undefined;
 
-    let where;
-    if (propertyId) {
-      where = and(eq(notification.propertyId, propertyId), eq(notification.read, false));
-    } else {
-      const props = await db
-        .select({ id: property.id })
-        .from(property)
-        .where(eq(property.ownerId, req.ownerId!));
-      const ids = props.map((p) => p.id);
-      if (ids.length === 0) return res.json({ updated: 0 });
-      where = and(
-        sql`${notification.propertyId} in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`,
-        eq(notification.read, false),
-      );
-    }
+    const scopedWhere = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    if (!scopedWhere) return res.json({ updated: 0 });
 
-    const result = await db
+    const where = and(scopedWhere, eq(notification.read, false));
+
+    await db
       .update(notification)
       .set({ read: true })
       .where(where);

@@ -431,11 +431,11 @@ router.delete("/:billId", async (req: AuthenticatedRequest, res) => {
 
     if (!target) return res.status(404).json({ error: "Bill not found" });
 
-    // Delete associated payments first
-    await db.delete(payment).where(eq(payment.billId, billId));
-
-    // Delete the bill
-    await db.delete(bill).where(eq(bill.id, billId));
+    // Delete associated payments and bill in a transaction
+    await db.transaction(async (tx) => {
+      await tx.delete(payment).where(eq(payment.billId, billId));
+      await tx.delete(bill).where(eq(bill.id, billId));
+    });
 
     res.json({ message: "Bill deleted" });
   } catch (error) {

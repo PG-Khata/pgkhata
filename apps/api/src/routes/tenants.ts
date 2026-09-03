@@ -130,11 +130,11 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
   try {
     const body = createTenantSchema.parse(req.body);
 
-    // Check for duplicate phone
+    // Check for duplicate phone within this property
     const [existingPhone] = await db
       .select()
       .from(tenant)
-      .where(eq(tenant.phone, body.phone))
+      .where(and(eq(tenant.phone, body.phone), eq(tenant.propertyId, req.propertyId!)))
       .limit(1);
 
     if (existingPhone) {

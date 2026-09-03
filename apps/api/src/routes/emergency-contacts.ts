@@ -68,14 +68,33 @@ router.post("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Delete emergency contact
+// Delete emergency contact — scoped to property via tenant
 router.delete("/:contactId", async (req: AuthenticatedRequest, res) => {
   try {
     const contactId = param(req, "contactId");
 
+    // Verify the contact belongs to a tenant in this property
     const [deleted] = await db
       .delete(emergencyContact)
-      .where(eq(emergencyContact.id, contactId))
+      .where(
+        and(
+          eq(emergencyContact.id, contactId),
+          eq(
+            emergencyContact.tenantId,
+            // Subquery: contact's tenant must belong to this property
+            db
+              .select({ id: tenant.id })
+              .from(tenant)
+              .where(
+                and(
+                  eq(tenant.id, emergencyContact.tenantId),
+                  eq(tenant.propertyId, req.propertyId!),
+                )
+              )
+              .limit(1)
+          ),
+        )
+      )
       .returning();
 
     if (!deleted) return res.status(404).json({ error: "Contact not found" });

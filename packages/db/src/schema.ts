@@ -6,6 +6,7 @@ import {
   integer,
   uuid,
   uniqueIndex,
+  index,
   check,
   jsonb,
 } from "drizzle-orm/pg-core";
@@ -209,16 +210,23 @@ export const room = pgTable(
   ],
 );
 
-export const electricityReading = pgTable("electricity_reading", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  roomId: uuid("room_id")
-    .notNull()
-    .references(() => room.id, { onDelete: "cascade" }),
-  reading: integer("reading").notNull(),
-  units: integer("units").notNull().default(0),
-  readingDate: timestamp("reading_date").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const electricityReading = pgTable(
+  "electricity_reading",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => room.id, { onDelete: "cascade" }),
+    reading: integer("reading").notNull(),
+    units: integer("units").notNull().default(0),
+    readingDate: timestamp("reading_date").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // Index for room-scoped queries (reading list, billing generation)
+    index("idx_electricity_reading_room_date").on(table.roomId, table.readingDate),
+  ],
+);
 
 export const bed = pgTable(
   "bed",
@@ -301,6 +309,8 @@ export const tenant = pgTable(
     uniqueIndex("tenant_bed_uq")
       .on(table.bedId)
       .where(sql`${table.bedId} is not null`),
+    // Index for property-scoped queries (tenants list, billing, dashboard)
+    index("idx_tenant_property_status").on(table.propertyId, table.status),
   ],
 );
 
@@ -374,6 +384,8 @@ export const payment = pgTable(
     uniqueIndex("payment_bill_idempotency_uq")
       .on(table.billId, table.idempotencyKey)
       .where(sql`${table.idempotencyKey} is not null`),
+    // Index for bill-scoped queries (syncBillTotals, payment list)
+    index("idx_payment_bill_id").on(table.billId),
   ],
 );
 
