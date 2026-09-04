@@ -3,7 +3,7 @@
 import { authClient, useSession } from "@/lib/auth-client"
 import { signOut } from "@/lib/auth-client"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,7 +40,7 @@ function getInitials(name: string) {
     .slice(0, 2)
 }
 
-export default function ProfilePage() {
+function ProfileContent() {
   const { data: session, isPending } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -278,5 +278,21 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <div className="flex gap-6">
+          <Skeleton className="h-32 w-32 rounded-xl" />
+          <Skeleton className="h-32 flex-1 rounded-xl" />
+        </div>
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
   )
 }

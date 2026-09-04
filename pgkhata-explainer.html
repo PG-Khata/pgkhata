@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PGKhata — Complete Guide | Free PG Management Software</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --primary-light: #dbeafe;
+            --accent: #10b981;
+            --accent-dark: #059669;
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            --radius: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Hero */
+        .hero {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #3b82f6 100%);
+            color: white;
+            padding: 80px 24px 60px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(10px);
+            padding: 6px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 5vw, 3.5rem);
+            font-weight: 800;
+            margin-bottom: 16px;
+            letter-spacing: -1px;
+            line-height: 1.1;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat .number {
+            font-size: 2rem;
+            font-weight: 800;
+            display: block;
+        }
+
+        .hero-stat .label {
+            font-size: 0.85rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Container */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Section */
+        .section {
+            padding: 60px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .section-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+        }
+
+        .section-divider {
+            width: 60px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 2px;
+            margin: 16px auto 0;
+        }
+
+        /* W+H Question Cards */
+        .wh-grid {
+            display: grid;
+            gap: 24px;
+        }
+
+        .wh-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 32px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .wh-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .wh-card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .wh-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .wh-icon.blue { background: #dbeafe; }
+        .wh-icon.green { background: #d1fae5; }
+        .wh-icon.purple { background: #ede9fe; }
+        .wh-icon.orange { background: #ffedd5; }
+        .wh-icon.red { background: #fee2e2; }
+        .wh-icon.teal { background: #ccfbf1; }
+        .wh-icon.pink { background: #fce7f3; }
+        .wh-icon.amber { background: #fef3c7; }
+
+        .wh-card-header h3 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .wh-card-header .question-tag {
+            display: inline-block;
+            background: var(--primary-light);
+            color: var(--primary);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .wh-card p, .wh-card li {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .wh-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .wh-card ul li {
+            padding: 8px 0;
+            padding-left: 28px;
+            position: relative;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .wh-card ul li:last-child {
+            border-bottom: none;
+        }
+
+        .wh-card ul li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 28px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .feature-card .emoji {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .feature-card h4 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Comparison Table */
+        .comparison-wrapper {
+            overflow-x: auto;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            min-width: 600px;
+        }
+
+        .comparison-table thead {
+            background: linear-gradient(135deg, #1e3a5f, #2563eb);
+            color: white;
+        }
+
+        .comparison-table th {
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .comparison-table td {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        .comparison-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .comparison-table .highlight {
+            background: #f0fdf4;
+            font-weight: 700;
+            color: var(--accent-dark);
+        }
+
+        .comparison-table .highlight td {
+            border-color: #bbf7d0;
+        }
+
+        .price-free {
+            color: var(--accent);
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .price-paid {
+            color: #ef4444;
+            font-weight: 600;
+        }
+
+        .check { color: var(--accent); font-weight: 700; }
+        .cross { color: #ef4444; }
+
+        /* FAQ Accordion */
+        .faq-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .faq-item {
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .faq-question {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 20px 24px;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text);
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+
+        .faq-question:hover {
+            background: #f8fafc;
+        }
+
+        .faq-question .arrow {
+            font-size: 1.2rem;
+            transition: transform 0.3s;
+            color: var(--primary);
+        }
+
+        .faq-item.open .faq-question .arrow {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .faq-item.open .faq-answer {
+            max-height: 500px;
+            padding: 0 24px 20px;
+        }
+
+        .faq-answer p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+
+        /* Tech Stack */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .tech-item {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+
+        .tech-item .tech-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .tech-item .tech-role {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* CTA */
+        .cta-section {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+            color: white;
+            padding: 60px 24px;
+            text-align: center;
+            border-radius: 0;
+        }
+
+        .cta-section h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .cta-section p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+            margin-bottom: 32px;
+        }
+
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .btn-white {
+            background: white;
+            color: var(--primary);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255,255,255,0.5);
+        }
+
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: white;
+        }
+
+        /* Footer */
+        footer {
+            background: #0f172a;
+            color: #94a3b8;
+            padding: 40px 24px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .hero { padding: 60px 20px 40px; }
+            .hero-stats { gap: 24px; }
+            .wh-card { padding: 24px; }
+            .section { padding: 40px 0; }
+            .hero-stat .number { font-size: 1.5rem; }
+        }
+
+        /* Smooth scroll */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* Nav */
+        .sticky-nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+        }
+
+        .nav-inner {
+            max-width: 960px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .nav-logo {
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Highlight box */
+        .highlight-box {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border: 1px solid #86efac;
+            border-radius: var(--radius);
+            padding: 24px;
+            margin: 20px 0;
+        }
+
+        .highlight-box.warning {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border-color: #fcd34d;
+        }
+
+        .highlight-box strong {
+            color: var(--accent-dark);
+        }
+
+        .highlight-box.warning strong {
+            color: #b45309;
+        }
+
+        /* Inline badge */
+        .badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-free { background: #d1fae5; color: #065f46; }
+        .badge-new { background: #dbeafe; color: #1e40af; }
+    </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="sticky-nav">
+    <div class="nav-inner">
+        <div class="nav-logo">🏠 PGKhata</div>
+        <div class="nav-links">
+            <a href="#what">What</a>
+            <a href="#who">Who</a>
+            <a href="#why">Why</a>
+            <a href="#features">Features</a>
+            <a href="#how">How</a>
+            <a href="#comparison">Compare</a>
+            <a href="#tech">Tech</a>
+            <a href="#faq">FAQ</a>
+        </div>
+    </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+    <div class="hero-content">
+        <div class="hero-badge">🇮🇳 Made for Indian PG Owners</div>
+        <h1>PGKhata — <span>Free PG Management</span> Software</h1>
+        <p>Manage your paying guest properties, tenants, billing, and WhatsApp notifications — completely free, forever.</p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <span class="number">₹0</span>
+                <span class="label">Monthly Cost</span>
+            </div>
+            <div class="hero-stat">
+                <span class="number">30+</span>
+                <span class="label">Features</span>
+            </div>
+            <div class="hero-stat">
+                <span class="number">27</span>
+                <span class="label">DB Tables</span>
+            </div>
+            <div class="hero-stat">
+                <span class="number">60+</span>
+                <span class="label">API Endpoints</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+
+<!-- WHAT -->
+<section class="section" id="what">
+    <div class="container">
+        <div class="section-header">
+            <h2>What is PGKhata?</h2>
+            <p>Everything you need to know about the product</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="wh-grid">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon blue">❓</div>
+                    <div>
+                        <span class="question-tag">What</span>
+                        <h3>What exactly is PGKhata?</h3>
+                    </div>
+                </div>
+                <p>PGKhata is a <strong>web-based software</strong> (like a website you open in your browser) designed specifically for <strong>PG (Paying Guest) owners</strong> in India. It helps you manage everything about your PG business — properties, tenants, rooms, beds, rent collection, expenses, staff, and communication — all from one dashboard.</p>
+                <p style="margin-top:12px;">Think of it as a <strong>digital manager</strong> for your PG business. Instead of maintaining registers, Excel sheets, or WhatsApp groups to track tenants and rent, PGKhata does it all automatically.</p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon green">💰</div>
+                    <div>
+                        <span class="question-tag">What</span>
+                        <h3>What does it cost?</h3>
+                    </div>
+                </div>
+                <p><strong>Absolutely nothing. ₹0. Zero. Free forever.</strong></p>
+                <p style="margin-top:12px;">Unlike competitors like PG Manager (₹300/month), My PG Manager (₹159/month), or RentOk (custom pricing), PGKhata is <strong>100% free</strong> with no hidden charges, no premium tiers, no per-tenant fees, and no surprise bills.</p>
+                <div class="highlight-box" style="margin-top:16px;">
+                    <strong>How is it free?</strong> — The business model follows the "Jio Playbook" — build a massive user base first, then monetize later through tenant marketplace, financial services, supplier network, and advertising. <strong>You never pay.</strong>
+                </div>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon purple">📋</div>
+                    <div>
+                        <span class="question-tag">What</span>
+                        <h3>What features does it have?</h3>
+                    </div>
+                </div>
+                <p>PGKhata has <strong>30+ features</strong> across 7 categories:</p>
+                <ul>
+                    <li><strong>Property Management</strong> — Multiple properties, floors, rooms, beds, vacancy dashboard, bed transfers, bookings</li>
+                    <li><strong>Tenant Management</strong> — Add/edit tenants, approval workflow, KYC documents (Aadhaar, PAN), emergency contacts, checkout preview</li>
+                    <li><strong>Billing & Payments</strong> — Auto bill generation, line-item billing, configurable charges, rent plans, late fees, advance payments, security deposits</li>
+                    <li><strong>Expense Tracking</strong> — Record expenses, categories, approval workflow, summaries</li>
+                    <li><strong>Staff Management</strong> — Add staff, role-based permissions, module-level access control</li>
+                    <li><strong>Communication</strong> — WhatsApp bill notifications, payment reminders, bulk reminders, email notifications</li>
+                    <li><strong>Reports & Analytics</strong> — Dashboard, monthly trends, due rent list, aging buckets, CSV export, Profit/Loss report</li>
+                </ul>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon orange">📱</div>
+                    <div>
+                        <span class="question-tag">What</span>
+                        <h3>What do I need to use it?</h3>
+                    </div>
+                </div>
+                <p>Just a <strong>phone or laptop with internet</strong>. That's it.</p>
+                <ul>
+                    <li>No app to install — works in your browser (Chrome, Safari, etc.)</li>
+                    <li>No special hardware needed</li>
+                    <li>Works on Android, iPhone, Windows, Mac — any device</li>
+                    <li>No technical knowledge required</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- WHO -->
+<section class="section" style="background: #f1f5f9;" id="who">
+    <div class="container">
+        <div class="section-header">
+            <h2>Who is PGKhata for?</h2>
+            <p>Understanding the people behind the product</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="wh-grid">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon blue">👤</div>
+                    <div>
+                        <span class="question-tag">Who</span>
+                        <h3>Who should use PGKhata?</h3>
+                    </div>
+                </div>
+                <p>PGKhata is built for:</p>
+                <ul>
+                    <li><strong>PG Owners</strong> — Anyone running a paying guest accommodation (1 bed or 1000 beds)</li>
+                    <li><strong>Hostel Managers</strong> — Student hostels, working professional hostels</li>
+                    <li><strong>Co-living Operators</strong> — Companies managing multiple co-living spaces</li>
+                    <li><strong>Property Managers</strong> — Anyone managing rental properties with shared rooms</li>
+                    <li><strong>PG Chains</strong> — Businesses with multiple PG properties across cities</li>
+                </ul>
+                <div class="highlight-box" style="margin-top:16px;">
+                    <strong>Scale:</strong> Whether you have 1 PG with 5 beds or 50 PGs with 2000 beds, PGKhata handles it all.
+                </div>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon green">🏗️</div>
+                    <div>
+                        <span class="question-tag">Who</span>
+                        <h3>Who built PGKhata?</h3>
+                    </div>
+                </div>
+                <p>PGKhata is built by a developer who understands the PG business in India. It's a <strong>modern, open-source project</strong> built with industry-standard technologies (Next.js, TypeScript, PostgreSQL).</p>
+                <p style="margin-top:12px;">The project follows <strong>test-driven development (TDD)</strong> with 300+ automated tests, ensuring reliability and correctness of every feature.</p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon purple">🆚</div>
+                    <div>
+                        <span class="question-tag">Who</span>
+                        <h3>Who are the competitors?</h3>
+                    </div>
+                </div>
+                <p>Other PG management tools in the market:</p>
+                <ul>
+                    <li><strong>PG Manager</strong> — ₹300/month, has tenant app</li>
+                    <li><strong>My PG Manager</strong> — ₹159/month, has AI assistant</li>
+                    <li><strong>BTRoomer</strong> — Custom pricing, has PG marketplace</li>
+                    <li><strong>PG Master</strong> — Custom pricing, has mobile app</li>
+                    <li><strong>RentOk</strong> — Custom pricing, has lead management</li>
+                </ul>
+                <div class="highlight-box" style="margin-top:16px;">
+                    <strong>PGKhata's edge:</strong> 100% free + modern tech + open source + superior billing system. Competitors charge ₹159–₹300/month for similar features.
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- WHY -->
+<section class="section" id="why">
+    <div class="container">
+        <div class="section-header">
+            <h2>Why PGKhata?</h2>
+            <p>The reasons to switch from registers and Excel sheets</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="wh-grid">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon blue">💡</div>
+                    <div>
+                        <span class="question-tag">Why</span>
+                        <h3>Why should I use software for my PG?</h3>
+                    </div>
+                </div>
+                <p>Running a PG with pen & paper or Excel leads to:</p>
+                <ul>
+                    <li><strong>Missed rent payments</strong> — You forget who paid and who didn't</li>
+                    <li><strong>Billing errors</strong> — Manual calculation of rent + electricity + other charges is error-prone</li>
+                    <li><strong>No tracking</strong> — Can't see which beds are vacant, which tenants are overdue</li>
+                    <li><strong>Time waste</strong> — Manually sending bills and reminders to each tenant on WhatsApp</li>
+                    <li><strong>No reports</strong> — Can't see profit/loss, monthly trends, or outstanding amounts at a glance</li>
+                    <li><strong>Document chaos</strong> — KYC documents scattered across phone gallery and files</li>
+                </ul>
+                <p style="margin-top:12px;"><strong>PGKhata solves all of this automatically.</strong></p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon green">🎯</div>
+                    <div>
+                        <span class="question-tag">Why</span>
+                        <h3>Why is PGKhata free? What's the catch?</h3>
+                    </div>
+                </div>
+                <p><strong>There is no catch.</strong> The strategy is the same one Jio used — provide a quality service for free to build a massive user base.</p>
+                <p style="margin-top:12px;"><strong>Future monetization (you still pay nothing):</strong></p>
+                <ul>
+                    <li><strong>Tenant marketplace</strong> — Premium features for tenants (not owners)</li>
+                    <li><strong>Financial services</strong> — Working capital loans, insurance for PG businesses</li>
+                    <li><strong>Supplier network</strong> — Food, cleaning, maintenance vendors</li>
+                    <li><strong>Advertising</strong> — PG-related services ads</li>
+                    <li><strong>Data insights</strong> — Anonymized market data for researchers</li>
+                    <li><strong>White-label</strong> — Custom branding for large PG chains</li>
+                </ul>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon purple">🔒</div>
+                    <div>
+                        <span class="question-tag">Why</span>
+                        <h3>Why should I trust PGKhata with my data?</h3>
+                    </div>
+                </div>
+                <p>PGKhata takes security seriously:</p>
+                <ul>
+                    <li><strong>Encrypted connections</strong> — All data transmitted over HTTPS (like net banking)</li>
+                    <li><strong>Secure authentication</strong> — Industry-standard Better Auth system with session management</li>
+                    <li><strong>Property-level isolation</strong> — Your data is completely separate from other PG owners</li>
+                    <li><strong>Middleware security</strong> — Every request is verified for authentication and ownership</li>
+                    <li><strong>XSS protection</strong> — All user content is sanitized to prevent attacks</li>
+                    <li><strong>No data selling</strong> — Your business data is never sold to third parties</li>
+                </ul>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon orange">⚡</div>
+                    <div>
+                        <span class="question-tag">Why</span>
+                        <h3>Why PGKhata over Excel or Google Sheets?</h3>
+                    </div>
+                </div>
+                <ul>
+                    <li><strong>Automation</strong> — Bills generate automatically every month, no manual entry</li>
+                    <li><strong>WhatsApp integration</strong> — Send bills and reminders with one click, not copy-paste</li>
+                    <li><strong>Real-time dashboard</strong> — See income, expenses, vacancies at a glance</li>
+                    <li><strong>No formula errors</strong> — Excel formulas break; PGKhata's calculations are tested with 300+ automated tests</li>
+                    <li><strong>Multi-user</strong> — Give your manager or accountant controlled access</li>
+                    <li><strong>Document storage</strong> — Store Aadhaar, PAN, agreements securely</li>
+                    <li><strong>Professional invoices</strong> — Generate proper bills, not spreadsheet printouts</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" style="background: #f1f5f9;" id="features">
+    <div class="container">
+        <div class="section-header">
+            <h2>Features at a Glance</h2>
+            <p>30+ features across 7 categories — all free</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="emoji">🏢</span>
+                <h4>Multi-Property</h4>
+                <p>Manage unlimited PG properties from one account. Track floors, rooms, and individual beds.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">🛏️</span>
+                <h4>Bed-Level Tracking</h4>
+                <p>Know exactly which beds are occupied, vacant, or under notice period. Visual vacancy dashboard.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">👤</span>
+                <h4>Tenant Management</h4>
+                <p>Add tenants with approval workflow. Store KYC docs (Aadhaar, PAN), emergency contacts, and more.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">📄</span>
+                <h4>Auto Billing</h4>
+                <p>Generate monthly bills automatically with rent, electricity, and custom charges. Line-item detailed invoices.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">💬</span>
+                <h4>WhatsApp Notifications</h4>
+                <p>Send bills and payment reminders directly on WhatsApp. Bulk reminders for all overdue tenants.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">💸</span>
+                <h4>Payment Tracking</h4>
+                <p>Record payments, auto-allocate to bills, track advances and security deposits. Multiple payment methods.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">📊</span>
+                <h4>Reports & Analytics</h4>
+                <p>Dashboard with monthly trends, due rent list, aging buckets, profit/loss, and CSV export.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">💰</span>
+                <h4>Expense Management</h4>
+                <p>Track all PG expenses with categories, approval workflows, and summary reports.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">👥</span>
+                <h4>Staff Management</h4>
+                <p>Add staff members with role-based permissions. Control who can access what modules.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">🔄</span>
+                <h4>Bed Transfers</h4>
+                <p>Move tenants between beds, rooms, or floors with automatic record updates.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">⏰</span>
+                <h4>Late Fees</h4>
+                <p>Automatic late fee application on overdue bills. Idempotent — never double-charges.</p>
+            </div>
+            <div class="feature-card">
+                <span class="emoji">📱</span>
+                <h4>QR Signup</h4>
+                <p>Generate QR codes for each property. Tenants scan to self-register — no manual data entry.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- WHERE / WHEN -->
+<section class="section" id="where">
+    <div class="container">
+        <div class="section-header">
+            <h2>Where & When</h2>
+            <p>Access and availability details</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="wh-grid">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon teal">🌐</div>
+                    <div>
+                        <span class="question-tag">Where</span>
+                        <h3>Where does PGKhata run?</h3>
+                    </div>
+                </div>
+                <p>PGKhata is a <strong>cloud-based web application</strong>. You access it through your browser — no installation needed.</p>
+                <ul>
+                    <li><strong>On your phone</strong> — Open Chrome/Safari and go to the website</li>
+                    <li><strong>On your laptop</strong> — Open any browser (Chrome, Firefox, Edge, Safari)</li>
+                    <li><strong>On a tablet</strong> — Works on iPad and Android tablets too</li>
+                </ul>
+                <p style="margin-top:12px;">The servers are hosted in <strong>Singapore</strong> for fast access from India. Your data is stored securely in <strong>PostgreSQL databases</strong> with encrypted connections.</p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon pink">🕐</div>
+                    <div>
+                        <span class="question-tag">When</span>
+                        <h3>When can I access it?</h3>
+                    </div>
+                </div>
+                <p><strong>24 hours a day, 7 days a week, 365 days a year.</strong></p>
+                <ul>
+                    <li>Access your PG data anytime, from anywhere</li>
+                    <li>Send bills and reminders even at midnight</li>
+                    <li>Check reports on the go</li>
+                    <li>No office hours restriction</li>
+                </ul>
+                <p style="margin-top:12px;">Since it's a web app, there are no "business hours" — it's always available as long as you have internet.</p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon amber">📍</div>
+                    <div>
+                        <span class="question-tag">Where</span>
+                        <h3>Where is my data stored?</h3>
+                    </div>
+                </div>
+                <p>Your data is stored in:</p>
+                <ul>
+                    <li><strong>PostgreSQL Database</strong> — Hosted on Neon (a managed database service). All tenant info, bills, payments, and settings live here.</li>
+                    <li><strong>Cloudflare R2</strong> — For document storage (Aadhaar, PAN photos, etc.). S3-compatible, encrypted at rest.</li>
+                    <li><strong>Redis (Upstash)</strong> — For caching and background job queues (WhatsApp messages, etc.)</li>
+                </ul>
+                <p style="margin-top:12px;">All connections are encrypted (HTTPS/TLS). Your data is <strong>completely isolated</strong> from other PG owners — you can only see your own properties and tenants.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- HOW -->
+<section class="section" style="background: #f1f5f9;" id="how">
+    <div class="container">
+        <div class="section-header">
+            <h2>How It Works</h2>
+            <p>Step-by-step guide to getting started</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="wh-grid">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon blue">🚀</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How do I get started?</h3>
+                    </div>
+                </div>
+                <p>Getting started takes <strong>less than 5 minutes</strong>:</p>
+                <ul>
+                    <li><strong>Step 1:</strong> Go to the PGKhata website</li>
+                    <li><strong>Step 2:</strong> Click "Register" and create your account (email + password)</li>
+                    <li><strong>Step 3:</strong> Add your first property (name, address, city)</li>
+                    <li><strong>Step 4:</strong> Set up floors, rooms, and beds (or import from CSV)</li>
+                    <li><strong>Step 5:</strong> Add your tenants</li>
+                    <li><strong>Step 6:</strong> Start generating bills and collecting rent!</li>
+                </ul>
+                <div class="highlight-box" style="margin-top:16px;">
+                    <strong>Quick setup:</strong> You can import your existing property structure and tenant list from a CSV file — no need to enter everything manually.
+                </div>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon green">🧾</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How does billing work?</h3>
+                    </div>
+                </div>
+                <p>PGKhata's billing system is <strong>automatic and flexible</strong>:</p>
+                <ul>
+                    <li><strong>Auto-generation:</strong> Click "Generate Bills" and it creates bills for all tenants for the month</li>
+                    <li><strong>Line items:</strong> Each bill shows rent, electricity charges, and any other charges separately</li>
+                    <li><strong>Configurable charges:</strong> Add custom charge types (maintenance, food, laundry, etc.)</li>
+                    <li><strong>Rent plans:</strong> Set different rent amounts for different tenants</li>
+                    <li><strong>Electricity:</strong> Enter meter readings — the system calculates charges automatically</li>
+                    <li><strong>Late fees:</strong> Automatically apply late fees on overdue bills (configurable)</li>
+                    <li><strong>Invoice voiding:</strong> Made a mistake? Void the invoice and regenerate</li>
+                    <li><strong>Advance payments:</strong> Record advance payments and auto-allocate to future bills</li>
+                </ul>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon purple">📲</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How does WhatsApp integration work?</h3>
+                    </div>
+                </div>
+                <p>PGKhata uses the <strong>official Meta WhatsApp Business API</strong> (not unofficial hacks that get banned):</p>
+                <ul>
+                    <li><strong>Bill notifications:</strong> Send monthly bills to tenants on WhatsApp with one click</li>
+                    <li><strong>Payment reminders:</strong> Send reminders to tenants who haven't paid</li>
+                    <li><strong>Bulk reminders:</strong> Send reminders to ALL overdue tenants at once</li>
+                    <li><strong>Template messages:</strong> Pre-approved professional message templates</li>
+                    <li><strong>Notification preferences:</strong> Each tenant can choose WhatsApp, email, or both</li>
+                </ul>
+                <div class="highlight-box warning" style="margin-top:16px;">
+                    <strong>Note:</strong> WhatsApp Business API requires template approval from Meta (takes 1-2 days). There's a small per-message cost (a few paise per message).
+                </div>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon orange">🔐</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How does access control work?</h3>
+                    </div>
+                </div>
+                <p>PGKhata supports <strong>multiple users with different access levels</strong>:</p>
+                <ul>
+                    <li><strong>Owner:</strong> Full access to everything — properties, billing, reports, staff management</li>
+                    <li><strong>Manager:</strong> Can be given access to specific modules only (e.g., only tenants and billing, no expenses)</li>
+                    <li><strong>Property scoping:</strong> Each staff member can be assigned to specific properties</li>
+                    <li><strong>Module permissions:</strong> Control access to individual modules (tenants, billing, expenses, reports, etc.)</li>
+                </ul>
+                <p style="margin-top:12px;">This means you can give your accountant access to billing only, or let your property manager handle tenants without seeing financial reports.</p>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon teal">📈</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How do reports and analytics work?</h3>
+                    </div>
+                </div>
+                <p>PGKhata provides a <strong>comprehensive dashboard</strong> with:</p>
+                <ul>
+                    <li><strong>Dashboard overview:</strong> Total income, expenses, outstanding amounts, occupancy rate</li>
+                    <li><strong>Monthly trend chart:</strong> Visual graph of income vs expenses over time</li>
+                    <li><strong>Due rent list:</strong> See who owes what and how overdue they are</li>
+                    <li><strong>Aging buckets:</strong> Outstanding amounts grouped by how long they've been overdue (0-30 days, 30-60 days, etc.)</li>
+                    <li><strong>Profit/Loss:</strong> See your net income after subtracting expenses</li>
+                    <li><strong>CSV export:</strong> Download any report as a spreadsheet for your accountant</li>
+                </ul>
+            </div>
+
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon pink">🏗️</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How is the property structure organized?</h3>
+                    </div>
+                </div>
+                <p>PGKhata uses a <strong>hierarchical structure</strong> that mirrors real PG buildings:</p>
+                <ul>
+                    <li><strong>Property</strong> — Your PG building (e.g., "Sunshine PG, Koramangala")</li>
+                    <li><strong>Floor</strong> — Each floor of the building (Ground Floor, 1st Floor, 2nd Floor...)</li>
+                    <li><strong>Room</strong> — Rooms on each floor (Room 101, Room 102...)</li>
+                    <li><strong>Bed</strong> — Individual beds in each room (Bed A, Bed B, Bed C...)</li>
+                </ul>
+                <p style="margin-top:12px;">Each bed can be tracked independently — you know exactly who is sleeping where, which beds are vacant, and the occupancy rate of each property.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="section" id="comparison">
+    <div class="container">
+        <div class="section-header">
+            <h2>Competitor Comparison</h2>
+            <p>See how PGKhata stacks up against the competition</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="comparison-wrapper">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Platform</th>
+                        <th>Price</th>
+                        <th>WhatsApp</th>
+                        <th>Auto Billing</th>
+                        <th>Multi-Property</th>
+                        <th>Staff Access</th>
+                        <th>Reports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="highlight">
+                        <td><strong>🏠 PGKhata</strong></td>
+                        <td><span class="price-free">₹0 forever</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>PG Manager</td>
+                        <td><span class="price-paid">₹300/mo</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>My PG Manager</td>
+                        <td><span class="price-paid">₹159/mo</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>BTRoomer</td>
+                        <td><span class="price-paid">Custom</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>RentOk</td>
+                        <td><span class="price-paid">Custom</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                        <td><span class="check">✓</span></td>
+                    </tr>
+                    <tr>
+                        <td>Manual (Excel)</td>
+                        <td><span class="price-free">₹0</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="cross">✗</span></td>
+                        <td><span class="cross">✗</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="highlight-box" style="margin-top:24px;">
+            <strong>Bottom line:</strong> PGKhata offers the same (or better) features as paid competitors — at ₹0. You save ₹1,908–₹3,600 per year compared to the cheapest competitor.
+        </div>
+    </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="section" style="background: #f1f5f9;" id="tech">
+    <div class="container">
+        <div class="section-header">
+            <h2>Technology Stack</h2>
+            <p>Built with modern, industry-standard technologies</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="tech-grid">
+            <div class="tech-item">
+                <div class="tech-name">Next.js 16</div>
+                <div class="tech-role">Frontend Framework</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">React 19</div>
+                <div class="tech-role">UI Library</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">TypeScript</div>
+                <div class="tech-role">Type Safety</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Express 5</div>
+                <div class="tech-role">Backend API</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">PostgreSQL</div>
+                <div class="tech-role">Database</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Drizzle ORM</div>
+                <div class="tech-role">Database Queries</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Better Auth</div>
+                <div class="tech-role">Authentication</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Redis</div>
+                <div class="tech-role">Cache & Queue</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Resend</div>
+                <div class="tech-role">Email Service</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">WhatsApp API</div>
+                <div class="tech-role">Notifications</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">Tailwind CSS</div>
+                <div class="tech-role">Styling</div>
+            </div>
+            <div class="tech-item">
+                <div class="tech-name">shadcn/ui</div>
+                <div class="tech-role">UI Components</div>
+            </div>
+        </div>
+
+        <div class="wh-grid" style="margin-top:32px;">
+            <div class="wh-card">
+                <div class="wh-card-header">
+                    <div class="wh-icon blue">🧪</div>
+                    <div>
+                        <span class="question-tag">How</span>
+                        <h3>How reliable is it?</h3>
+                    </div>
+                </div>
+                <p>PGKhata is built with <strong>production-grade quality</strong>:</p>
+                <ul>
+                    <li><strong>300+ automated tests</strong> — Every feature is tested before release</li>
+                    <li><strong>Type-safe code</strong> — TypeScript catches errors before they reach you</li>
+                    <li><strong>Idempotent operations</strong> — Bills and late fees never double-charge, even if you click twice</li>
+                    <li><strong>Database constraints</strong> — Financial data has strict rules (payments can't be negative, paid amount can't exceed total)</li>
+                    <li><strong>RESTRICT foreign keys</strong> — Deleting a property won't silently destroy financial records</li>
+                    <li><strong>Input validation</strong> — All user inputs are validated with Zod schemas before processing</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+    <div class="container">
+        <div class="section-header">
+            <h2>Frequently Asked Questions</h2>
+            <p>Quick answers to common questions</p>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="faq-list">
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Is PGKhata really 100% free? No hidden charges?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes, PGKhata is completely free for PG owners. There are no premium tiers, no per-tenant fees, no feature locks, and no surprise charges. The business model plans to monetize through tenant-facing services, financial products, and advertising — none of which cost the PG owner anything.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>How many properties and tenants can I add?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>There are no limits. You can add unlimited properties, unlimited floors, unlimited rooms, and unlimited tenants. Whether you manage 1 PG or 100 PGs, PGKhata handles it all at the same price — ₹0.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Do I need to install anything?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>No. PGKhata is a web application — you just open it in your browser (Chrome, Safari, Firefox, Edge). It works on phones, laptops, and tablets. No app installation, no software download, no technical setup needed.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Can my staff/manager use it too?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. You can add staff members and control exactly what they can access. For example, your accountant can access only billing, while your property manager can access tenants and rooms. You control permissions at the module level.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Will my tenants get WhatsApp messages?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes, if you set up the WhatsApp integration. You can send monthly bills, payment reminders, and bulk reminders directly to your tenants' WhatsApp. This uses the official Meta WhatsApp Business API (not unofficial tools that get banned). Each tenant can also choose to receive notifications via email instead of or in addition to WhatsApp.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Can I import my existing data from Excel?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. PGKhata supports CSV import for tenants and property structure (floors, rooms, beds). You can export your Excel data to CSV and import it directly — no need to manually re-enter everything.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>What happens if I make a mistake in a bill?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>You can void any invoice and regenerate it. PGKhata also supports editing promised payment dates and adjusting charges. The system is designed to be forgiving — mistakes can always be corrected.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Is my data safe? Can other PG owners see my tenants?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Absolutely not. Your data is completely isolated. Every request goes through a 3-layer security check: (1) Authentication — are you logged in? (2) Ownership — do you have an owner profile? (3) Property verification — does this property belong to you? Other PG owners cannot see your properties, tenants, bills, or any other data.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Can I track electricity charges?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. You can enter monthly meter readings for each room, and PGKhata automatically calculates the electricity charges based on your configured rate per unit. These charges are automatically included in the monthly bill.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Can I see who hasn't paid rent?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. The dashboard shows a "Due Rent" list with all tenants who haven't paid, how much they owe, and how overdue they are. You can also see aging buckets (0-30 days, 30-60 days, 60+ days) and send bulk WhatsApp reminders to all overdue tenants with one click.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Does it work for hostels and co-living spaces too?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. PGKhata works for any accommodation with shared rooms and beds — PGs, hostels, co-living spaces, dormitories, and even paying guest accommodations with single-occupancy rooms. The bed-level tracking system is flexible enough to handle any configuration.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Can I generate reports for my accountant?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. PGKhata has a Profit/Loss report, monthly trend charts, outstanding payment reports, and you can export any data as CSV files. Your accountant can work with these spreadsheets directly, or you can give them limited access to the system.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>What if I need help or have a feature request?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>PGKhata is an actively developed project. You can reach out through the contact channels on the website. Feature requests are welcome — the goal is to build the best PG management tool based on real user needs.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question" onclick="toggleFaq(this)">
+                    <span>Is PGKhata open source?</span>
+                    <span class="arrow">▼</span>
+                </button>
+                <div class="faq-answer">
+                    <p>Yes. PGKhata is open source, which means the source code is publicly available. This provides transparency — you can verify exactly how your data is handled. No other PG management competitor offers this level of transparency.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+    <h2>Ready to manage your PG for free?</h2>
+    <p>Join the future of PG management. No credit card. No commitments. Just sign up and start.</p>
+    <div class="cta-buttons">
+        <a href="#" class="btn btn-white">Get Started Free →</a>
+        <a href="#features" class="btn btn-outline">See All Features</a>
+    </div>
+</section>
+
+</main>
+
+<!-- Footer -->
+<footer>
+    <div class="footer-links">
+        <a href="#what">What is PGKhata</a>
+        <a href="#features">Features</a>
+        <a href="#comparison">Compare</a>
+        <a href="#faq">FAQ</a>
+    </div>
+    <p>PGKhata — Free PG Management Software for India</p>
+    <p style="margin-top:8px; font-size:0.8rem; opacity:0.7;">Built with ❤️ for PG owners. 100% free, forever.</p>
+</footer>
+
+<script>
+    function toggleFaq(button) {
+        const item = button.parentElement;
+        const isOpen = item.classList.contains('open');
+
+        // Close all
+        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+
+        // Toggle current
+        if (!isOpen) {
+            item.classList.add('open');
+        }
+    }
+
+    // Smooth scroll for nav links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
