@@ -21,8 +21,6 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        // Every owner-scoped route resolves the caller through `owner_profile`.
-        // Provision it here so a new owner is not met with 403 on every page.
         after: async (user) => {
           await ensureOwnerProfile(db as unknown as OwnerProfileWriter, user.id);
         },
@@ -33,8 +31,22 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins: [process.env.CORS_ORIGIN || "http://localhost:3000"],
+  trustedOrigins: [
+    process.env.CORS_ORIGIN || "http://localhost:3000",
+    "https://pgkhata-web.onrender.com",
+    "http://localhost:3000",
+  ],
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
+  cookies: {
+    sessionToken: {
+      name: "__Secure-better-auth.session_token",
+      attributes: {
+        sameSite: "none",
+        secure: true,
+        domain: ".onrender.com",
+      },
+    },
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;
