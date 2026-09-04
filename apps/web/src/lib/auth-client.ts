@@ -1,9 +1,10 @@
 import { createAuthClient } from "better-auth/react"
 
-if (!process.env.NEXT_PUBLIC_API_URL) {
-  throw new Error("NEXT_PUBLIC_API_URL environment variable is required");
-}
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const isServer = typeof window === "undefined"
+
+const API_URL = isServer
+  ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+  : "/api"
 
 export const authClient = createAuthClient({
   baseURL: API_URL,
