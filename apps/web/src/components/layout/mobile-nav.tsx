@@ -46,7 +46,7 @@ export function MobileNavSheet() {
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetContent side="left" className="w-72 p-0">
         <SheetHeader className="border-b px-4 py-3 text-left">
-          <SheetTitle className="text-base font-semibold">pgkhata</SheetTitle>
+          <SheetTitle className="text-base font-semibold">PG Khata</SheetTitle>
         </SheetHeader>
         <nav className="overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {NAV_GROUPS.map((group, index) => (

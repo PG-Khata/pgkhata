@@ -53,7 +53,7 @@ export function AppSidebar() {
           href="/dashboard"
           className="text-base font-semibold tracking-tight text-foreground"
         >
-          pgkhata
+          PG Khata
         </Link>
       </div>
 
