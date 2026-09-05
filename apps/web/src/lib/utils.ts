@@ -6,14 +6,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-const currencyFormatter = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-})
-
 export function formatCurrency(amount: number): string {
-  return currencyFormatter.format(amount)
+  return `₹${amount.toLocaleString("en-IN")}`
 }
 
 export function formatDate(date: string | Date): string {
