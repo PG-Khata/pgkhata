@@ -143,56 +143,94 @@ export default function ChargeTypesPage() {
           <p className="text-sm text-muted-foreground">Add a property first.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-medium">Name</th>
-                <th className="pb-2 font-medium">Code</th>
-                <th className="pb-2 text-right font-medium">Default amount</th>
-                <th className="pb-2 font-medium">Recurring</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {types?.map((type) => (
-                <tr key={type.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2.5 font-medium">{type.name}</td>
-                  <td className="py-2.5 font-mono text-muted-foreground">{type.code}</td>
-                  <td className="py-2.5 text-right font-mono">
-                    {formatCurrency(type.defaultAmount)}
-                  </td>
-                  <td className="py-2.5 text-muted-foreground">
-                    {type.isRecurring ? "Yes" : "One-off"}
-                  </td>
-                  <td className="py-2.5">
-                    <button
-                      onClick={() => handleToggleActive(type)}
-                      disabled={type.code === "ELEC"}
-                      className="cursor-pointer disabled:cursor-not-allowed"
-                      title={type.code === "ELEC" ? "Electricity cannot be deactivated" : undefined}
-                    >
-                      <StatusBadge status={type.isActive ? "active" : "vacated"} />
-                    </button>
-                  </td>
-                  <td className="py-2.5 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete ${type.name}`}
-                      disabled={type.code === "ELEC"}
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive disabled:opacity-30"
-                      onClick={() => handleDelete(type.id, type.name, type.code)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-medium">Name</th>
+                  <th className="pb-2 font-medium">Code</th>
+                  <th className="pb-2 text-right font-medium">Default amount</th>
+                  <th className="pb-2 font-medium">Recurring</th>
+                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {types?.map((type) => (
+                  <tr key={type.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <td className="py-2.5 font-medium">{type.name}</td>
+                    <td className="py-2.5 font-mono text-muted-foreground">{type.code}</td>
+                    <td className="py-2.5 text-right font-mono">
+                      {formatCurrency(type.defaultAmount)}
+                    </td>
+                    <td className="py-2.5 text-muted-foreground">
+                      {type.isRecurring ? "Yes" : "One-off"}
+                    </td>
+                    <td className="py-2.5">
+                      <button
+                        onClick={() => handleToggleActive(type)}
+                        disabled={type.code === "ELEC"}
+                        className="cursor-pointer disabled:cursor-not-allowed"
+                        title={type.code === "ELEC" ? "Electricity cannot be deactivated" : undefined}
+                      >
+                        <StatusBadge status={type.isActive ? "active" : "vacated"} />
+                      </button>
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${type.name}`}
+                        disabled={type.code === "ELEC"}
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive disabled:opacity-30"
+                        onClick={() => handleDelete(type.id, type.name, type.code)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {types?.map((type) => (
+              <div key={type.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium">{type.name}</span>
+                    <span className="ml-2 text-xs font-mono text-muted-foreground">{type.code}</span>
+                  </div>
+                  <button
+                    onClick={() => handleToggleActive(type)}
+                    disabled={type.code === "ELEC"}
+                    className="cursor-pointer disabled:cursor-not-allowed"
+                    title={type.code === "ELEC" ? "Electricity cannot be deactivated" : undefined}
+                  >
+                    <StatusBadge status={type.isActive ? "active" : "vacated"} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{type.isRecurring ? "Recurring" : "One-off"}</span>
+                  <span className="font-mono">{formatCurrency(type.defaultAmount)}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-destructive hover:text-destructive"
+                  disabled={type.code === "ELEC"}
+                  onClick={() => handleDelete(type.id, type.name, type.code)}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
