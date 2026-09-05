@@ -258,7 +258,8 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
       ) : filtered.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -303,6 +304,48 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
             <div className="flex items-center justify-between border-t px-3 py-2.5 text-xs text-muted-foreground">
               <span>Showing 1-{filtered.length} of {filtered.length}</span>
             </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filtered.map((r, i) => {
+              const prev = allReadings
+                .filter((x) => x.reading.roomId === r.reading.roomId && new Date(x.reading.readingDate) < new Date(r.reading.readingDate))
+                .sort((a, b) => new Date(b.reading.readingDate).getTime() - new Date(a.reading.readingDate).getTime())[0]
+              const previousReading = prev ? prev.reading.reading : 0
+
+              return (
+                <div key={r.reading.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Room {r.roomNumber}</span>
+                    <span className="text-sm text-muted-foreground">{formatDateShort(r.reading.readingDate)}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Previous</p>
+                      <p className="font-mono text-muted-foreground">{previousReading}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Current</p>
+                      <p className="font-mono">{r.reading.reading}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Units</p>
+                      <p className="font-mono font-medium">{r.reading.units}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1 h-8" onClick={() => openEdit(r)}>
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1 h-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(r)}>
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       ) : (
