@@ -192,8 +192,9 @@ export default function TenantsPage() {
       ) : filtered.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
                   <th className="px-4 py-3 font-medium">TENANT</th>
@@ -249,6 +250,44 @@ export default function TenantsPage() {
               <span>
                 Showing 1-{filtered.length} of {filtered.length}
               </span>
+            </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filtered.map((t) => (
+              <div key={t.id} className="p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-muted-foreground">
+                    {getInitials(t.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{t.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {formatPhone(t.phone)}
+                    </p>
+                  </div>
+                  <StatusBadge status={t.status} />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {t.occupation || "No occupation"}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t.bedNumber
+                      ? `${t.roomNumber || ""}-${t.bedNumber}`
+                      : "Unassigned"}
+                  </span>
+                </div>
+                <Link
+                  href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
+                  className="block w-full text-center rounded-md border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                >
+                  View Details
+                </Link>
+              </div>
+            ))}
+            <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+              Showing 1-{filtered.length} of {filtered.length}
             </div>
           </div>
         </div>

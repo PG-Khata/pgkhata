@@ -229,8 +229,9 @@ export default function DashboardPage() {
 
               return (
                 <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[500px]">
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
                           <th className="px-4 py-3 font-medium">TENANT</th>
@@ -258,6 +259,27 @@ export default function DashboardPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                  {/* Mobile cards */}
+                  <div className="sm:hidden divide-y">
+                    {rows.map((r) => (
+                      <div key={r.tenantId} className="p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{r.tenantName}</span>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
+                            r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
+                            "bg-zinc-100 text-zinc-700"
+                          }`}>
+                            {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>Room: {r.roomNumber || "-"}</span>
+                          <span className="font-mono">{formatCurrency(r.amountDue)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )
