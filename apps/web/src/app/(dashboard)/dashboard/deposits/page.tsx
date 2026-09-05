@@ -155,56 +155,99 @@ export default function SecurityDepositsPage() {
           <p className="text-sm text-muted-foreground">No security deposits yet.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-medium">Tenant</th>
-                <th className="pb-2 text-right font-medium">Held</th>
-                <th className="pb-2 text-right font-medium">Refunded</th>
-                <th className="pb-2 text-right font-medium">Outstanding</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {deposits.map(({ deposit, tenantName }) => {
-                const outstanding = deposit.amount - deposit.refundAmount
-                return (
-                  <tr key={deposit.id} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="py-2.5 font-medium">{tenantName}</td>
-                    <td className="py-2.5 text-right font-mono">
-                      {formatCurrency(deposit.amount)}
-                    </td>
-                    <td className="py-2.5 text-right font-mono text-muted-foreground">
-                      {formatCurrency(deposit.refundAmount)}
-                    </td>
-                    <td className="py-2.5 text-right font-mono">
-                      {formatCurrency(outstanding)}
-                    </td>
-                    <td className="py-2.5">
-                      <StatusBadge status={deposit.status} />
-                    </td>
-                    <td className="py-2.5 text-right">
-                      {outstanding > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() =>
-                            setRefundTarget({ id: deposit.id, tenantName, outstanding })
-                          }
-                        >
-                          Refund
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-medium">Tenant</th>
+                  <th className="pb-2 text-right font-medium">Held</th>
+                  <th className="pb-2 text-right font-medium">Refunded</th>
+                  <th className="pb-2 text-right font-medium">Outstanding</th>
+                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {deposits.map(({ deposit, tenantName }) => {
+                  const outstanding = deposit.amount - deposit.refundAmount
+                  return (
+                    <tr key={deposit.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="py-2.5 font-medium">{tenantName}</td>
+                      <td className="py-2.5 text-right font-mono">
+                        {formatCurrency(deposit.amount)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-muted-foreground">
+                        {formatCurrency(deposit.refundAmount)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono">
+                        {formatCurrency(outstanding)}
+                      </td>
+                      <td className="py-2.5">
+                        <StatusBadge status={deposit.status} />
+                      </td>
+                      <td className="py-2.5 text-right">
+                        {outstanding > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() =>
+                              setRefundTarget({ id: deposit.id, tenantName, outstanding })
+                            }
+                          >
+                            Refund
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {deposits.map(({ deposit, tenantName }) => {
+              const outstanding = deposit.amount - deposit.refundAmount
+              return (
+                <div key={deposit.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{tenantName}</span>
+                    <StatusBadge status={deposit.status} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Held</p>
+                      <p className="font-mono">{formatCurrency(deposit.amount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Refunded</p>
+                      <p className="font-mono text-muted-foreground">{formatCurrency(deposit.refundAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Outstanding</p>
+                      <p className="font-mono">{formatCurrency(outstanding)}</p>
+                    </div>
+                  </div>
+                  {outstanding > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-9"
+                      onClick={() =>
+                        setRefundTarget({ id: deposit.id, tenantName, outstanding })
+                      }
+                    >
+                      Refund
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
