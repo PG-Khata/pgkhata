@@ -121,51 +121,92 @@ export default function AdvancePaymentsPage() {
           <p className="text-sm text-muted-foreground">No advance payments yet.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-medium">Tenant</th>
-                <th className="pb-2 font-medium">Date</th>
-                <th className="pb-2 text-right font-medium">Amount</th>
-                <th className="pb-2 text-right font-medium">Applied</th>
-                <th className="pb-2 text-right font-medium">Available</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {advances.map(({ advance, tenantName }) => (
-                <tr key={advance.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2.5 font-medium">{tenantName}</td>
-                  <td className="py-2.5 text-muted-foreground">{formatDateShort(advance.date)}</td>
-                  <td className="py-2.5 text-right font-mono">{formatCurrency(advance.amount)}</td>
-                  <td className="py-2.5 text-right font-mono text-muted-foreground">
-                    {formatCurrency(advance.appliedAmount)}
-                  </td>
-                  <td className="py-2.5 text-right font-mono">
-                    {formatCurrency(advance.amount - advance.appliedAmount)}
-                  </td>
-                  <td className="py-2.5">
-                    <StatusBadge status={advance.status} />
-                  </td>
-                  <td className="py-2.5 text-right">
-                    {advance.status === "available" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                        onClick={() => handleForfeit(advance.id, tenantName)}
-                      >
-                        Forfeit
-                      </Button>
-                    )}
-                  </td>
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-medium">Tenant</th>
+                  <th className="pb-2 font-medium">Date</th>
+                  <th className="pb-2 text-right font-medium">Amount</th>
+                  <th className="pb-2 text-right font-medium">Applied</th>
+                  <th className="pb-2 text-right font-medium">Available</th>
+                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {advances.map(({ advance, tenantName }) => (
+                  <tr key={advance.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <td className="py-2.5 font-medium">{tenantName}</td>
+                    <td className="py-2.5 text-muted-foreground">{formatDateShort(advance.date)}</td>
+                    <td className="py-2.5 text-right font-mono">{formatCurrency(advance.amount)}</td>
+                    <td className="py-2.5 text-right font-mono text-muted-foreground">
+                      {formatCurrency(advance.appliedAmount)}
+                    </td>
+                    <td className="py-2.5 text-right font-mono">
+                      {formatCurrency(advance.amount - advance.appliedAmount)}
+                    </td>
+                    <td className="py-2.5">
+                      <StatusBadge status={advance.status} />
+                    </td>
+                    <td className="py-2.5 text-right">
+                      {advance.status === "available" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                          onClick={() => handleForfeit(advance.id, tenantName)}
+                        >
+                          Forfeit
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {advances.map(({ advance, tenantName }) => (
+              <div key={advance.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{tenantName}</span>
+                  <StatusBadge status={advance.status} />
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Amount</p>
+                    <p className="font-mono">{formatCurrency(advance.amount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Applied</p>
+                    <p className="font-mono text-muted-foreground">{formatCurrency(advance.appliedAmount)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Available</p>
+                    <p className="font-mono">{formatCurrency(advance.amount - advance.appliedAmount)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatDateShort(advance.date)}</span>
+                  {advance.status === "available" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-muted-foreground hover:text-destructive"
+                      onClick={() => handleForfeit(advance.id, tenantName)}
+                    >
+                      Forfeit
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
