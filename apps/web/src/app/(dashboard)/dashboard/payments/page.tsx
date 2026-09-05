@@ -170,7 +170,8 @@ function PaymentsContent({ propertyId, propertyName }: { propertyId: string; pro
       ) : (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -215,6 +216,37 @@ function PaymentsContent({ propertyId, propertyName }: { propertyId: string; pro
                 Showing {paymentsList.length} payment{paymentsList.length !== 1 ? "s" : ""}
               </span>
               <span className="font-mono">Total: {formatCurrency(totalCollected)}</span>
+            </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {paymentsList.map(({ payment: p, tenantName, billMonth }) => (
+              <div key={p.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{tenantName}</span>
+                  <span className="font-mono font-medium">{formatCurrency(p.amount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>{billMonth}</span>
+                  <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium capitalize">
+                    {p.method || "cash"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatDateShort(p.paymentDate)}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeleteConfirm({ id: p.id, tenantName: tenantName || "Unknown" })}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+              Total: {formatCurrency(totalCollected)}
             </div>
           </div>
         </div>

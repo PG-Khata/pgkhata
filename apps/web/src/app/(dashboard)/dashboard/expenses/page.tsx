@@ -189,61 +189,104 @@ export default function ExpensesPage() {
           <p className="text-sm text-muted-foreground">No expenses recorded yet.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="pb-2 font-medium">Description</th>
-                <th className="pb-2 font-medium">Category</th>
-                <th className="pb-2 font-medium">Date</th>
-                <th className="pb-2 text-right font-medium">Amount</th>
-                <th className="pb-2 font-medium">Status</th>
-                <th className="pb-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map(({ expense, categoryName }) => (
-                <tr key={expense.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="py-2.5 font-medium">{expense.description}</td>
-                  <td className="py-2.5 text-muted-foreground">{categoryName}</td>
-                  <td className="py-2.5 text-muted-foreground">
-                    {formatDateShort(expense.date)}
-                  </td>
-                  <td className="py-2.5 text-right font-mono">
-                    {formatCurrency(expense.amount)}
-                  </td>
-                  <td className="py-2.5">
-                    <StatusBadge status={expense.status} />
-                  </td>
-                  <td className="py-2.5 text-right">
-                    {expense.status === "pending" && (
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Approve"
-                          className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
-                          onClick={() => handleApprove(expense.id)}
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Reject"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleReject(expense.id)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </td>
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="pb-2 font-medium">Description</th>
+                  <th className="pb-2 font-medium">Category</th>
+                  <th className="pb-2 font-medium">Date</th>
+                  <th className="pb-2 text-right font-medium">Amount</th>
+                  <th className="pb-2 font-medium">Status</th>
+                  <th className="pb-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sorted.map(({ expense, categoryName }) => (
+                  <tr key={expense.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <td className="py-2.5 font-medium">{expense.description}</td>
+                    <td className="py-2.5 text-muted-foreground">{categoryName}</td>
+                    <td className="py-2.5 text-muted-foreground">
+                      {formatDateShort(expense.date)}
+                    </td>
+                    <td className="py-2.5 text-right font-mono">
+                      {formatCurrency(expense.amount)}
+                    </td>
+                    <td className="py-2.5">
+                      <StatusBadge status={expense.status} />
+                    </td>
+                    <td className="py-2.5 text-right">
+                      {expense.status === "pending" && (
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Approve"
+                            className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
+                            onClick={() => handleApprove(expense.id)}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Reject"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleReject(expense.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {sorted.map(({ expense, categoryName }) => (
+              <div key={expense.id} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{expense.description}</span>
+                  <span className="font-mono font-medium">{formatCurrency(expense.amount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>{categoryName}</span>
+                  <StatusBadge status={expense.status} />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatDateShort(expense.date)}</span>
+                  {expense.status === "pending" && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Approve"
+                        className="h-7 w-7 text-muted-foreground hover:text-emerald-700"
+                        onClick={() => handleApprove(expense.id)}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Reject"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleReject(expense.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
