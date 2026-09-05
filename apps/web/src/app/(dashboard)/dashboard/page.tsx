@@ -21,6 +21,7 @@ import { OccupancyChart } from "@/components/dashboard/occupancy-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
+import { PropertySelector } from "@/components/layout/property-selector"
 
 export default function DashboardPage() {
   const { selectedProperty } = useSelectedProperty()
@@ -56,6 +57,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Property selector - mobile only */}
+      <div className="sm:hidden">
+        <PropertySelector />
+      </div>
+
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">

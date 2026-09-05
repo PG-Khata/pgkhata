@@ -77,6 +77,50 @@ export function Header() {
         <span className="text-base font-semibold tracking-tight text-foreground md:hidden">
           PG Khata
         </span>
+
+        {/* Property selector - desktop only */}
+        {properties.length > 0 && (
+          <div className="hidden md:block">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent min-w-0">
+                <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate max-w-[160px]">
+                  {selectedProperty?.name ?? "All properties"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Your properties</DropdownMenuLabel>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handlePropertyChange(null)}
+                  className={!selectedProperty ? "bg-accent" : ""}
+                >
+                  {!selectedProperty && <Check className="mr-2 h-4 w-4" />}
+                  <span className={!selectedProperty ? "" : "ml-6"}>
+                    All properties
+                  </span>
+                </DropdownMenuItem>
+                {properties.map((p) => (
+                  <DropdownMenuItem
+                    key={p.id}
+                    onClick={() => handlePropertyChange(p)}
+                    className={p.id === selectedProperty?.id ? "bg-accent" : ""}
+                  >
+                    {p.id === selectedProperty?.id && (
+                      <Check className="mr-2 h-4 w-4" />
+                    )}
+                    <span className={p.id === selectedProperty?.id ? "" : "ml-6"}>
+                      {p.name}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-1">
