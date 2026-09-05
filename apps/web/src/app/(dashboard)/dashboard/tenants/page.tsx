@@ -126,42 +126,42 @@ export default function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Tenants</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Residents onboarded at this property.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link href="/dashboard/tenants/report">
             <Button variant="outline" size="sm">
-              <FileText className="mr-1.5 h-3.5 w-3.5" />
-              Report
+              <FileText className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Report</span>
             </Button>
           </Link>
           <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export
+            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleImport}>
-            <Upload className="mr-1.5 h-3.5 w-3.5" />
-            Import
+            <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleQuickOnboard}>
-            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-            Quick Onboard
+            <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Quick Onboard</span>
           </Button>
           <Button size="sm" onClick={() => setOnboardOpen(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Onboard Tenant
+            <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Onboard Tenant</span>
           </Button>
         </div>
       </div>
 
       {/* Search and filter */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by name or phone..."
@@ -193,7 +193,7 @@ export default function TenantsPage() {
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
                   <th className="px-4 py-3 font-medium">TENANT</th>

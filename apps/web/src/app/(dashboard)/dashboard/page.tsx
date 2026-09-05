@@ -198,9 +198,9 @@ export default function DashboardPage() {
 
           {/* Outstanding payments section */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-sm font-medium">Outstanding payments</h2>
-              <div className="relative w-64">
+              <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search tenant, room, or bed"
@@ -229,34 +229,36 @@ export default function DashboardPage() {
 
               return (
                 <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                        <th className="px-4 py-3 font-medium">TENANT</th>
-                        <th className="px-4 py-3 font-medium">ROOM</th>
-                        <th className="px-4 py-3 font-medium">AMOUNT DUE</th>
-                        <th className="px-4 py-3 font-medium">DAYS OVERDUE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr key={r.tenantId} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="px-4 py-3 font-medium">{r.tenantName}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{r.roomNumber || "-"}</td>
-                          <td className="px-4 py-3 font-mono">{formatCurrency(r.amountDue)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                              r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
-                              r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
-                              "bg-zinc-100 text-zinc-700"
-                            }`}>
-                              {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
-                            </span>
-                          </td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[500px]">
+                      <thead>
+                        <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                          <th className="px-4 py-3 font-medium">TENANT</th>
+                          <th className="px-4 py-3 font-medium">ROOM</th>
+                          <th className="px-4 py-3 font-medium">AMOUNT DUE</th>
+                          <th className="px-4 py-3 font-medium">DAYS OVERDUE</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {rows.map((r) => (
+                          <tr key={r.tenantId} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="px-4 py-3 font-medium">{r.tenantName}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{r.roomNumber || "-"}</td>
+                            <td className="px-4 py-3 font-mono">{formatCurrency(r.amountDue)}</td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
+                                r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
+                                "bg-zinc-100 text-zinc-700"
+                              }`}>
+                                {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )
             })()}

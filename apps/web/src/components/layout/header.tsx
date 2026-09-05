@@ -130,7 +130,7 @@ export function Header() {
               </span>
             )}
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80 p-0">
+          <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] max-w-sm p-0">
             <div className="flex items-center justify-between px-3 py-2 border-b">
               <p className="text-sm font-medium">Notifications</p>
               {unreadCount > 0 && (
