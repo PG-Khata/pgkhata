@@ -287,42 +287,43 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
           </div>
 
           {/* Action bar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              className="h-9 shrink-0 rounded-lg border bg-background px-3 text-sm"
-            >
-              {getLast12Months().map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 shrink-0 rounded-lg border bg-background px-3 text-sm"
-            >
-              <option value="all">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Paid</option>
-              <option value="overdue">Overdue</option>
-            </select>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={handleApplyLateFees}>
-              <AlertTriangle className="mr-1 h-3 w-3" /> Late fees
-            </Button>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => toast.info("Reminders not yet implemented")}>
-              <Send className="mr-1 h-3 w-3" /> Reminders
-            </Button>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={handleAutoAllocate}>
-              <Zap className="mr-1 h-3 w-3" /> Auto-allocate
-            </Button>
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => toast.info("Raise charge not yet implemented")}>
-              <Plus className="mr-1 h-3 w-3" /> Raise charge
-            </Button>
-            <Button size="sm" className="shrink-0" onClick={() => setGenerateOpen(true)}>
-              <Plus className="mr-1 h-3 w-3" /> Generate Invoice
-            </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="h-9 rounded-lg border bg-background px-3 text-sm"
+              >
+                {getLast12Months().map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 rounded-lg border bg-background px-3 text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              <Button variant="outline" onClick={handleApplyLateFees}>
+                <AlertTriangle className="mr-1 h-4 w-4" /> Late fees
+              </Button>
+              <Button variant="outline" onClick={() => toast.info("Reminders not yet implemented")}>
+                <Send className="mr-1 h-4 w-4" /> Reminders
+              </Button>
+              <Button variant="outline" onClick={handleAutoAllocate}>
+                <Zap className="mr-1 h-4 w-4" /> Allocate
+              </Button>
+              <Button onClick={() => setGenerateOpen(true)}>
+                <Plus className="mr-1 h-4 w-4" /> Invoice
+              </Button>
+            </div>
           </div>
 
           {/* Invoice table */}

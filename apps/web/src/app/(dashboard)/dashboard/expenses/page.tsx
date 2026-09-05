@@ -122,7 +122,7 @@ export default function ExpensesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold">Expenses</h1>
           <p className="text-xs text-muted-foreground">
@@ -130,24 +130,11 @@ export default function ExpensesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {properties && properties.length > 1 && (
-            <select
-              value={activeProperty}
-              onChange={(event) => setPropertyId(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setCategoriesOpen(true)} disabled={!activeProperty}>
+          <Button variant="outline" onClick={() => setCategoriesOpen(true)} disabled={!activeProperty}>
             Categories
           </Button>
-          <Button size="sm" onClick={() => setAddOpen(true)} disabled={!activeProperty}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
+          <Button onClick={() => setAddOpen(true)} disabled={!activeProperty}>
+            <Plus className="mr-1.5 h-4 w-4" />
             Expense
           </Button>
         </div>

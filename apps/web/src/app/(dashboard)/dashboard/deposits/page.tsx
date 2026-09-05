@@ -98,25 +98,10 @@ export default function SecurityDepositsPage() {
             Money held for tenants, refunded partially or in full when they leave.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {properties && properties.length > 1 && (
-            <select
-              value={activeProperty}
-              onChange={(event) => setPropertyId(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button size="sm" onClick={() => setAddOpen(true)} disabled={!activeProperty}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Deposit
-          </Button>
-        </div>
+        <Button onClick={() => setAddOpen(true)} disabled={!activeProperty}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Deposit
+        </Button>
       </div>
 
       {report && (

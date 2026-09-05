@@ -78,32 +78,17 @@ export default function AdvancePaymentsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold">Advance payments</h1>
           <p className="text-xs text-muted-foreground">
             Money held for a tenant, applied against a bill later or forfeited.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {properties && properties.length > 1 && (
-            <select
-              value={activeProperty}
-              onChange={(event) => setPropertyId(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!activeProperty}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Advance
-          </Button>
-        </div>
+        <Button onClick={() => setDialogOpen(true)} disabled={!activeProperty}>
+          <Plus className="mr-1.5 h-4 w-4" />
+          Advance
+        </Button>
       </div>
 
       {propertiesLoading || isLoading ? (

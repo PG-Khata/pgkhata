@@ -191,7 +191,7 @@ export default function OccupancyPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Occupancy</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -199,21 +199,21 @@ export default function OccupancyPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Export</span>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Export
           </Button>
-          <Button variant="outline" size="sm" onClick={handleImport}>
-            <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Import</span>
+          <Button variant="outline" onClick={handleImport}>
+            <Upload className="mr-1.5 h-4 w-4" />
+            Import
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setAllocateOpen(true)}>
-            <Bed className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Allocate bed</span>
+          <Button variant="outline" onClick={() => setAllocateOpen(true)}>
+            <Bed className="mr-1.5 h-4 w-4" />
+            Allocate
           </Button>
-          <Button size="sm" onClick={() => setOnboardOpen(true)}>
-            <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">New tenant</span>
+          <Button onClick={() => setOnboardOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Check-in
           </Button>
         </div>
       </div>

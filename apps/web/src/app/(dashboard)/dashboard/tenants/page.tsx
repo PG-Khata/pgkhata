@@ -126,7 +126,7 @@ export default function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Tenants</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -135,26 +135,22 @@ export default function TenantsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/dashboard/tenants/report">
-            <Button variant="outline" size="sm">
-              <FileText className="h-3.5 w-3.5 sm:mr-1.5" />
-              <span className="hidden sm:inline">Report</span>
+            <Button variant="outline">
+              <FileText className="mr-1.5 h-4 w-4" />
+              Report
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Export</span>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-1.5 h-4 w-4" />
+            Export
           </Button>
-          <Button variant="outline" size="sm" onClick={handleImport}>
-            <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Import</span>
+          <Button variant="outline" onClick={handleImport}>
+            <Upload className="mr-1.5 h-4 w-4" />
+            Import
           </Button>
-          <Button variant="outline" size="sm" onClick={handleQuickOnboard}>
-            <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Quick Onboard</span>
-          </Button>
-          <Button size="sm" onClick={() => setOnboardOpen(true)}>
-            <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Onboard Tenant</span>
+          <Button onClick={() => setOnboardOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Onboard
           </Button>
         </div>
       </div>

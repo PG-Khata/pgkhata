@@ -220,33 +220,34 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
       </div>
 
       {/* Action bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={monthFilter}
-          onChange={(e) => setMonthFilter(e.target.value)}
-          className="h-9 rounded-lg border bg-background px-3 text-sm"
-        >
-          <option value="">All months</option>
-          {getLast12Months().map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by room..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={monthFilter}
+            onChange={(e) => setMonthFilter(e.target.value)}
+            className="h-9 rounded-lg border bg-background px-3 text-sm"
+          >
+            <option value="">All months</option>
+            {getLast12Months().map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search by room..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={openRateDialog}>
-            <Zap className="mr-1.5 h-3.5 w-3.5" /> Electricity rate
-            {property?.electricityRatePerUnit ? ` (₹${property.electricityRatePerUnit}/unit)` : ""}
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <Button variant="outline" onClick={openRateDialog}>
+            <Zap className="mr-1.5 h-4 w-4" /> Rate
           </Button>
-          <Button size="sm" onClick={() => setAddOpen(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" /> Add reading
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Reading
           </Button>
         </div>
       </div>
