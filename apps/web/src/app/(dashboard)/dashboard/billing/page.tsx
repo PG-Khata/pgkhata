@@ -269,10 +269,10 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
       </div>
 
       <Tabs defaultValue="invoices">
-        <TabsList variant="line">
-          <TabsTrigger value="invoices"><Receipt className="mr-1.5 h-4 w-4" /> Invoices</TabsTrigger>
-          <TabsTrigger value="deposits"><ShieldCheck className="mr-1.5 h-4 w-4" /> Security Deposits</TabsTrigger>
-          <TabsTrigger value="advances"><PiggyBank className="mr-1.5 h-4 w-4" /> Advance Payments</TabsTrigger>
+        <TabsList variant="line" className="overflow-x-auto">
+          <TabsTrigger value="invoices" className="shrink-0"><Receipt className="mr-1.5 h-4 w-4" /> Invoices</TabsTrigger>
+          <TabsTrigger value="deposits" className="shrink-0"><ShieldCheck className="mr-1.5 h-4 w-4" /> Deposits</TabsTrigger>
+          <TabsTrigger value="advances" className="shrink-0"><PiggyBank className="mr-1.5 h-4 w-4" /> Advances</TabsTrigger>
         </TabsList>
 
         <TabsContent value="invoices" className="mt-4 space-y-4">
