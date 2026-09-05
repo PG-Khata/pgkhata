@@ -128,7 +128,8 @@ export default function TenantReportPage() {
       ) : filtered.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -187,6 +188,46 @@ export default function TenantReportPage() {
               <span>
                 Showing 1-{filtered.length} of {filtered.length}
               </span>
+            </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filtered.map((t) => {
+              const deposit = depositMap.get(t.id)
+              const advanceTotal = advanceMap.get(t.id) ?? 0
+              return (
+                <div key={t.id} className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{formatPhone(t.phone)}</p>
+                    </div>
+                    <StatusBadge status={t.status} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Room / Bed</p>
+                      <p>{t.bedNumber ? `${t.roomNumber || ""}-${t.bedNumber}` : "Unassigned"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Security Deposit</p>
+                      <p className="font-mono text-muted-foreground">{formatCurrency(deposit?.amount ?? 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Advance</p>
+                      <p className="font-mono text-muted-foreground">{formatCurrency(advanceTotal)}</p>
+                    </div>
+                  </div>
+                  <Link href={`/dashboard/tenants/report/${t.id}`}>
+                    <Button variant="outline" size="sm" className="w-full h-9">
+                      View Details
+                    </Button>
+                  </Link>
+                </div>
+              )
+            })}
+            <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+              Showing 1-{filtered.length} of {filtered.length}
             </div>
           </div>
         </div>
