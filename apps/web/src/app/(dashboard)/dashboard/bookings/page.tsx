@@ -195,7 +195,8 @@ export default function BookingsPage() {
       ) : filtered.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -282,6 +283,72 @@ export default function BookingsPage() {
             <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
               <span>Showing 1-{filtered.length} of {filtered.length}</span>
             </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filtered.map((b, i) => (
+              <div key={b.id || i} className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{b.tenantName}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{b.tenantPhone}</p>
+                  </div>
+                  <StatusBadge status={b.status === "confirmed" ? "approved" : b.status === "converted" ? "active" : b.status === "cancelled" ? "rejected" : "pending"} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Bed / Room</p>
+                    <p>{b.roomNumber && b.bedNumber ? `Room ${b.roomNumber} · Bed ${b.bedNumber}` : "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Expires</p>
+                    <p>{b.expiryDate ? formatDateShort(b.expiryDate) : "-"}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {(b.status === "pending" || b.status === "confirmed") && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-emerald-700 hover:text-emerald-800"
+                        onClick={() => handleConvert(b.id)}
+                      >
+                        <Check className="mr-1 h-3 w-3" />
+                        Convert
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={() => openEdit(b)}
+                      >
+                        <Pencil className="mr-1 h-3 w-3" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-8 text-destructive hover:text-destructive"
+                        onClick={() => handleCancel(b.id, b.tenantName)}
+                      >
+                        <X className="mr-1 h-3 w-3" />
+                        Cancel
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-destructive hover:text-destructive"
+                    onClick={() => handleDelete(b.id, b.tenantName)}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : (
