@@ -200,7 +200,8 @@ function RentPlansContent({ propertyId, propertyName }: { propertyId: string; pr
       ) : plans && plans.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -259,6 +260,63 @@ function RentPlansContent({ propertyId, propertyName }: { propertyId: string; pr
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {plans.map(({ plan, roomCount }) => (
+              <div key={plan.id} className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{plan.name}</span>
+                  <button
+                    onClick={() => handleToggleActive(plan.id, plan.isActive, plan.name)}
+                    className="cursor-pointer"
+                  >
+                    <StatusBadge status={plan.isActive ? "active" : "inactive"} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Rent</p>
+                    <p className="font-mono">{formatCurrency(plan.monthlyRent)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Deposit</p>
+                    <p className="font-mono text-muted-foreground">{plan.securityDeposit ? formatCurrency(plan.securityDeposit) : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Due day</p>
+                    <p className="font-mono text-muted-foreground">{plan.dueDay}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Late fee/day</p>
+                    <p className="font-mono text-muted-foreground">{plan.lateFeePerDay ? formatCurrency(plan.lateFeePerDay) : "—"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>{roomCount} room{roomCount !== 1 ? "s" : ""}</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8"
+                    onClick={() => openEdit(plan)}
+                  >
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 h-8 text-destructive hover:text-destructive"
+                    onClick={() => setDeleteTarget({ id: plan.id, name: plan.name, roomCount })}
+                  >
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : (
