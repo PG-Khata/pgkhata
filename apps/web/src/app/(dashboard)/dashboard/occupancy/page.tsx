@@ -247,7 +247,8 @@ export default function OccupancyPage() {
       ) : filtered.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -332,6 +333,64 @@ export default function OccupancyPage() {
             <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
               <span>Showing 1-{filtered.length} of {filtered.length}</span>
             </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filtered.map((t) => {
+              const bedInfo = t.bedId ? bedMap.get(t.bedId) : null
+              const rent = bedInfo?.bed.monthlyRent ?? bedInfo?.roomRent ?? t.monthlyRentOverride ?? 0
+              return (
+                <div key={t.id} className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Link
+                      href={`/dashboard/properties/${propertyId}/tenants/${t.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {t.name}
+                    </Link>
+                    <StatusBadge status={t.status === "active" ? "active" : "vacating"} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Bed / Room</p>
+                      <p>{t.bedNumber ? `Room ${t.roomNumber} · Bed ${t.bedNumber}` : "Unassigned"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Rent</p>
+                      <p className="font-mono">{rent ? formatCurrency(rent) : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Check-in</p>
+                      <p>{formatDateShort(t.joiningDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Expected checkout</p>
+                      <p>{t.vacatingDate ? formatDateShort(t.vacatingDate) : "-"}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8"
+                      onClick={() => handleTransfer(t.id, t.name)}
+                    >
+                      <ArrowRightLeft className="mr-1 h-3 w-3" />
+                      Transfer
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-8"
+                      onClick={() => setCheckoutTenant({ id: t.id, name: t.name })}
+                    >
+                      <LogOut className="mr-1 h-3 w-3" />
+                      Check out
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       ) : (
