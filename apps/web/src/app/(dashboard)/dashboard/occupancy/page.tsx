@@ -191,29 +191,29 @@ export default function OccupancyPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Occupancy</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Active bed allocations for this property.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export
+            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleImport}>
-            <Upload className="mr-1.5 h-3.5 w-3.5" />
-            Import
+            <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => setAllocateOpen(true)}>
-            <Bed className="mr-1.5 h-3.5 w-3.5" />
-            Allocate bed only
+            <Bed className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Allocate bed</span>
           </Button>
           <Button size="sm" onClick={() => setOnboardOpen(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New tenant check-in
+            <Plus className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">New tenant</span>
           </Button>
         </div>
       </div>

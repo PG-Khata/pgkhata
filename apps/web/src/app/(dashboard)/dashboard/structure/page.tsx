@@ -105,7 +105,7 @@ export default function StructurePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Floors, Rooms & Beds</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -114,24 +114,24 @@ export default function StructurePage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm">
-            <Download className="mr-1.5 h-3.5 w-3.5" />
-            Export
+            <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Export</span>
           </Button>
           <Button variant="outline" size="sm">
-            <Upload className="mr-1.5 h-3.5 w-3.5" />
-            Import
+            <Upload className="h-3.5 w-3.5 sm:mr-1.5" />
+            <span className="hidden sm:inline">Import</span>
           </Button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center justify-between border-b">
-        <div className="flex gap-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b">
+        <div className="flex gap-1 overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab.id
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -142,7 +142,7 @@ export default function StructurePage() {
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={() => setAddFloorOpen(true)}>
+        <Button size="sm" className="shrink-0" onClick={() => setAddFloorOpen(true)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           Add {activeTab === "floors" ? "floor" : activeTab === "rooms" ? "room" : "bed"}
         </Button>

@@ -287,7 +287,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
           </div>
 
           {/* Action bar */}
-          <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={monthFilter}
               onChange={(e) => setMonthFilter(e.target.value)}
@@ -320,11 +320,9 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
             <Button variant="outline" size="sm" className="shrink-0" onClick={() => toast.info("Raise charge not yet implemented")}>
               <Plus className="mr-1 h-3 w-3" /> Raise charge
             </Button>
-            <div className="ml-auto shrink-0">
-              <Button size="sm" onClick={() => setGenerateOpen(true)}>
-                <Plus className="mr-1 h-3 w-3" /> Generate Invoice
-              </Button>
-            </div>
+            <Button size="sm" className="shrink-0" onClick={() => setGenerateOpen(true)}>
+              <Plus className="mr-1 h-3 w-3" /> Generate Invoice
+            </Button>
           </div>
 
           {/* Invoice table */}
