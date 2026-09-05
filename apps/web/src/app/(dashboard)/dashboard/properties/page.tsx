@@ -98,76 +98,114 @@ export default function PropertiesPage() {
       ) : filteredProperties && filteredProperties.length > 0 ? (
         <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md">
           <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Property</th>
-                <th className="px-4 py-3 font-medium">Location</th>
-                <th className="px-4 py-3 font-medium">Total beds</th>
-                <th className="px-4 py-3 font-medium">Occupied</th>
-                <th className="px-4 py-3 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProperties.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b last:border-0 transition-colors hover:bg-muted/30"
-                >
-                  <td className="px-4 py-3">
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                  <th className="px-4 py-3 font-medium">Property</th>
+                  <th className="px-4 py-3 font-medium">Location</th>
+                  <th className="px-4 py-3 font-medium">Total beds</th>
+                  <th className="px-4 py-3 font-medium">Occupied</th>
+                  <th className="px-4 py-3 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProperties.map((p) => (
+                  <tr
+                    key={p.id}
+                    className="border-b last:border-0 transition-colors hover:bg-muted/30"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/dashboard/properties/${p.id}`}
+                        className="font-medium hover:underline"
+                      >
+                        {p.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {p.city || p.address || "-"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-muted-foreground">
+                      {p.totalBeds ?? 0}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <Bed className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="font-mono text-muted-foreground">
+                          {p.occupiedBeds ?? 0}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/dashboard/properties/${p.id}`}>
+                          <Button variant="ghost" size="sm" className="h-8">
+                            Open
+                            <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <Button variant="ghost" size="sm" className="h-8" onClick={() => setEditingProperty(p)}>
+                            <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                            Edit
+                          </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
+              <span>
+                Showing 1-{filteredProperties.length} of {filteredProperties.length}
+              </span>
+            </div>
+          </div>
+          {/* Mobile cards */}
+          <div className="sm:hidden divide-y">
+            {filteredProperties.map((p) => (
+              <div key={p.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
                     <Link
                       href={`/dashboard/properties/${p.id}`}
                       className="font-medium hover:underline"
                     >
                       {p.name}
                     </Link>
-                    {p.signupToken && (
-                      <p className="text-xs text-muted-foreground">
-                        {p.signupToken}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
                       <MapPin className="h-3.5 w-3.5" />
                       {p.city || p.address || "-"}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-muted-foreground">
-                    {p.totalBeds ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      <Bed className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="font-mono text-muted-foreground">
-                        {p.occupiedBeds ?? 0}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/dashboard/properties/${p.id}`}>
-                        <Button variant="ghost" size="sm" className="h-8">
-                          Open
-                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      <Button variant="ghost" size="sm" className="h-8" onClick={() => setEditingProperty(p)}>
-                          <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                          Edit
-                        </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="flex items-center justify-between border-t px-4 py-3 text-xs text-muted-foreground">
-            <span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Bed className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-mono text-muted-foreground">
+                      {p.occupiedBeds ?? 0}/{p.totalBeds ?? 0}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/dashboard/properties/${p.id}`} className="flex-1">
+                    <Button variant="outline" size="sm" className="w-full h-9">
+                      Open
+                      <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                  <Button variant="outline" size="sm" className="flex-1 h-9" onClick={() => setEditingProperty(p)}>
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            ))}
+            <div className="px-4 py-3 text-xs text-muted-foreground text-center">
               Showing 1-{filteredProperties.length} of {filteredProperties.length}
-            </span>
-          </div>
+            </div>
           </div>
         </div>
       ) : (
