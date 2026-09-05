@@ -9,9 +9,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <MobileNavProvider>
       <PropertyProvider>
-        <div className="flex min-h-screen">
+        <div className="flex min-h-screen overflow-x-hidden">
           <AppSidebar />
-          <div className="flex flex-1 flex-col">
+          <div className="flex flex-1 flex-col min-w-0">
             <Header />
             <main className="flex-1 overflow-y-auto bg-muted/30 p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6">
               <div className="mx-auto max-w-5xl">

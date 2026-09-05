@@ -71,8 +71,8 @@ export function Header() {
   }
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-      <div className="flex items-center gap-3">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 overflow-hidden">
+      <div className="flex items-center gap-3 min-w-0">
         <MobileNavTrigger />
         <span className="text-base font-semibold tracking-tight text-foreground md:hidden">
           pgkhata
@@ -80,12 +80,12 @@ export function Header() {
 
         {properties.length > 0 && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="max-w-[160px] truncate">
+            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent min-w-0">
+              <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="truncate max-w-[120px] sm:max-w-[160px]">
                 {selectedProperty?.name ?? "All properties"}
               </span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuGroup>
