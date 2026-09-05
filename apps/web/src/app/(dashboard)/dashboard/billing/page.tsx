@@ -335,7 +335,8 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
           ) : filtered.length > 0 ? (
             <div className="group relative overflow-hidden rounded-xl border bg-card shadow-xs">
               <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
-              <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
@@ -381,6 +382,52 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                   <span>Showing 1-{filtered.length} of {filtered.length}</span>
                 </div>
               </div>
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y">
+                {filtered.map((b: any, i: number) => (
+                  <div key={b.id || i} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{b.tenantName}</span>
+                      <StatusBadge status={b.status} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Month</p>
+                        <p>{b.billMonth}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Due</p>
+                        <p>{b.dueDate ? formatDateShort(b.dueDate) : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Rent</p>
+                        <p className="font-mono">{formatCurrency(b.rentAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Pending</p>
+                        <p className="font-mono">{formatCurrency(b.balance)}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setViewInvoice(b)}>
+                        View
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setPaymentOpen({ billId: b.id, tenantName: b.tenantName, balance: b.balance })}>
+                        Pay
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setPromiseOpen({ billId: b.id, tenantName: b.tenantName })}>
+                        Promise
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="px-4 py-3 text-xs text-muted-foreground text-center">
+                  Showing 1-{filtered.length} of {filtered.length}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-12 text-center">
@@ -395,34 +442,58 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
             <div className="space-y-3">
               <h3 className="text-sm font-medium">Outstanding payments</h3>
               <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                      <th className="px-4 py-3 font-medium">TENANT</th>
-                      <th className="px-4 py-3 font-medium">ROOM</th>
-                      <th className="px-4 py-3 font-medium">AMOUNT DUE</th>
-                      <th className="px-4 py-3 font-medium">DAYS OVERDUE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(dueRent ?? []).map((r) => (
-                      <tr key={r.tenantId} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="px-4 py-3 font-medium">{r.tenantName}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{r.roomNumber || "-"}</td>
-                        <td className="px-4 py-3 font-mono">{formatCurrency(r.amountDue)}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
-                            r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
-                            "bg-zinc-100 text-zinc-700"
-                          }`}>
-                            {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
-                          </span>
-                        </td>
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                        <th className="px-4 py-3 font-medium">TENANT</th>
+                        <th className="px-4 py-3 font-medium">ROOM</th>
+                        <th className="px-4 py-3 font-medium">AMOUNT DUE</th>
+                        <th className="px-4 py-3 font-medium">DAYS OVERDUE</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {(dueRent ?? []).map((r) => (
+                        <tr key={r.tenantId} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="px-4 py-3 font-medium">{r.tenantName}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{r.roomNumber || "-"}</td>
+                          <td className="px-4 py-3 font-mono">{formatCurrency(r.amountDue)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                              r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
+                              r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
+                              "bg-zinc-100 text-zinc-700"
+                            }`}>
+                              {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Mobile cards */}
+                <div className="sm:hidden divide-y">
+                  {(dueRent ?? []).map((r) => (
+                    <div key={r.tenantId} className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{r.tenantName}</span>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          r.daysOverdue > 30 ? "bg-red-50 text-red-700" :
+                          r.daysOverdue > 0 ? "bg-amber-50 text-amber-700" :
+                          "bg-zinc-100 text-zinc-700"
+                        }`}>
+                          {r.daysOverdue > 0 ? `${r.daysOverdue} days` : "Current"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-muted-foreground">
+                        <span>Room: {r.roomNumber || "-"}</span>
+                        <span className="font-mono">{formatCurrency(r.amountDue)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -437,26 +508,44 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
           </div>
           {(deposits ?? []).length > 0 ? (
             <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">TENANT</th>
-                    <th className="px-4 py-3 font-medium">AMOUNT</th>
-                    <th className="px-4 py-3 font-medium">STATUS</th>
-                    <th className="px-4 py-3 font-medium">REFUNDED</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(deposits ?? []).map((d) => (
-                    <tr key={d.deposit.id} className="border-b last:border-0">
-                      <td className="px-4 py-3 font-medium">{d.tenantName}</td>
-                      <td className="px-4 py-3 font-mono">{formatCurrency(d.deposit.amount)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={d.deposit.status} /></td>
-                      <td className="px-4 py-3 font-mono">{formatCurrency(d.deposit.refundAmount)}</td>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">TENANT</th>
+                      <th className="px-4 py-3 font-medium">AMOUNT</th>
+                      <th className="px-4 py-3 font-medium">STATUS</th>
+                      <th className="px-4 py-3 font-medium">REFUNDED</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(deposits ?? []).map((d) => (
+                      <tr key={d.deposit.id} className="border-b last:border-0">
+                        <td className="px-4 py-3 font-medium">{d.tenantName}</td>
+                        <td className="px-4 py-3 font-mono">{formatCurrency(d.deposit.amount)}</td>
+                        <td className="px-4 py-3"><StatusBadge status={d.deposit.status} /></td>
+                        <td className="px-4 py-3 font-mono">{formatCurrency(d.deposit.refundAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y">
+                {(deposits ?? []).map((d) => (
+                  <div key={d.deposit.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{d.tenantName}</span>
+                      <StatusBadge status={d.deposit.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Amount: {formatCurrency(d.deposit.amount)}</span>
+                      <span>Refunded: {formatCurrency(d.deposit.refundAmount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-12 text-center">
@@ -475,26 +564,44 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
           </div>
           {(advances ?? []).length > 0 ? (
             <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">TENANT</th>
-                    <th className="px-4 py-3 font-medium">AMOUNT</th>
-                    <th className="px-4 py-3 font-medium">STATUS</th>
-                    <th className="px-4 py-3 font-medium">APPLIED</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(advances ?? []).map((a) => (
-                    <tr key={a.advance.id} className="border-b last:border-0">
-                      <td className="px-4 py-3 font-medium">{a.tenantName}</td>
-                      <td className="px-4 py-3 font-mono">{formatCurrency(a.advance.amount)}</td>
-                      <td className="px-4 py-3"><StatusBadge status={a.advance.status} /></td>
-                      <td className="px-4 py-3 font-mono">{formatCurrency(a.advance.appliedAmount)}</td>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                      <th className="px-4 py-3 font-medium">TENANT</th>
+                      <th className="px-4 py-3 font-medium">AMOUNT</th>
+                      <th className="px-4 py-3 font-medium">STATUS</th>
+                      <th className="px-4 py-3 font-medium">APPLIED</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {(advances ?? []).map((a) => (
+                      <tr key={a.advance.id} className="border-b last:border-0">
+                        <td className="px-4 py-3 font-medium">{a.tenantName}</td>
+                        <td className="px-4 py-3 font-mono">{formatCurrency(a.advance.amount)}</td>
+                        <td className="px-4 py-3"><StatusBadge status={a.advance.status} /></td>
+                        <td className="px-4 py-3 font-mono">{formatCurrency(a.advance.appliedAmount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile cards */}
+              <div className="sm:hidden divide-y">
+                {(advances ?? []).map((a) => (
+                  <div key={a.advance.id} className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{a.tenantName}</span>
+                      <StatusBadge status={a.advance.status} />
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Amount: {formatCurrency(a.advance.amount)}</span>
+                      <span>Applied: {formatCurrency(a.advance.appliedAmount)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-dashed p-12 text-center">
