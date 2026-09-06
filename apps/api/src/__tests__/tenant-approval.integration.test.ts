@@ -1,9 +1,18 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { eq, inArray } from "drizzle-orm";
 import { db, user, ownerProfile, property, room, bed, tenant } from "@pgkhata/db";
 import { app } from "../index";
+
+vi.mock("../lib/r2-storage", () => ({
+  isR2Configured: () => true,
+  uploadToR2: async (_folder: string, fileName: string, buffer: Buffer) => ({
+    key: `test/${fileName}`,
+    url: `https://example.test/${fileName}`,
+    size: buffer.length,
+  }),
+}));
 
 const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -103,7 +112,17 @@ describeDb("tenant approval workflow (database)", () => {
   it("creates a self-registered tenant as pending, with no bed assigned", async () => {
     const res = await request(app)
       .post(`/public/signup/${signupToken}`)
-      .send({ name: "Pending Tenant", phone: nextPhone(), roomId });
+      .send({
+        name: "Pending Tenant",
+        phone: nextPhone(),
+        roomId,
+        documents: [{
+          type: "aadhaar",
+          fileName: "aadhaar.png",
+          fileBase64: "dGVzdA==",
+          contentType: "image/png",
+        }],
+      });
 
     expect(res.status).toBe(201);
     expect(res.body.tenant.status).toBe("pending");
@@ -184,7 +203,17 @@ describeDb("tenant approval workflow (database)", () => {
   it("rejecting a second pending signup never touches a bed", async () => {
     const second = await request(app)
       .post(`/public/signup/${signupToken}`)
-      .send({ name: "Rejected Tenant", phone: nextPhone(), roomId });
+      .send({
+        name: "Rejected Tenant",
+        phone: nextPhone(),
+        roomId,
+        documents: [{
+          type: "aadhaar",
+          fileName: "aadhaar.png",
+          fileBase64: "dGVzdA==",
+          contentType: "image/png",
+        }],
+      });
     expect(second.status).toBe(201);
 
     const res = await request(app)
@@ -210,7 +239,17 @@ describeDb("tenant approval workflow (database)", () => {
   it("refuses to generate an onboarding link for a pending tenant", async () => {
     const third = await request(app)
       .post(`/public/signup/${signupToken}`)
-      .send({ name: "Another Pending", phone: nextPhone(), roomId });
+      .send({
+        name: "Another Pending",
+        phone: nextPhone(),
+        roomId,
+        documents: [{
+          type: "aadhaar",
+          fileName: "aadhaar.png",
+          fileBase64: "dGVzdA==",
+          contentType: "image/png",
+        }],
+      });
     expect(third.status).toBe(201);
 
     const res = await request(app)

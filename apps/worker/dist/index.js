@@ -6,9 +6,12 @@ import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import pino from "pino";
 var logger = pino({ level: "info" });
-var connection = new IORedis(process.env.REDIS_URL || "redis://localhost:6379", {
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL environment variable is required");
+}
+var connection = new IORedis(process.env.REDIS_URL, {
   maxRetriesPerRequest: null,
-  tls: process.env.REDIS_URL?.includes("upstash.io") ? {} : void 0
+  tls: process.env.REDIS_URL.includes("upstash.io") ? {} : void 0
 });
 var billingQueue = new Queue("billing", { connection });
 var billingWorker = new Worker(
@@ -32,9 +35,12 @@ import { Queue as Queue2, Worker as Worker2 } from "bullmq";
 import IORedis2 from "ioredis";
 import pino2 from "pino";
 var logger2 = pino2({ level: "info" });
-var connection2 = new IORedis2(process.env.REDIS_URL || "redis://localhost:6379", {
+if (!process.env.REDIS_URL) {
+  throw new Error("REDIS_URL environment variable is required");
+}
+var connection2 = new IORedis2(process.env.REDIS_URL, {
   maxRetriesPerRequest: null,
-  tls: process.env.REDIS_URL?.includes("upstash.io") ? {} : void 0
+  tls: process.env.REDIS_URL.includes("upstash.io") ? {} : void 0
 });
 var reminderQueue = new Queue2("reminders", { connection: connection2 });
 var reminderWorker = new Worker2(

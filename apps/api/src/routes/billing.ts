@@ -10,6 +10,8 @@ import {
   chargeType,
   electricityReading,
   payment,
+  billDelivery,
+  property,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
@@ -18,11 +20,14 @@ import { param } from "../lib/http";
 import { calculateBill } from "../lib/billing-calculator";
 import {
   occupiedDaysInReadingPeriod,
+  readingForMonth,
   readingPairForMonth,
   rentProrationForMonth,
 } from "../lib/electricity";
 import { computeDueDate } from "../lib/due-date";
 import { calculateLateFee } from "../lib/late-fee";
+import { billReadyEmail, formatCurrency, sendEmail } from "@pgkhata/email";
+import { isWhatsAppConfigured, sendBillNotification } from "../lib/whatsapp";
 
 const router = Router({ mergeParams: true });
 
@@ -35,8 +40,93 @@ const applyLateFeesSchema = z.object({
   billIds: z.array(z.string().uuid()).optional(),
   asOf: z.string().optional(),
 });
+const deliverySchema = z.object({ channels: z.array(z.enum(["email", "whatsapp"])).min(1) });
+
+function publicInvoiceUrl(token: string) {
+  return `${process.env.PUBLIC_APP_URL || process.env.CORS_ORIGIN || ""}/invoice/${token}`;
+}
+
+function billAmounts(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>) {
+  const lines = row.bill.lineItems as { code: string; amount: number }[];
+  const rentAmount = lines.find((line) => line.code === "RENT")?.amount ?? 0;
+  const electricityAmount = lines.find((line) => line.code === "ELEC")?.amount ?? 0;
+  return { rentAmount, electricityAmount, otherCharges: row.bill.totalAmount - rentAmount - electricityAmount };
+}
+
+function shareMessage(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>) {
+  const { rentAmount, electricityAmount, otherCharges } = billAmounts(row);
+  return `Hi ${row.tenant.name}, your ${row.bill.billMonth} bill for ${row.propertyName} Room ${row.roomNumber || "—"} is ready.\n\nRent: ${formatCurrency(rentAmount)}\nElectricity: ${formatCurrency(electricityAmount)}\nOther charges: ${formatCurrency(otherCharges)}\n------------------\nTotal due: ${formatCurrency(row.bill.totalAmount)}\n\nDue by ${row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—"}. Pay by UPI to ${row.upiId || "the property owner"}.\n\nSave this message as your bill receipt.`;
+}
+
+async function ownedBillWithDetails(propertyId: string, billId: string) {
+  const [row] = await db.select({ bill: bill, tenant: tenant, roomNumber: room.number, propertyName: property.name, upiId: property.upiVpa })
+    .from(bill).innerJoin(tenant, eq(bill.tenantId, tenant.id)).leftJoin(room, eq(tenant.roomId, room.id))
+    .innerJoin(property, eq(tenant.propertyId, property.id))
+    .where(and(eq(bill.id, billId), eq(tenant.propertyId, propertyId))).limit(1);
+  return row;
+}
+
+async function deliverBill(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>, channels: Array<"email" | "whatsapp">, kind: "bill" | "reminder" = "bill") {
+  const results: Array<{ channel: string; status: string; reason?: string }> = [];
+  for (const channel of channels) {
+    let status = "sent"; let reason: string | undefined; let providerMessageId: string | undefined;
+    try {
+      if (channel === "email") {
+        if (!row.tenant.email) { status = "skipped"; reason = "Tenant has no email address"; }
+        else if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) { status = "skipped"; reason = "Email delivery is not configured"; }
+        else {
+          const amounts = billAmounts(row);
+          const result = await sendEmail({ to: row.tenant.email, subject: `${kind === "reminder" ? "Payment reminder" : "Bill ready"} — ${row.propertyName}`, html: billReadyEmail({ tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", month: row.bill.billMonth, rentAmount: formatCurrency(amounts.rentAmount), electricityAmount: formatCurrency(amounts.electricityAmount), otherCharges: formatCurrency(amounts.otherCharges), totalAmount: formatCurrency(row.bill.totalAmount), balance: formatCurrency(row.bill.balance), dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", invoiceUrl: publicInvoiceUrl(row.bill.accessToken) }) });
+          providerMessageId = result?.id;
+        }
+      } else if (!isWhatsAppConfigured()) { status = "skipped"; reason = "WhatsApp delivery is not configured"; }
+      else {
+        const amounts = billAmounts(row);
+        const result = await sendBillNotification({ phone: row.tenant.phone, tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", billMonth: row.bill.billMonth, ...amounts, totalAmount: row.bill.totalAmount, dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", upiId: row.upiId || undefined });
+        if (!result.success) { status = "failed"; reason = result.error; } else providerMessageId = result.messageId;
+      }
+    } catch (error) { status = "failed"; reason = error instanceof Error ? error.message : "Delivery failed"; }
+    await db.insert(billDelivery).values({ billId: row.bill.id, channel, kind, status, error: reason || null, providerMessageId: providerMessageId || null });
+    results.push({ channel, status, reason });
+  }
+  return results;
+}
 
 router.use(requireAuth, requireOwner, requireProperty);
+
+async function missingMeterReadings(propertyId: string, month: string, tenantId?: string) {
+  const active = await db.select({ tenant: tenant, room: room })
+    .from(tenant).leftJoin(room, eq(tenant.roomId, room.id))
+    .where(tenantId
+      ? and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active"), eq(tenant.id, tenantId))
+      : and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active")));
+  const billable = active.filter((row) => row.room && rentProrationForMonth(row.tenant.joiningDate, month) > 0);
+  const roomIds = [...new Set(billable.map((row) => row.room!.id))];
+  if (!roomIds.length) return [];
+  const all = await db.select({ roomId: electricityReading.roomId, reading: electricityReading.reading, readingDate: electricityReading.readingDate })
+    .from(electricityReading).where(inArray(electricityReading.roomId, roomIds));
+  return roomIds.flatMap((roomId) => {
+    const readings = all.filter((r) => r.roomId === roomId);
+    if (readingForMonth(readings, month)) return [];
+    const occupants = billable.filter((row) => row.room!.id === roomId);
+    const latest = readings.reduce<typeof readings[number] | undefined>((last, current) => !last || current.readingDate > last.readingDate ? current : last, undefined);
+    return [{ roomId, roomNumber: occupants[0]!.room!.number, tenants: occupants.map((row) => ({ id: row.tenant.id, name: row.tenant.name })), latestReading: latest ? { reading: latest.reading, readingDate: latest.readingDate } : null }];
+  });
+}
+
+// Preflight is intentionally public to the owner UI and repeated during
+// generation below: the second check closes the race between review and save.
+router.get("/preflight", async (req: AuthenticatedRequest, res) => {
+  try {
+    const { month, tenantId } = generateBillsSchema.parse(req.query);
+    if (req.property!.electricityMode !== "meter") return res.json({ complete: true, missingRooms: [] });
+    const missingRooms = await missingMeterReadings(req.propertyId!, month, tenantId);
+    res.json({ complete: missingRooms.length === 0, missingRooms });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    res.status(500).json({ error: "Failed to check meter readings" });
+  }
+});
 
 // Get bills for property
 router.get("/", async (req: AuthenticatedRequest, res) => {
@@ -95,11 +185,34 @@ router.get("/:billId", async (req: AuthenticatedRequest, res) => {
   }
 });
 
+router.get("/:billId/share-link", async (req: AuthenticatedRequest, res) => {
+  const row = await ownedBillWithDetails(req.propertyId!, param(req, "billId"));
+  if (!row) return res.status(404).json({ error: "Bill not found" });
+  res.json({ url: publicInvoiceUrl(row.bill.accessToken), message: shareMessage(row) });
+});
+
+router.post("/:billId/deliver", async (req: AuthenticatedRequest, res) => {
+  try {
+    const { channels } = deliverySchema.parse(req.body);
+    const row = await ownedBillWithDetails(req.propertyId!, param(req, "billId"));
+    if (!row) return res.status(404).json({ error: "Bill not found" });
+    const results = await deliverBill(row, channels);
+    res.json({ results });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    res.status(500).json({ error: "Failed to deliver bill" });
+  }
+});
+
 // Generate monthly bills
 router.post("/generate", async (req: AuthenticatedRequest, res) => {
   try {
     const { month, tenantId } = generateBillsSchema.parse(req.body);
     const prop = req.property!;
+    if (prop.electricityMode === "meter") {
+      const missingRooms = await missingMeterReadings(req.propertyId!, month, tenantId);
+      if (missingRooms.length) return res.status(409).json({ error: "Meter readings are required before billing", missingRooms });
+    }
 
     // Everything this run needs, read once outside the transaction: active
     // tenants with their room, bed and rent plan, plus the property's active

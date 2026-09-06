@@ -343,6 +343,10 @@ export async function sendBillNotification(params: {
   // Add image header - use provided URL or default
   const imageUrl = params.headerImageUrl || WHATSAPP_HEADER_IMAGE_URL;
 
+  if (!imageUrl) {
+    return { success: false, error: "WHATSAPP_HEADER_IMAGE_URL is required for the monthly bill template" };
+  }
+
   components.push({
     type: "header",
     parameters: [

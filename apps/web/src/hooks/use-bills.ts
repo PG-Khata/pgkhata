@@ -25,6 +25,28 @@ export function useGenerateBills(propertyId: string) {
   })
 }
 
+export type MeterPreflight = { complete: boolean; missingRooms: Array<{ roomId: string; roomNumber: string; tenants: Array<{ id: string; name: string }>; latestReading: { reading: number; readingDate: string } | null }> }
+
+export function useBillingPreflight(propertyId: string) {
+  return useMutation({ mutationFn: (data: { month: string; tenantId?: string }) =>
+    api.get<MeterPreflight>(`/v1/properties/${propertyId}/bills/preflight?month=${data.month}${data.tenantId ? `&tenantId=${data.tenantId}` : ""}`) })
+}
+
+export function useSaveReadingBatch(propertyId: string) {
+  return useMutation({ mutationFn: (readings: Array<{ roomId: string; reading: number; readingDate: string }>) =>
+    api.post(`/v1/properties/${propertyId}/readings/batch`, { readings }) })
+}
+
+export function useDeliverBill(propertyId: string) {
+  return useMutation({ mutationFn: ({ billId, channels }: { billId: string; channels: Array<"email" | "whatsapp"> }) =>
+    api.post<{ results: Array<{ channel: string; status: string; reason?: string }> }>(`/v1/properties/${propertyId}/bills/${billId}/deliver`, { channels }) })
+}
+
+export function useShareBill(propertyId: string) {
+  return useMutation({ mutationFn: (billId: string) => api.get<{ url: string; message: string }>(`/v1/properties/${propertyId}/bills/${billId}/share-link`) })
+}
+
+
 export function useApplyLateFees(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({

@@ -344,6 +344,8 @@ export const bill = pgTable(
     voidedAt: timestamp("voided_at"),
     /** Tenant's promised payment date; late fees are suspended until this date. */
     promisedDate: timestamp("promised_date"),
+    /** Opaque, stable public capability URL token. Never expose an owner session. */
+    accessToken: text("access_token").notNull().default(sql`gen_random_uuid()::text`).unique(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -358,6 +360,18 @@ export const bill = pgTable(
     ),
   ],
 );
+
+/** Every direct bill delivery is retained so owners can see partial failures. */
+export const billDelivery = pgTable("bill_delivery", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  billId: uuid("bill_id").notNull().references(() => bill.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(), // email | whatsapp
+  kind: text("kind").notNull().default("bill"), // bill | reminder
+  status: text("status").notNull(), // sent | failed | skipped
+  error: text("error"),
+  providerMessageId: text("provider_message_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export const payment = pgTable(
   "payment",
@@ -633,9 +647,13 @@ export const complaint = pgTable("complaint", {
   propertyId: uuid("property_id")
     .notNull()
     .references(() => property.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .references(() => tenant.id, { onDelete: "set null" }),
   subject: text("subject").notNull(),
   description: text("description").notNull(),
   roomNumber: text("room_number"),
+  category: text("category").default("other"),
+  priority: text("priority").default("medium"),
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

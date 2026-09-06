@@ -148,6 +148,20 @@
       "when": 1788431272633,
       "tag": "0020_add_performance_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788721499236,
+      "tag": "0021_pretty_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788860000000,
+      "tag": "0022_meter_safe_delivery",
+      "breakpoints": true
     }
   ]
 }

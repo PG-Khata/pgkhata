@@ -12,6 +12,9 @@ const createReadingSchema = z.object({
   reading: z.number().min(0),
   readingDate: z.string().transform((str) => new Date(str)),
 });
+const batchReadingSchema = z.object({
+  readings: z.array(createReadingSchema).min(1).max(100),
+});
 
 const updateReadingSchema = createReadingSchema.pick({ reading: true, readingDate: true });
 
@@ -146,6 +149,40 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
       return res.status(400).json({ error: "Validation error", details: error.errors });
     }
     res.status(500).json({ error: "Failed to create reading" });
+  }
+});
+
+// Save a preflight batch atomically. This deliberately shares the same
+// ownership and monotonic rules as the single-reading endpoint.
+router.post("/batch", async (req: AuthenticatedRequest, res) => {
+  try {
+    const { readings } = batchReadingSchema.parse(req.body);
+    if (new Set(readings.map((r) => r.roomId)).size !== readings.length) {
+      return res.status(400).json({ error: "Only one reading per room can be saved at a time" });
+    }
+    const created = await db.transaction(async (tx) => {
+      const rows: (typeof electricityReading.$inferSelect)[] = [];
+      for (const input of readings) {
+        const [owned] = await tx.select({ id: room.id }).from(room)
+          .where(and(eq(room.id, input.roomId), eq(room.propertyId, req.propertyId!))).limit(1);
+        if (!owned) throw new Error("ROOM_NOT_FOUND");
+        const [previous] = await tx.select().from(electricityReading)
+          .where(eq(electricityReading.roomId, input.roomId)).orderBy(desc(electricityReading.readingDate)).limit(1);
+        if (previous && (input.readingDate <= previous.readingDate || input.reading < previous.reading)) {
+          throw new Error("INVALID_READING_POSITION");
+        }
+        const [row] = await tx.insert(electricityReading).values({ roomId: input.roomId, reading: input.reading, readingDate: input.readingDate, units: previous ? input.reading - previous.reading : 0 }).returning();
+        if (!row) throw new Error("FAILED_TO_CREATE_READING");
+        rows.push(row);
+      }
+      return rows;
+    });
+    res.status(201).json({ readings: created });
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    if (error instanceof Error && error.message === "ROOM_NOT_FOUND") return res.status(404).json({ error: "Room not found" });
+    if (error instanceof Error && error.message === "INVALID_READING_POSITION") return res.status(400).json({ error: "Reading date and value must be later than the room's previous reading" });
+    res.status(500).json({ error: "Failed to create readings" });
   }
 });
 

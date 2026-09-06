@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
-import { useBills, useGenerateBills, useApproveBills, useApplyLateFees, useDeleteBill, useSetPromisedDate } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApproveBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type MeterPreflight } from "@/hooks/use-bills"
 import { useProperty } from "@/hooks/use-properties"
 import { useTenantAdvancePayments, useApplyAdvancePayment } from "@/hooks/use-advance-payments"
 import { StatusBadge } from "@/components/dashboard/status-badge"
@@ -21,7 +21,7 @@ import {
 import { formatCurrency, formatMonth, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api-client"
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play, Wallet } from "lucide-react"
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play, Send, Share2, Wallet } from "lucide-react"
 
 function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7)
@@ -39,6 +39,12 @@ export default function BillingPage() {
   const [month, setMonth] = useState(getCurrentMonth())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [preflight, setPreflight] = useState<MeterPreflight | null>(null)
+  const [readingsOpen, setReadingsOpen] = useState(false)
+  const [readingValues, setReadingValues] = useState<Record<string, { reading: string; date: string }>>({})
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deliveryDialog, setDeliveryDialog] = useState<{ billId: string; tenantName: string } | null>(null)
+  const [deliveryChannels, setDeliveryChannels] = useState<Array<"email" | "whatsapp">>(["email"])
 
   // Advance payment dialog state
   const [advanceDialog, setAdvanceDialog] = useState<{ billId: string; tenantId: string; tenantName: string; billBalance: number } | null>(null)
@@ -53,6 +59,10 @@ export default function BillingPage() {
   const voidBill = useDeleteBill(propertyId)
   const setPromisedDate = useSetPromisedDate(propertyId)
   const applyAdvance = useApplyAdvancePayment(propertyId)
+  const billingPreflight = useBillingPreflight(propertyId)
+  const saveReadingBatch = useSaveReadingBatch(propertyId)
+  const deliverBill = useDeliverBill(propertyId)
+  const shareBill = useShareBill(propertyId)
 
   // Fetch advances for the tenant in the dialog
   const { data: tenantAdvances } = useTenantAdvancePayments(
@@ -87,11 +97,38 @@ export default function BillingPage() {
     }
   }
 
-  function handleGenerate() {
+  function generateAfterConfirmation() {
     generateBills.mutate({ month }, {
-      onSuccess: (res) => toast.success(res.message),
-      onError: () => toast.error("Failed to generate bills"),
+      onSuccess: (res) => { setConfirmOpen(false); toast.success(res.message) },
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to generate bills"),
     })
+  }
+
+  function handleGenerate() {
+    billingPreflight.mutate({ month }, {
+      onSuccess: (result) => {
+        if (result.complete) setConfirmOpen(true)
+        else {
+          setPreflight(result)
+          setReadingValues(Object.fromEntries(result.missingRooms.map((r) => [r.roomId, { reading: String(r.latestReading?.reading ?? ""), date: new Date().toISOString().slice(0, 10) }])))
+        }
+      },
+      onError: () => toast.error("Could not check meter readings"),
+    })
+  }
+
+  function saveMissingReadings() {
+    if (!preflight) return
+    const readings = preflight.missingRooms.map((room) => ({ roomId: room.roomId, reading: Number(readingValues[room.roomId]?.reading), readingDate: readingValues[room.roomId]?.date }))
+    if (readings.some((r) => !Number.isFinite(r.reading) || !r.readingDate)) return toast.error("Enter a reading and date for every room")
+    saveReadingBatch.mutate(readings, { onSuccess: () => { setPreflight(null); setReadingsOpen(false); setConfirmOpen(true); toast.success("Meter readings saved") }, onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not save readings") })
+  }
+
+  function handleShare(billId: string) {
+    shareBill.mutate(billId, { onSuccess: async ({ message }) => {
+      try { if (navigator.share) await navigator.share({ title: "PGKhata bill", text: message }); else { await navigator.clipboard.writeText(message); toast.success("Bill message copied") } }
+      catch (error) { if ((error as Error).name !== "AbortError") { await navigator.clipboard.writeText(message); toast.success("Bill message copied") } }
+    }, onError: () => toast.error("Could not create bill link") })
   }
 
   function handleApprove() {
@@ -205,9 +242,9 @@ export default function BillingPage() {
           </Button>
         </div>
 
-        <Button size="sm" onClick={handleGenerate} disabled={generateBills.isPending}>
+        <Button size="sm" onClick={handleGenerate} disabled={generateBills.isPending || billingPreflight.isPending}>
           <Play className="mr-1.5 h-3.5 w-3.5" />
-          {generateBills.isPending ? "Generating..." : "Generate bills"}
+          {generateBills.isPending ? "Generating..." : billingPreflight.isPending ? "Checking meters..." : "Generate bills"}
         </Button>
 
         <Button
@@ -321,6 +358,16 @@ export default function BillingPage() {
                               ))}
                             </ul>
                             <div className="mt-2 pt-2 border-t border-muted-foreground/20 flex gap-2">
+                              {!b.bill.voidedAt && (
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setDeliveryDialog({ billId: b.bill.id, tenantName: b.tenantName }) }}>
+                                    <Send className="mr-1 h-3 w-3" /> Send bill
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); handleShare(b.bill.id) }}>
+                                    <Share2 className="mr-1 h-3 w-3" /> Share bill
+                                  </Button>
+                                </>
+                              )}
                               {b.bill.balance > 0 && (
                                 <Button
                                   variant="ghost"
@@ -404,6 +451,31 @@ export default function BillingPage() {
         </div>
       )}
 
+      <Dialog open={!!preflight && !readingsOpen} onOpenChange={(open) => !open && setPreflight(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Meter readings needed</DialogTitle><DialogDescription>
+            {preflight?.missingRooms.length} room{preflight?.missingRooms.length === 1 ? " is" : "s are"} missing a closing reading for {formatMonth(month)}. Add them now before bills can be generated?
+          </DialogDescription></DialogHeader>
+          <DialogFooter><Button variant="outline" onClick={() => setPreflight(null)}>No, not now</Button><Button onClick={() => setReadingsOpen(true)}>Yes, add readings</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={readingsOpen} onOpenChange={(open) => { setReadingsOpen(open); if (!open) setPreflight(null) }}>
+        <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Add closing readings</DialogTitle><DialogDescription>Each room uses its latest value as a starting point. A first value is saved as a zero-unit baseline.</DialogDescription></DialogHeader>
+          <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">{preflight?.missingRooms.map((room) => (<div key={room.roomId} className="grid grid-cols-[1fr_110px_130px] items-end gap-2 rounded-md border p-3">
+            <div><p className="text-sm font-medium">Room {room.roomNumber}</p><p className="text-xs text-muted-foreground">{room.tenants.map((t) => t.name).join(", ")} · Last: {room.latestReading ? `${room.latestReading.reading} (${formatDateShort(room.latestReading.readingDate)})` : "no reading"}</p></div>
+            <label className="space-y-1 text-xs text-muted-foreground">New reading<Input type="number" min="0" value={readingValues[room.roomId]?.reading ?? ""} onChange={(e) => setReadingValues((v) => ({ ...v, [room.roomId]: { ...v[room.roomId], reading: e.target.value } }))} /></label>
+            <label className="space-y-1 text-xs text-muted-foreground">Reading date<Input type="date" value={readingValues[room.roomId]?.date ?? ""} onChange={(e) => setReadingValues((v) => ({ ...v, [room.roomId]: { ...v[room.roomId], date: e.target.value } }))} /></label>
+          </div>))}</div>
+          <DialogFooter><Button variant="outline" onClick={() => { setReadingsOpen(false); setPreflight(null) }}>Cancel</Button><Button disabled={saveReadingBatch.isPending} onClick={saveMissingReadings}>{saveReadingBatch.isPending ? "Saving..." : "Save readings"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Generate {formatMonth(month)} bills?</DialogTitle><DialogDescription>Bills will include rent, metered electricity where a reading pair exists, and active recurring charges. Review is complete.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button><Button disabled={generateBills.isPending} onClick={generateAfterConfirmation}>{generateBills.isPending ? "Generating..." : "Confirm & generate"}</Button></DialogFooter></DialogContent></Dialog>
+
+      <Dialog open={!!deliveryDialog} onOpenChange={(open) => !open && setDeliveryDialog(null)}><DialogContent className="sm:max-w-sm"><DialogHeader><DialogTitle>Send bill</DialogTitle><DialogDescription>Send {deliveryDialog?.tenantName} their secure bill link. Unavailable channels are reported after sending.</DialogDescription></DialogHeader><ChannelChoices value={deliveryChannels} onChange={setDeliveryChannels} /><DialogFooter><Button variant="outline" onClick={() => setDeliveryDialog(null)}>Cancel</Button><Button disabled={!deliveryChannels.length || deliverBill.isPending} onClick={() => deliveryDialog && deliverBill.mutate({ billId: deliveryDialog.billId, channels: deliveryChannels }, { onSuccess: ({ results }) => { setDeliveryDialog(null); toast.success(results.map((r) => `${r.channel}: ${r.status}`).join(" · ")) }, onError: () => toast.error("Could not send bill") })}>{deliverBill.isPending ? "Sending..." : "Send"}</Button></DialogFooter></DialogContent></Dialog>
+
+
       {/* Apply advance payment dialog */}
       <Dialog open={!!advanceDialog} onOpenChange={(open) => !open && setAdvanceDialog(null)}>
         <DialogContent className="sm:max-w-sm">
@@ -478,4 +550,8 @@ export default function BillingPage() {
       </Dialog>
     </div>
   )
+}
+
+function ChannelChoices({ value, onChange }: { value: Array<"email" | "whatsapp">; onChange: (value: Array<"email" | "whatsapp">) => void }) {
+  return <div className="flex gap-4 text-sm">{(["email", "whatsapp"] as const).map((channel) => <label key={channel} className="flex items-center gap-2 capitalize"><input type="checkbox" checked={value.includes(channel)} onChange={() => onChange(value.includes(channel) ? value.filter((v) => v !== channel) : [...value, channel])} />{channel}</label>)}</div>
 }

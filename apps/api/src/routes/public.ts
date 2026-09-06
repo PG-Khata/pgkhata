@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property, room, tenant, complaint } from "@pgkhata/db";
+import { db, property, room, tenant, tenantDocument, complaint, bill } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
+import { uploadToR2, isR2Configured } from "../lib/r2-storage";
 
 const router = Router();
 
@@ -9,13 +10,32 @@ const signupSchema = z.object({
   name: z.string().min(1).max(100),
   phone: z.string().regex(/^[6-9]\d{9}$/, "Invalid Indian phone number"),
   email: z.string().email().optional(),
+  alternatePhone: z.string().regex(/^\d{10}$/, "Must be 10 digits").optional().or(z.literal("")),
+  dateOfBirth: z.string().optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  occupation: z.string().max(100).optional(),
+  aadhaarNumber: z.string().regex(/^\d{12}$/, "Must be 12 digits").optional().or(z.literal("")),
+  panNumber: z.string().regex(/^[A-Z]{5}\d{4}[A-Z]$/, "Invalid PAN format").optional().or(z.literal("")),
+  permanentAddress: z.string().optional(),
+  permanentAddressCity: z.string().optional(),
+  permanentAddressState: z.string().optional(),
+  permanentAddressPincode: z.string().regex(/^\d{6}$/, "Must be 6 digits").optional().or(z.literal("")),
   roomId: z.string().uuid(),
+  documents: z.array(z.object({
+    type: z.enum(["aadhaar", "pan", "passport", "driving_license", "other"]),
+    fileName: z.string().min(1).max(255),
+    fileBase64: z.string().min(1),
+    contentType: z.string().min(1).max(100),
+  })).min(1, "At least one ID proof document is required").max(5),
 });
 
 const complaintSchema = z.object({
   subject: z.string().min(1).max(200),
   description: z.string().min(1).max(1000),
-  roomNumber: z.string().optional(),
+  roomId: z.string().uuid(),
+  tenantId: z.string().uuid().optional(),
+  category: z.enum(["plumbing", "electrical", "cleaning", "maintenance", "security", "other"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
 });
 
 // Get signup form data (public)
@@ -29,8 +49,7 @@ router.get("/signup/:token", async (req, res) => {
 
     if (!prop) return res.status(404).json({ error: "Invalid signup link" });
 
-    // Get vacant rooms
-    const vacantRooms = await db
+    const rooms = await db
       .select({
         id: room.id,
         number: room.number,
@@ -41,11 +60,23 @@ router.get("/signup/:token", async (req, res) => {
 
     res.json({
       propertyName: prop.name,
-      rooms: vacantRooms,
+      rooms,
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch signup data" });
   }
+});
+
+// Capability-token invoice view. Deliberately selects only tenant-facing bill
+// fields, never property ownership or dashboard data.
+router.get("/invoice/:token", async (req, res) => {
+  try {
+    const [row] = await db.select({ bill: bill, tenantName: tenant.name, propertyName: property.name, roomNumber: room.number, upiVpa: property.upiVpa })
+      .from(bill).innerJoin(tenant, eq(bill.tenantId, tenant.id)).innerJoin(property, eq(tenant.propertyId, property.id))
+      .leftJoin(room, eq(tenant.roomId, room.id)).where(eq(bill.accessToken, req.params.token)).limit(1);
+    if (!row || row.bill.voidedAt) return res.status(404).json({ error: "Invoice not found" });
+    res.json({ invoice: { month: row.bill.billMonth, lineItems: row.bill.lineItems, totalAmount: row.bill.totalAmount, paidAmount: row.bill.paidAmount, balance: row.bill.balance, status: row.bill.status, dueDate: row.bill.dueDate, tenantName: row.tenantName, propertyName: row.propertyName, roomNumber: row.roomNumber, upiVpa: row.upiVpa } });
+  } catch { res.status(500).json({ error: "Failed to fetch invoice" }); }
 });
 
 // Submit signup (public)
@@ -81,6 +112,10 @@ router.post("/signup/:token", async (req, res) => {
       return res.status(409).json({ error: "Phone already registered" });
     }
 
+    if (!isR2Configured()) {
+      return res.status(503).json({ error: "Document uploads are temporarily unavailable" });
+    }
+
     // Self-registered tenants start pending: no bed is assigned and they do
     // not count toward occupancy until the owner approves them. The room
     // they asked for is remembered on requestedRoomId so approval knows where
@@ -92,6 +127,16 @@ router.post("/signup/:token", async (req, res) => {
         name: body.name,
         phone: body.phone,
         email: body.email,
+        alternatePhone: body.alternatePhone || null,
+        dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
+        gender: body.gender || null,
+        occupation: body.occupation || null,
+        aadhaarNumber: body.aadhaarNumber || null,
+        panNumber: body.panNumber || null,
+        permanentAddress: body.permanentAddress || null,
+        permanentAddressCity: body.permanentAddressCity || null,
+        permanentAddressState: body.permanentAddressState || null,
+        permanentAddressPincode: body.permanentAddressPincode || null,
         requestedRoomId: body.roomId,
         joiningDate: new Date(),
         status: "pending",
@@ -100,6 +145,24 @@ router.post("/signup/:token", async (req, res) => {
 
     if (!newTenant) {
       return res.status(500).json({ error: "Failed to process signup" });
+    }
+
+    for (const document of body.documents) {
+      const buffer = Buffer.from(document.fileBase64, "base64");
+      const uploaded = await uploadToR2(
+        `kyc/${newTenant.id}`,
+        document.fileName,
+        buffer,
+        document.contentType,
+      );
+
+      await db.insert(tenantDocument).values({
+        tenantId: newTenant.id,
+        type: document.type,
+        fileName: document.fileName,
+        fileUrl: uploaded.url,
+        fileSize: uploaded.size,
+      });
     }
 
     res.status(201).json({
@@ -125,7 +188,46 @@ router.get("/complaint/:token", async (req, res) => {
 
     if (!prop) return res.status(404).json({ error: "Invalid complaint link" });
 
-    res.json({ propertyName: prop.name });
+    // Get rooms with tenants for this property
+    const roomsWithTenants = await db
+      .select({
+        roomId: room.id,
+        roomNumber: room.number,
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+      })
+      .from(room)
+      .leftJoin(tenant, and(
+        eq(tenant.roomId, room.id),
+        eq(tenant.status, "active")
+      ))
+      .where(eq(room.propertyId, prop.id))
+      .orderBy(room.number);
+
+    // Group by room
+    const rooms = roomsWithTenants.reduce((acc, row) => {
+      const existing = acc.find(r => r.roomId === row.roomId);
+      if (existing) {
+        if (row.tenantId) {
+          existing.tenants.push({
+            id: row.tenantId,
+            name: row.tenantName,
+          });
+        }
+      } else {
+        acc.push({
+          id: row.roomId,
+          number: row.roomNumber,
+          tenants: row.tenantId ? [{
+            id: row.tenantId,
+            name: row.tenantName,
+          }] : [],
+        });
+      }
+      return acc;
+    }, [] as any[]);
+
+    res.json({ propertyName: prop.name, rooms });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch complaint data" });
   }
@@ -144,13 +246,39 @@ router.post("/complaint/:token", async (req, res) => {
 
     if (!prop) return res.status(404).json({ error: "Invalid complaint link" });
 
+    const [selectedRoom] = await db
+      .select({ id: room.id, number: room.number })
+      .from(room)
+      .where(and(eq(room.id, body.roomId), eq(room.propertyId, prop.id)))
+      .limit(1);
+
+    if (!selectedRoom) return res.status(404).json({ error: "Room not found" });
+
+    if (body.tenantId) {
+      const [selectedTenant] = await db
+        .select({ id: tenant.id })
+        .from(tenant)
+        .where(and(
+          eq(tenant.id, body.tenantId),
+          eq(tenant.propertyId, prop.id),
+          eq(tenant.roomId, selectedRoom.id),
+          eq(tenant.status, "active"),
+        ))
+        .limit(1);
+
+      if (!selectedTenant) return res.status(400).json({ error: "Tenant does not belong to this room" });
+    }
+
     const [newComplaint] = await db
       .insert(complaint)
       .values({
         propertyId: prop.id,
+        tenantId: body.tenantId || null,
         subject: body.subject,
         description: body.description,
-        roomNumber: body.roomNumber,
+        roomNumber: selectedRoom.number,
+        category: body.category || "other",
+        priority: body.priority || "medium",
         status: "open",
       })
       .returning();

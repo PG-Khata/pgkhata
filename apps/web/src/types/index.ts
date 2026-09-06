@@ -296,9 +296,15 @@ export interface ElectricityReading {
 export interface Complaint {
   id: string
   propertyId: string
+  tenantId?: string | null
   subject: string
   description: string
   roomNumber?: string
+  category?: "plumbing" | "electrical" | "cleaning" | "maintenance" | "security" | "other"
+  priority?: "low" | "medium" | "high" | "urgent"
+  tenantName?: string | null
+  tenantPhone?: string | null
+  tenantEmail?: string | null
   status: "open" | "in_progress" | "resolved"
   createdAt: string
   updatedAt: string

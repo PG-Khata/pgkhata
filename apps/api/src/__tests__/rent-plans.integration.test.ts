@@ -190,6 +190,8 @@ describeDb("rent plans (database)", () => {
 
     expect(created.status).toBe(201);
 
+    const month = `2026-0${(new Date().getMonth() % 9) + 1}`;
+
     const tenantRes = await request(app)
       .post(`/v1/properties/${alice.propertyId}/tenants`)
       .set("Cookie", alice.cookie)
@@ -197,7 +199,7 @@ describeDb("rent plans (database)", () => {
         name: "Plan Tenant",
         phone: nextPhone(),
         roomId: created.body.id,
-        joiningDate: new Date().toISOString(),
+        joiningDate: `${month}-01T00:00:00.000Z`,
       });
     expect(tenantRes.status).toBe(201);
 
@@ -207,7 +209,6 @@ describeDb("rent plans (database)", () => {
       .set("Cookie", alice.cookie);
     expect(approve.status).toBe(200);
 
-    const month = `2026-0${(new Date().getMonth() % 9) + 1}`;
     const generated = await request(app)
       .post(`/v1/properties/${alice.propertyId}/bills/generate`)
       .set("Cookie", alice.cookie)

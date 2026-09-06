@@ -58,6 +58,7 @@ const schema = z.object({
   permanentAddressCity: z.string().min(1, "City is required"),
   permanentAddressState: z.string().min(1, "State is required"),
   permanentAddressPincode: z.string().min(1, "Pincode is required").regex(/^\d{6}$/, "Must be 6 digits"),
+  roomId: z.string().optional(),
   securityDeposit: z.string().optional().or(z.literal("")),
   advancePayment: z.string().optional().or(z.literal("")),
 })
@@ -68,12 +69,18 @@ interface OnboardTenantModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   propertyId: string
+  isPublic?: boolean
+  onPublicSubmit?: () => void
+  rooms?: Array<{ id: string; number: string; type: string }>
 }
 
 export function OnboardTenantModal({
   open,
   onOpenChange,
   propertyId,
+  isPublic = false,
+  onPublicSubmit,
+  rooms = [],
 }: OnboardTenantModalProps) {
   const createTenant = useCreateTenant(propertyId)
   const profileInputRef = useRef<HTMLInputElement>(null)
@@ -88,6 +95,7 @@ export function OnboardTenantModal({
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<FormData>({
     resolver: zodResolver(schema) as any,
@@ -115,68 +123,116 @@ export function OnboardTenantModal({
   }
 
   async function onSubmit(data: FormData) {
+    // Require ID proof in both modes
     if (idProofFiles.length === 0) {
       setIdProofError(true)
       return
     }
 
+    if (isPublic && !data.roomId) {
+      setError("roomId", { message: "Please select a room" })
+      return
+    }
+
     setSubmitting(true)
     try {
-      const tenant = await createTenant.mutateAsync({
-        name: data.name,
-        phone: data.phone,
-        alternatePhone: data.alternatePhone,
-        email: data.email,
-        dateOfBirth: data.dateOfBirth,
-        gender: data.gender as "male" | "female" | "other",
-        occupation: data.occupation,
-        aadhaarNumber: data.aadhaarNumber,
-        panNumber: data.panNumber || undefined,
-        permanentAddress: data.permanentAddress,
-        permanentAddressCity: data.permanentAddressCity,
-        permanentAddressState: data.permanentAddressState,
-        permanentAddressPincode: data.permanentAddressPincode,
-        joiningDate: new Date().toISOString(),
-      })
-
-      // Upload all ID proof files
-      if (tenant?.id) {
-        for (const file of idProofFiles) {
-          const base64 = await fileToBase64(file)
-          await api.post(
-            `/v1/properties/${propertyId}/tenant-documents/tenant/${tenant.id}`,
-            {
+      if (isPublic) {
+        // Public mode - use the public signup API
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+        const res = await fetch(`${API_URL}/public/signup/${propertyId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: data.name,
+            phone: data.phone,
+            email: data.email,
+            alternatePhone: data.alternatePhone,
+            dateOfBirth: data.dateOfBirth,
+            gender: data.gender,
+            occupation: data.occupation,
+            aadhaarNumber: data.aadhaarNumber,
+            panNumber: data.panNumber || undefined,
+            permanentAddress: data.permanentAddress,
+            permanentAddressCity: data.permanentAddressCity,
+            permanentAddressState: data.permanentAddressState,
+            permanentAddressPincode: data.permanentAddressPincode,
+            roomId: data.roomId,
+            documents: await Promise.all(idProofFiles.map(async (file) => ({
               type: guessDocType(file.name),
               fileName: file.name,
-              fileBase64: base64,
-              contentType: file.type,
-            },
-          )
+              fileBase64: await fileToBase64(file),
+              contentType: file.type || "application/octet-stream",
+            }))),
+          }),
+        })
+
+        if (!res.ok) {
+          const body = await res.json()
+          throw new Error(body.error || "Failed to submit")
         }
 
-        // Collect security deposit if provided
-        if (data.securityDeposit && Number(data.securityDeposit) > 0) {
-          await api.post(`/v1/properties/${propertyId}/security-deposits`, {
-            tenantId: tenant.id,
-            amount: Number(data.securityDeposit),
-          })
+        toast.success("Registration submitted successfully!")
+        if (onPublicSubmit) {
+          onPublicSubmit()
+        }
+      } else {
+        // Private mode - use the authenticated API
+        const tenant = await createTenant.mutateAsync({
+          name: data.name,
+          phone: data.phone,
+          alternatePhone: data.alternatePhone,
+          email: data.email,
+          dateOfBirth: data.dateOfBirth,
+          gender: data.gender as "male" | "female" | "other",
+          occupation: data.occupation,
+          aadhaarNumber: data.aadhaarNumber,
+          panNumber: data.panNumber || undefined,
+          permanentAddress: data.permanentAddress,
+          permanentAddressCity: data.permanentAddressCity,
+          permanentAddressState: data.permanentAddressState,
+          permanentAddressPincode: data.permanentAddressPincode,
+          joiningDate: new Date().toISOString(),
+        })
+
+        // Upload all ID proof files
+        if (tenant?.id) {
+          for (const file of idProofFiles) {
+            const base64 = await fileToBase64(file)
+            await api.post(
+              `/v1/properties/${propertyId}/tenant-documents/tenant/${tenant.id}`,
+              {
+                type: guessDocType(file.name),
+                fileName: file.name,
+                fileBase64: base64,
+                contentType: file.type,
+              },
+            )
+          }
+
+          // Collect security deposit if provided
+          if (data.securityDeposit && Number(data.securityDeposit) > 0) {
+            await api.post(`/v1/properties/${propertyId}/security-deposits`, {
+              tenantId: tenant.id,
+              amount: Number(data.securityDeposit),
+            })
+          }
+
+          // Collect advance payment if provided
+          if (data.advancePayment && Number(data.advancePayment) > 0) {
+            await api.post(`/v1/properties/${propertyId}/advance-payments`, {
+              tenantId: tenant.id,
+              amount: Number(data.advancePayment),
+            })
+          }
         }
 
-        // Collect advance payment if provided
-        if (data.advancePayment && Number(data.advancePayment) > 0) {
-          await api.post(`/v1/properties/${propertyId}/advance-payments`, {
-            tenantId: tenant.id,
-            amount: Number(data.advancePayment),
-          })
-        }
+        toast.success("Tenant onboarded")
+        resetForm()
+        onOpenChange(false)
       }
-
-      toast.success("Tenant onboarded")
-      resetForm()
-      onOpenChange(false)
     } catch (error) {
       toast.error(
-        error instanceof ApiError ? error.message : "Failed to onboard tenant",
+        error instanceof Error ? error.message : "Failed to onboard tenant",
       )
     } finally {
       setSubmitting(false)
@@ -194,13 +250,17 @@ export function OnboardTenantModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={isPublic ? undefined : onOpenChange}>
+      <DialogContent
+        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+        showCloseButton={!isPublic}
+      >
         <DialogHeader>
-          <DialogTitle>Onboard tenant</DialogTitle>
+          <DialogTitle>{isPublic ? "Tenant Registration" : "Onboard tenant"}</DialogTitle>
           <DialogDescription>
-            Capture the resident's details. You can assign a bed afterwards from
-            Occupancy.
+            {isPublic
+              ? "Fill in your details below to register as a tenant."
+              : "Capture the resident's details. You can assign a bed afterwards from Occupancy."}
           </DialogDescription>
         </DialogHeader>
 
@@ -481,37 +541,67 @@ export function OnboardTenantModal({
             </div>
           </div>
 
-          {/* Billing */}
-          <div>
-            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Billing
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Security deposit</label>
-                <Input type="number" placeholder="0" {...register("securityDeposit")} />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Advance payment</label>
-                <Input type="number" placeholder="0" {...register("advancePayment")} />
+          {isPublic && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Preferred room <span className="text-destructive">*</span>
+              </label>
+              <select
+                {...register("roomId")}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+              >
+                <option value="">Select a room</option>
+                {rooms.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    Room {room.number} ({room.type})
+                  </option>
+                ))}
+              </select>
+              {errors.roomId && <p className="text-xs text-destructive">{errors.roomId.message}</p>}
+            </div>
+          )}
+
+          {/* Billing - only show in private mode */}
+          {!isPublic && (
+            <div>
+              <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Billing
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Security deposit</label>
+                  <Input type="number" placeholder="0" {...register("securityDeposit")} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Advance payment</label>
+                  <Input type="number" placeholder="0" {...register("advancePayment")} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetForm()
-                onOpenChange(false)
-              }}
-            >
-              Cancel
-            </Button>
+            {!isPublic && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  resetForm()
+                  onOpenChange(false)
+                }}
+              >
+                Cancel
+              </Button>
+            )}
             <Button type="submit" size="sm" disabled={submitting}>
-              {submitting ? "Onboarding..." : "Onboard tenant"}
+              {submitting
+                ? isPublic
+                  ? "Submitting..."
+                  : "Onboarding..."
+                : isPublic
+                  ? "Submit Registration"
+                  : "Onboard tenant"}
             </Button>
           </DialogFooter>
         </form>

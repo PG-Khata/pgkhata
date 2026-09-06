@@ -93,6 +93,16 @@ app.use(async (req, res, next) => {
       });
       
       const body = await response.text();
+      if (response.status >= 500) {
+        logger.error(
+          {
+            authStatus: response.status,
+            authResponse: body || undefined,
+            requestId: req.headers["x-request-id"],
+          },
+          "Better Auth returned a server error",
+        );
+      }
       res.send(body);
     } catch (error) {
       logger.error({ err: error, requestId: req.headers["x-request-id"] }, "Auth handler error");

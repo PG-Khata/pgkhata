@@ -4,6 +4,8 @@ import { db } from "@pgkhata/db";
 import { sendEmail, passwordResetEmail } from "@pgkhata/email";
 import { ensureOwnerProfile, type OwnerProfileWriter } from "./owner-profile";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -39,11 +41,13 @@ export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
   cookies: {
     sessionToken: {
-      name: "__Secure-better-auth.session_token",
+      // Secure, cross-site cookies are needed when the web and API apps are
+      // deployed on Render. Localhost must use a host-only, non-secure cookie.
+      name: isProduction ? "__Secure-better-auth.session_token" : "better-auth.session_token",
       attributes: {
-        sameSite: "none",
-        secure: true,
-        domain: ".onrender.com",
+        sameSite: isProduction ? "none" : "lax",
+        secure: isProduction,
+        ...(isProduction ? { domain: ".onrender.com" } : {}),
       },
     },
   },

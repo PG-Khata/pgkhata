@@ -33,6 +33,7 @@ export const reminderWorker = new Worker(
   { connection }
 );
 
+
 reminderWorker.on("completed", (job) => {
   logger.info({ jobId: job.id }, "Reminder job completed");
 });

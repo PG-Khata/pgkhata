@@ -14,12 +14,14 @@ import {
   Download,
   FileText,
   Plus,
+  QrCode,
   Search,
   Upload,
   UserPlus,
   Users,
 } from "lucide-react"
 import { OnboardTenantModal } from "@/components/dashboard/onboard-tenant-modal"
+import { QrOnboardModal } from "@/components/dashboard/qr-onboard-modal"
 
 function getInitials(name: string) {
   return name
@@ -39,6 +41,7 @@ export default function TenantsPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [onboardOpen, setOnboardOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
 
   function handleExport() {
@@ -151,6 +154,10 @@ export default function TenantsPage() {
           <Button onClick={() => setOnboardOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
             Onboard
+          </Button>
+          <Button variant="outline" onClick={() => setQrOpen(true)}>
+            <QrCode className="mr-1.5 h-4 w-4" />
+            Add via QR
           </Button>
         </div>
       </div>
@@ -302,6 +309,16 @@ export default function TenantsPage() {
         onOpenChange={setOnboardOpen}
         propertyId={propertyId}
       />
+
+      {selectedProperty && (
+        <QrOnboardModal
+          open={qrOpen}
+          onOpenChange={setQrOpen}
+          propertyName={selectedProperty.name}
+          signupToken={selectedProperty.signupToken}
+          propertyId={propertyId}
+        />
+      )}
 
       {/* Hidden file input for import */}
       <input

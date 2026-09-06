@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property, bed, room } from "@pgkhata/db";
+import { db, property, bed, room, tenant, complaint } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param, aggregate } from "../lib/http";
@@ -65,6 +65,210 @@ router.get("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch properties" });
+  }
+});
+
+// Get QR code for signup link
+router.get("/:id/qr-code", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "id");
+
+    let [prop] = await db
+      .select({ signupToken: property.signupToken })
+      .from(property)
+      .where(
+        and(
+          eq(property.id, propertyId),
+          eq(property.ownerId, req.ownerId!)
+        )
+      )
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    // Auto-generate signup token if it doesn't exist
+    if (!prop.signupToken) {
+      const { randomUUID } = await import("crypto");
+      const newToken = randomUUID();
+
+      const [updated] = await db
+        .update(property)
+        .set({ signupToken: newToken })
+        .where(eq(property.id, propertyId))
+        .returning({ signupToken: property.signupToken });
+
+      if (!updated) {
+        return res.status(500).json({ error: "Failed to generate signup token" });
+      }
+
+      prop = { signupToken: updated.signupToken };
+    }
+
+    if (!process.env.APP_URL) {
+      throw new Error("APP_URL environment variable is required");
+    }
+
+    const signupUrl = `${process.env.APP_URL}/public/signup/${prop.signupToken}`;
+
+    res.json({
+      url: signupUrl,
+      token: prop.signupToken,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate QR code" });
+  }
+});
+
+// Get complaint QR code
+router.get("/:id/complaint-qr", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "id");
+
+    let [prop] = await db
+      .select({ complaintToken: property.complaintToken })
+      .from(property)
+      .where(
+        and(
+          eq(property.id, propertyId),
+          eq(property.ownerId, req.ownerId!)
+        )
+      )
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    // Auto-generate complaint token if it doesn't exist
+    if (!prop.complaintToken) {
+      const { randomUUID } = await import("crypto");
+      const newToken = randomUUID();
+
+      const [updated] = await db
+        .update(property)
+        .set({ complaintToken: newToken })
+        .where(eq(property.id, propertyId))
+        .returning({ complaintToken: property.complaintToken });
+
+      if (!updated) {
+        return res.status(500).json({ error: "Failed to generate complaint token" });
+      }
+
+      prop = { complaintToken: updated.complaintToken };
+    }
+
+    if (!process.env.APP_URL) {
+      throw new Error("APP_URL environment variable is required");
+    }
+
+    const complaintUrl = `${process.env.APP_URL}/public/complaint/${prop.complaintToken}`;
+
+    res.json({
+      url: complaintUrl,
+      token: prop.complaintToken,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate complaint QR code" });
+  }
+});
+
+// Get complaints for a property
+router.get("/:id/complaints", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "id");
+
+    // Verify property belongs to owner
+    const [prop] = await db
+      .select({ id: property.id })
+      .from(property)
+      .where(
+        and(
+          eq(property.id, propertyId),
+          eq(property.ownerId, req.ownerId!)
+        )
+      )
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    const complaints = await db
+      .select({
+        id: complaint.id,
+        propertyId: complaint.propertyId,
+        subject: complaint.subject,
+        description: complaint.description,
+        roomNumber: complaint.roomNumber,
+        category: complaint.category,
+        priority: complaint.priority,
+        status: complaint.status,
+        createdAt: complaint.createdAt,
+        updatedAt: complaint.updatedAt,
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        tenantPhone: tenant.phone,
+        tenantEmail: tenant.email,
+      })
+      .from(complaint)
+      .leftJoin(tenant, eq(complaint.tenantId, tenant.id))
+      .where(eq(complaint.propertyId, propertyId))
+      .orderBy(
+        sql`CASE
+          WHEN ${complaint.status} = 'open' THEN 1
+          WHEN ${complaint.status} = 'in_progress' THEN 2
+          WHEN ${complaint.status} = 'resolved' THEN 3
+          ELSE 4
+        END`,
+        complaint.createdAt
+      );
+
+    res.json(complaints);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch complaints" });
+  }
+});
+
+// Update complaint status
+router.patch("/:id/complaints/:complaintId", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "id");
+    const complaintId = param(req, "complaintId");
+    const { status } = req.body;
+
+    const validStatuses = ["open", "in_progress", "resolved"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
+    }
+
+    // Verify property belongs to owner
+    const [prop] = await db
+      .select({ id: property.id })
+      .from(property)
+      .where(
+        and(
+          eq(property.id, propertyId),
+          eq(property.ownerId, req.ownerId!)
+        )
+      )
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    const [updated] = await db
+      .update(complaint)
+      .set({ status, updatedAt: new Date() })
+      .where(
+        and(
+          eq(complaint.id, complaintId),
+          eq(complaint.propertyId, propertyId)
+        )
+      )
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Complaint not found" });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update complaint" });
   }
 });
 
@@ -170,43 +374,6 @@ router.delete("/:id", requireAuth, requireOwner, async (req: AuthenticatedReques
     res.json({ message: "Property deleted" });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete property" });
-  }
-});
-
-// Get QR code for signup link
-router.get("/:id/qr-code", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
-  try {
-    const [prop] = await db
-      .select({ signupToken: property.signupToken })
-      .from(property)
-      .where(
-        and(
-          eq(property.id, param(req, "id")),
-          eq(property.ownerId, req.ownerId!)
-        )
-      )
-      .limit(1);
-
-    if (!prop) return res.status(404).json({ error: "Property not found" });
-    if (!prop.signupToken) {
-      return res.status(409).json({ error: "No signup token configured" });
-    }
-
-    // Generate QR code as base64 PNG
-    // Using a simple QR code generation approach
-    if (!process.env.APP_URL) {
-  throw new Error("APP_URL environment variable is required");
-}
-const signupUrl = `${process.env.APP_URL}/public/signup/${prop.signupToken}`;
-
-    // For now, return the URL - QR generation will be added when qrcode package is installed
-    res.json({
-      url: signupUrl,
-      token: prop.signupToken,
-      message: "Install qrcode package for QR generation",
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to generate QR code" });
   }
 });
 

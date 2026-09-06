@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import { useTenants } from "@/hooks/use-tenants"
-import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type MeterPreflight } from "@/hooks/use-bills"
 import { useRecordPayment } from "@/hooks/use-payments"
 import { useSecurityDeposits, useCreateSecurityDeposit } from "@/hooks/use-security-deposits"
 import { useAdvancePayments, useCreateAdvancePayment } from "@/hooks/use-advance-payments"
@@ -33,6 +33,7 @@ import {
   Plus,
   Receipt,
   Send,
+  Share2,
   ShieldCheck,
   Zap,
 } from "lucide-react"
@@ -111,6 +112,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generateMonth, setGenerateMonth] = useState(currentMonth())
   const [generateTenantId, setGenerateTenantId] = useState("")
+  const [missingReadings, setMissingReadings] = useState<MeterPreflight | null>(null)
+  const [readingValues, setReadingValues] = useState<Record<string, { reading: string; date: string }>>({})
+  const [deliveryOpen, setDeliveryOpen] = useState<{ billId: string; tenantName: string } | null>(null)
+  const [deliveryChannels, setDeliveryChannels] = useState<Array<"email" | "whatsapp">>(["email"])
+  const [reminderOpen, setReminderOpen] = useState<{ billId: string; tenantId: string; tenantName: string } | null>(null)
+  const [reminderChannels, setReminderChannels] = useState<Array<"email" | "whatsapp">>(["email"])
+  const [sendingReminder, setSendingReminder] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState<{ billId: string; tenantName: string; balance: number } | null>(null)
   const [promiseOpen, setPromiseOpen] = useState<{ billId: string; tenantName: string } | null>(null)
   const [voidConfirm, setVoidConfirm] = useState<{ billId: string; tenantName: string } | null>(null)
@@ -124,6 +132,10 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
 
   const { data: bills, isLoading, error: billsError } = useBills(propertyId, monthFilter)
   const generateBills = useGenerateBills(propertyId)
+  const billingPreflight = useBillingPreflight(propertyId)
+  const saveReadingBatch = useSaveReadingBatch(propertyId)
+  const deliverBill = useDeliverBill(propertyId)
+  const shareBill = useShareBill(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
   const voidBill = useDeleteBill(propertyId)
   const setPromisedDate = useSetPromisedDate(propertyId)
@@ -149,6 +161,19 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const overdueCount = (dueRent ?? []).filter((r) => r.daysOverdue > 0).length
 
   function handleGenerate() {
+    billingPreflight.mutate({ month: generateMonth, tenantId: generateTenantId || undefined }, {
+      onSuccess: (result) => {
+        if (result.complete) runGenerate()
+        else {
+          setMissingReadings(result)
+          setReadingValues(Object.fromEntries(result.missingRooms.map((room) => [room.roomId, { reading: String(room.latestReading?.reading ?? ""), date: new Date().toISOString().slice(0, 10) }])))
+        }
+      },
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not check meter readings"),
+    })
+  }
+
+  function runGenerate() {
     generateBills.mutate(
       { month: generateMonth, tenantId: generateTenantId || undefined },
       {
@@ -163,6 +188,35 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         },
       },
     )
+  }
+
+  function saveMissingReadings() {
+    if (!missingReadings) return
+    const readings = missingReadings.missingRooms.map((room) => ({ roomId: room.roomId, reading: Number(readingValues[room.roomId]?.reading), readingDate: readingValues[room.roomId]?.date }))
+    if (readings.some((reading) => !Number.isFinite(reading.reading) || !reading.readingDate)) return toast.error("Enter a reading and date for each room")
+    saveReadingBatch.mutate(readings, { onSuccess: () => { setMissingReadings(null); toast.success("Meter readings saved"); runGenerate() }, onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not save readings") })
+  }
+
+  function handleShare(billId: string) {
+    shareBill.mutate(billId, { onSuccess: async ({ message }) => {
+      try { if (navigator.share) await navigator.share({ title: "PGKhata bill", text: message }); else { await navigator.clipboard.writeText(message); toast.success("Bill message copied") } }
+      catch (error) { if ((error as Error).name !== "AbortError") { await navigator.clipboard.writeText(message); toast.success("Bill message copied") } }
+    }, onError: () => toast.error("Could not create bill link") })
+  }
+
+  async function sendImmediateReminder() {
+    if (!reminderOpen || !reminderChannels.length) return
+    setSendingReminder(true)
+    try {
+      const results = await Promise.all(reminderChannels.map(async (channel) => {
+        if (channel === "email") return api.post(`/v1/properties/${propertyId}/reminders/send`, { billIds: [reminderOpen.billId], channel: "email" })
+        return api.post(`/v1/properties/${propertyId}/whatsapp/send-reminder/${reminderOpen.tenantId}`)
+      }))
+      setReminderOpen(null)
+      toast.success(`Reminder sent via ${reminderChannels.join(" and ")}`)
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Could not send reminder")
+    } finally { setSendingReminder(false) }
   }
 
   function handleApplyLateFees() {
@@ -314,7 +368,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               <Button variant="outline" onClick={handleApplyLateFees}>
                 <AlertTriangle className="mr-1 h-4 w-4" /> Late fees
               </Button>
-              <Button variant="outline" onClick={() => toast.info("Reminders not yet implemented")}>
+              <Button variant="outline" onClick={() => toast.info("Use Remind on an individual invoice.")}>
                 <Send className="mr-1 h-4 w-4" /> Reminders
               </Button>
               <Button variant="outline" onClick={handleAutoAllocate}>
@@ -368,6 +422,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setPromiseOpen({ billId: b.id, tenantName: b.tenantName })}>
                               Promise
                             </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDeliveryOpen({ billId: b.id, tenantName: b.tenantName })}>
+                              <Send className="mr-1 h-3 w-3" /> Send
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => handleShare(b.id)}>
+                              <Share2 className="mr-1 h-3 w-3" /> Share
+                            </Button>
+                            {b.balance > 0 && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setReminderOpen({ billId: b.id, tenantId: b.tenantId, tenantName: b.tenantName })}>Remind</Button>}
                             <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
                               Delete
                             </Button>
@@ -417,6 +478,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                       <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setPromiseOpen({ billId: b.id, tenantName: b.tenantName })}>
                         Promise
                       </Button>
+                      <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setDeliveryOpen({ billId: b.id, tenantName: b.tenantName })}>
+                        Send
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => handleShare(b.id)}>
+                        Share
+                      </Button>
+                      {b.balance > 0 && <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setReminderOpen({ billId: b.id, tenantId: b.tenantId, tenantName: b.tenantName })}>Remind</Button>}
                       <Button variant="outline" size="sm" className="h-8 text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
                         Delete
                       </Button>
@@ -651,6 +719,41 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               {generateBills.isPending ? "Generating..." : "Generate"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!missingReadings} onOpenChange={(open) => !open && setMissingReadings(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Meter readings required</DialogTitle>
+            <DialogDescription>Add a closing reading for every room before {generateMonth} invoices can be generated. A first-ever reading is saved as a zero-unit baseline.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+            {missingReadings?.missingRooms.map((room) => (
+              <div key={room.roomId} className="grid grid-cols-[1fr_105px_130px] items-end gap-2 rounded-lg border p-3">
+                <div><p className="text-sm font-medium">Room {room.roomNumber}</p><p className="text-xs text-muted-foreground">{room.tenants.map((tenant) => tenant.name).join(", ")} · Last: {room.latestReading ? room.latestReading.reading : "none"}</p></div>
+                <label className="space-y-1 text-xs text-muted-foreground">New reading<Input type="number" min="0" value={readingValues[room.roomId]?.reading ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId], reading: event.target.value } }))} /></label>
+                <label className="space-y-1 text-xs text-muted-foreground">Reading date<Input type="date" value={readingValues[room.roomId]?.date ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId], date: event.target.value } }))} /></label>
+              </div>
+            ))}
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setMissingReadings(null)}>Cancel</Button><Button disabled={saveReadingBatch.isPending} onClick={saveMissingReadings}>{saveReadingBatch.isPending ? "Saving..." : "Save readings & generate"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deliveryOpen} onOpenChange={(open) => !open && setDeliveryOpen(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Send bill</DialogTitle><DialogDescription>Send {deliveryOpen?.tenantName} their secure bill link.</DialogDescription></DialogHeader>
+          <div className="flex gap-4 text-sm">{(["email", "whatsapp"] as const).map((channel) => <label key={channel} className="flex items-center gap-2 capitalize"><input type="checkbox" checked={deliveryChannels.includes(channel)} onChange={() => setDeliveryChannels((channels) => channels.includes(channel) ? channels.filter((value) => value !== channel) : [...channels, channel])} />{channel}</label>)}</div>
+          <DialogFooter><Button variant="outline" onClick={() => setDeliveryOpen(null)}>Cancel</Button><Button disabled={!deliveryChannels.length || deliverBill.isPending} onClick={() => deliveryOpen && deliverBill.mutate({ billId: deliveryOpen.billId, channels: deliveryChannels }, { onSuccess: ({ results }) => { setDeliveryOpen(null); toast.success(results.map((result) => `${result.channel}: ${result.status}`).join(" · ")) }, onError: () => toast.error("Could not send bill") })}>{deliverBill.isPending ? "Sending..." : "Send bill"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!reminderOpen} onOpenChange={(open) => !open && setReminderOpen(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>Send payment reminder</DialogTitle><DialogDescription>Send {reminderOpen?.tenantName} an immediate reminder for this unpaid invoice.</DialogDescription></DialogHeader>
+          <div className="flex gap-4 text-sm">{(["email", "whatsapp"] as const).map((channel) => <label key={channel} className="flex items-center gap-2 capitalize"><input type="checkbox" checked={reminderChannels.includes(channel)} onChange={() => setReminderChannels((channels) => channels.includes(channel) ? channels.filter((value) => value !== channel) : [...channels, channel])} />{channel}</label>)}</div>
+          <DialogFooter><Button variant="outline" onClick={() => setReminderOpen(null)}>Cancel</Button><Button disabled={!reminderChannels.length || sendingReminder} onClick={sendImmediateReminder}>{sendingReminder ? "Sending..." : "Send reminder"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
