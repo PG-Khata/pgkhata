@@ -3,13 +3,17 @@
   "private": true,
   "packageManager": "pnpm@10.15.1",
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --filter=@pgkhata/api... --filter=web...",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint --filter=@pgkhata/api... --filter=web...",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "typecheck": "turbo run typecheck --filter=@pgkhata/api... --filter=web...",
+    "check-types": "pnpm typecheck",
+    "test": "turbo run test --filter=@pgkhata/api --filter=web"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "^9.39.5",
     "prettier": "3.7.3",
     "tsx": "^4.23.13",
     "turbo": "^2.10.12",

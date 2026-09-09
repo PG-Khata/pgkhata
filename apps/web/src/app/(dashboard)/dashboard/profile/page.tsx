@@ -3,7 +3,7 @@
 import { authClient, useSession } from "@/lib/auth-client"
 import { signOut } from "@/lib/auth-client"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState, Suspense } from "react"
+import { useState, Suspense } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,10 +50,6 @@ function ProfileContent() {
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" })
   const passwordOpen = searchParams.get("change-password") === "1"
-
-  useEffect(() => {
-    setName(session?.user.name ?? "")
-  }, [session?.user.name])
 
   async function handleSignOut() {
     await signOut()
@@ -178,7 +174,7 @@ function ProfileContent() {
           <div className="mb-4 flex items-center justify-between">
             <p className="text-sm font-medium">Account details</p>
             {!editingName && (
-              <Button variant="outline" size="sm" onClick={() => setEditingName(true)}>
+              <Button variant="outline" size="sm" onClick={() => { setName(user?.name ?? ""); setEditingName(true) }}>
                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 Edit name
               </Button>

@@ -3,6 +3,7 @@ import { db, notification, property } from "@pgkhata/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -38,20 +39,22 @@ function buildOwnerScopedWhere(
 // List notifications for a property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
     const propertyId = req.query.propertyId as string | undefined;
 
     const where = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
-    if (!where) return res.json([]);
+    if (!where) return sendPage(res, [], page);
 
     const rows = await db
       .select()
       .from(notification)
       .where(where)
       .orderBy(desc(notification.createdAt))
-      .limit(50);
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(rows);
+    sendPage(res, rows, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch notifications" });
   }

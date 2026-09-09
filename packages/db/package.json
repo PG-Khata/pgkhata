@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "migrate:check": "tsx scripts/validate-migrations.ts",
+    "migrate:deploy": "tsx scripts/migrate-deploy.ts",
     "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
     "backfill:owner-profiles": "tsx scripts/backfill-owner-profiles.ts",

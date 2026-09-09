@@ -73,6 +73,7 @@ export function occupiedDaysInReadingPeriod(
   joiningDate: Date | string,
   firstReadingDate: Date | string,
   secondReadingDate: Date | string,
+  vacatingDate?: Date | string | null,
 ): number {
   const joining = new Date(joiningDate).getTime();
   const first = new Date(firstReadingDate).getTime();
@@ -81,7 +82,35 @@ export function occupiedDaysInReadingPeriod(
     return 0;
   }
 
-  return Math.max(0, second - Math.max(first, joining)) / (24 * 60 * 60 * 1000);
+  const vacating = vacatingDate ? new Date(vacatingDate).getTime() : second;
+  const occupiedEnd = Number.isFinite(vacating) ? Math.min(second, vacating) : second;
+  return Math.max(0, occupiedEnd - Math.max(first, joining)) / (24 * 60 * 60 * 1000);
+}
+
+/** Integer allocation whose results always reconcile exactly to total. */
+export function allocateExactAmount<T extends { key: string; weight: number }>(
+  total: number,
+  shares: T[],
+): Map<string, number> {
+  const safeTotal = Math.max(0, Math.round(total));
+  const positive = shares.filter((share) => Number.isFinite(share.weight) && share.weight > 0);
+  const result = new Map(shares.map((share) => [share.key, 0]));
+  const totalWeight = positive.reduce((sum, share) => sum + share.weight, 0);
+  if (safeTotal === 0 || totalWeight === 0) return result;
+
+  const ranked = positive.map((share) => {
+    const exact = (safeTotal * share.weight) / totalWeight;
+    const base = Math.floor(exact);
+    result.set(share.key, base);
+    return { ...share, remainder: exact - base };
+  });
+  const remaining = safeTotal - [...result.values()].reduce((sum, value) => sum + value, 0);
+  ranked.sort((a, b) => b.remainder - a.remainder || a.key.localeCompare(b.key));
+  for (let index = 0; index < remaining; index += 1) {
+    const share = ranked[index % ranked.length]!;
+    result.set(share.key, (result.get(share.key) ?? 0) + 1);
+  }
+  return result;
 }
 
 /** Fraction of a calendar month's rent owed after a tenant moves in. */

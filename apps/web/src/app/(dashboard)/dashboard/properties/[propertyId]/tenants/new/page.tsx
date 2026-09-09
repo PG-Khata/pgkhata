@@ -30,6 +30,7 @@ const schema = z.object({
 })
 
 type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
 
 export default function NewTenantPage() {
   const params = useParams()
@@ -42,8 +43,8 @@ export default function NewTenantPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+  } = useForm<FormInput, unknown, FormData>({
+    resolver: zodResolver(schema),
     defaultValues: { joiningDate: new Date().toISOString().split("T")[0] },
   })
 
@@ -59,8 +60,8 @@ export default function NewTenantPage() {
         toast.success("Tenant added — approve them from the tenants list to assign a bed")
         router.push(`/dashboard/properties/${propertyId}/tenants`)
       },
-      onError: (err: any) => {
-        toast.error(err?.message || "Failed to add tenant")
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Failed to add tenant")
       },
     })
   }

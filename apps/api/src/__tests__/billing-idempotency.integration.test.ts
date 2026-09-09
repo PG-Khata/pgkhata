@@ -4,13 +4,14 @@ import request from "supertest";
 import { eq } from "drizzle-orm";
 import { db, user, ownerProfile, property, room, tenant, bill, payment } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
 /**
  * Task 2's demo criterion: running bill generation twice for the same month
  * leaves one bill per tenant, enforced by the database rather than by a
  * read-then-insert check the previous implementation relied on.
  */
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 const email = `billing-idem-${suffix}@pgkhata.test`;
@@ -22,14 +23,9 @@ let cookie: string[];
 
 describeDb("bill generation idempotency (database)", () => {
   beforeAll(async () => {
-    const signUp = await request(app)
-      .post("/api/auth/sign-up/email")
-      .send({ name: "Billing Idempotency", email, password });
-    expect(signUp.status).toBe(200);
-    cookie = signUp.headers["set-cookie"] as unknown as string[];
-
-    const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-    userId = created!.id;
+    const registered = await registerVerifiedUser(app, { name: "Billing Idempotency", email, password });
+    cookie = registered.cookie;
+    userId = registered.userId;
 
     const createProperty = await request(app)
       .post("/v1/properties")
@@ -51,7 +47,7 @@ describeDb("bill generation idempotency (database)", () => {
         name: "Idempotency Tenant",
         phone: `9${String(suffix).slice(-9)}`,
         roomId: createRoom.body.id,
-        joiningDate: new Date().toISOString(),
+        joiningDate: "2026-05-01T00:00:00.000Z",
       });
     expect(createTenant.status).toBe(201);
 
@@ -118,5 +114,29 @@ describeDb("bill generation idempotency (database)", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation error");
+  });
+
+  it("regenerates a voided bill as a linked revision without deleting the original", async () => {
+    const [original] = await db.select().from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .where(eq(tenant.propertyId, propertyId));
+    const voided = await request(app)
+      .delete(`/v1/properties/${propertyId}/bills/${original!.bill.id}`)
+      .set("Cookie", cookie);
+    expect(voided.status).toBe(200);
+
+    const regenerated = await request(app)
+      .post(`/v1/properties/${propertyId}/bills/generate`)
+      .set("Cookie", cookie)
+      .send({ month: "2026-05" });
+    expect(regenerated.status).toBe(201);
+    expect(regenerated.body.generated).toBe(1);
+    expect(regenerated.body.bills[0]).toMatchObject({
+      revision: 2,
+      supersedesBillId: original!.bill.id,
+    });
+    const history = await db.select().from(bill).where(eq(bill.tenantId, original!.tenant.id));
+    expect(history).toHaveLength(2);
+    expect(history.find((row) => row.id === original!.bill.id)!.voidedAt).not.toBeNull();
   });
 });

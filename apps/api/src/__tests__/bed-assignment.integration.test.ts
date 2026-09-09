@@ -1,11 +1,22 @@
 import "dotenv/config";
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { eq, inArray } from "drizzle-orm";
-import { db, user, ownerProfile, property, room, bed, tenant } from "@pgkhata/db";
+import { db, user, ownerProfile, property, room, bed, tenant, occupancyHistory } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+vi.mock("../lib/r2-storage", () => ({
+  isR2Configured: () => true,
+  uploadToR2: vi.fn(async () => ({
+    url: "https://test.invalid/document",
+    key: `kyc/test/${crypto.randomUUID()}`,
+    size: 4,
+  })),
+  deleteFromR2: vi.fn(async () => undefined),
+}));
+
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -28,20 +39,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `assign-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Assign ${label}`, email, password: "assign-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Assign ${label}`, email, password: "assign-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Assign PG ${label} ${suffix}` });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -262,6 +269,11 @@ describeDb("bed assignment (database)", () => {
 
     const after = await bedsOfRoom(alice, tripleRoomId);
     expect(after.find((b) => b.number === "C")!.status).toBe("vacant");
+    const history = await db.select().from(occupancyHistory)
+      .where(eq(occupancyHistory.tenantId, mover.id));
+    expect(history).toHaveLength(2);
+    expect(history.filter((period) => period.endedOn === null)).toHaveLength(1);
+    expect(history.find((period) => period.endedOn !== null)?.bedId).toBe(bedC.id);
   });
 
   it("releases the bed on vacate and is idempotent", async () => {
@@ -286,6 +298,10 @@ describeDb("bed assignment (database)", () => {
       .set("Cookie", alice.cookie);
     expect(second.status).toBe(200);
     expect(second.body.freedBedId).toBeNull();
+    const history = await db.select().from(occupancyHistory)
+      .where(eq(occupancyHistory.tenantId, holder.id));
+    expect(history.filter((period) => period.endedOn === null)).toHaveLength(0);
+    expect(history.at(-1)?.endedOn).not.toBeNull();
   });
 
   it("frees the bed when a tenant is marked vacated", async () => {
@@ -393,14 +409,34 @@ describeDb("bed assignment (database)", () => {
     // both pending signups succeed even though the room holds one bed.
     const first = await request(app)
       .post(`/public/signup/${token}`)
-      .send({ name: "Public One", phone: nextPhone(), roomId });
+      .send({
+        name: "Public One",
+        phone: nextPhone(),
+        roomId,
+        documents: [{
+          type: "other",
+          fileName: "proof.png",
+          fileBase64: "iVBORw0KGgo=",
+          contentType: "image/png",
+        }],
+      });
     expect(first.status).toBe(201);
     expect(first.body.tenant.status).toBe("pending");
     expect(first.body.tenant.bedId).toBeNull();
 
     const second = await request(app)
       .post(`/public/signup/${token}`)
-      .send({ name: "Public Two", phone: nextPhone(), roomId });
+      .send({
+        name: "Public Two",
+        phone: nextPhone(),
+        roomId,
+        documents: [{
+          type: "other",
+          fileName: "proof.png",
+          fileBase64: "iVBORw0KGgo=",
+          contentType: "image/png",
+        }],
+      });
     expect(second.status).toBe(201);
     expect(second.body.tenant.status).toBe("pending");
 

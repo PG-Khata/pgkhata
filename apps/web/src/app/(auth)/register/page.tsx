@@ -44,9 +44,8 @@ export default function RegisterPage() {
       if (result.error) {
         toast.error(result.error.message || "Registration failed")
       } else {
-        // Create owner profile via API
-        toast.success("Account created")
-        router.push("/dashboard")
+        toast.success("Account created. Check your email for the verification code.")
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
       }
     } catch {
       toast.error("Something went wrong")

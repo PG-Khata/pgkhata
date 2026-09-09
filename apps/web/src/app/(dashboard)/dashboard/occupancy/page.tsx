@@ -449,7 +449,7 @@ export default function OccupancyPage() {
           <DialogHeader>
             <DialogTitle>Check out tenant</DialogTitle>
             <DialogDescription>
-              Release {checkoutTenant?.name}'s bed. The tenant will be marked as vacated.
+              Release {checkoutTenant?.name}’s bed. The tenant will be marked as vacated.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

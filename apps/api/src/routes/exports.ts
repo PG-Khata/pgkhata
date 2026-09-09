@@ -5,6 +5,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 
 const router = Router({ mergeParams: true });
+const MAX_EXPORT_ROWS = 10_000;
 
 router.use(requireAuth, requireOwner, requireProperty);
 
@@ -36,7 +37,12 @@ router.get("/tenants", async (req: AuthenticatedRequest, res) => {
       .from(tenant)
       .leftJoin(room, eq(tenant.roomId, room.id))
       .leftJoin(bed, eq(tenant.bedId, bed.id))
-      .where(eq(tenant.propertyId, req.propertyId!));
+      .where(eq(tenant.propertyId, req.propertyId!))
+      .limit(MAX_EXPORT_ROWS + 1);
+
+    if (tenants.length > MAX_EXPORT_ROWS) {
+      return res.status(413).json({ error: `Export exceeds ${MAX_EXPORT_ROWS} rows` });
+    }
 
     const csv = toCsv(
       ["Name", "Phone", "Email", "Status", "Room", "Bed", "Joining Date"],
@@ -70,7 +76,12 @@ router.get("/expenses", async (req: AuthenticatedRequest, res) => {
         status: expense.status,
       })
       .from(expense)
-      .where(eq(expense.propertyId, req.propertyId!));
+      .where(eq(expense.propertyId, req.propertyId!))
+      .limit(MAX_EXPORT_ROWS + 1);
+
+    if (expenses.length > MAX_EXPORT_ROWS) {
+      return res.status(413).json({ error: `Export exceeds ${MAX_EXPORT_ROWS} rows` });
+    }
 
     const csv = toCsv(
       ["Date", "Amount", "Description", "Status"],

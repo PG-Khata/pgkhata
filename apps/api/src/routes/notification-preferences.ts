@@ -79,7 +79,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to set notification preference" });
   }

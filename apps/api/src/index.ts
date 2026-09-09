@@ -4,7 +4,9 @@ import cors from "cors";
 import pino from "pino";
 import { randomUUID } from "crypto";
 import { auth } from "@pgkhata/auth";
+import { pool } from "@pgkhata/db";
 import { HttpError } from "./lib/http";
+import { validatePaginationQuery } from "./lib/pagination";
 import propertiesRouter from "./routes/properties";
 import floorsRouter from "./routes/floors";
 import rentPlansRouter from "./routes/rent-plans";
@@ -66,6 +68,7 @@ app.use(
 
 // Body parsing - needed for auth
 app.use(express.json({ limit: "10mb" }));
+app.use(validatePaginationQuery);
 
 // Mount Better Auth - use the handler as Express middleware
 app.use(async (req, res, next) => {
@@ -134,19 +137,32 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/ready", async (req, res) => {
-  // TODO: Check database and Redis connectivity
-  res.json({ status: "ready", timestamp: new Date().toISOString() });
+  try {
+    await Promise.race([
+      pool.query("select 1"),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Database readiness timeout")), 2_000)),
+    ]);
+    res.json({ status: "ready", timestamp: new Date().toISOString() });
+  } catch (error) {
+    logger.warn({ err: error, requestId: req.headers["x-request-id"] }, "Readiness check failed");
+    res.status(503).json({ status: "not_ready", timestamp: new Date().toISOString() });
+  }
 });
 
 // Protected endpoint example
 app.get("/v1/me", async (req, res) => {
-  const session = await auth.api.getSession({
-    headers: req.headers as Record<string, string>,
-  });
-  if (!session) {
-    return res.status(401).json({ error: "Unauthorized" });
+  try {
+    const session = await auth.api.getSession({
+      headers: req.headers as Record<string, string>,
+    });
+    if (!session) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    res.json({ user: session.user, session: session.session });
+  } catch (error) {
+    logger.warn({ err: error, requestId: req.headers["x-request-id"] }, "Session lookup failed");
+    res.status(503).json({ error: "Authentication service temporarily unavailable" });
   }
-  res.json({ user: session.user, session: session.session });
 });
 
 // API routes
@@ -186,8 +202,14 @@ app.use("/v1/admin", adminRouter);
 app.use("/public", publicRouter);
 
 // Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const status = err instanceof HttpError ? err.status : 500;
+app.use((err: Error & { type?: string; status?: number }, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const status = err instanceof HttpError
+    ? err.status
+    : err.type === "entity.too.large" || err.status === 413
+      ? 413
+      : err.type === "entity.parse.failed" || (err instanceof SyntaxError && err.status === 400)
+        ? 400
+        : 500;
 
   if (status >= 500) {
     logger.error({ err, requestId: req.headers["x-request-id"] });
@@ -196,7 +218,13 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   }
 
   res.status(status).json({
-    error: status >= 500 ? "Internal Server Error" : err.message,
+    error: status === 413
+      ? "Request body is too large"
+      : status === 400
+        ? "Malformed JSON request body"
+        : status >= 500
+          ? "Internal Server Error"
+          : err.message,
     ...(err instanceof HttpError && err.details ? { details: err.details } : {}),
     requestId: req.headers["x-request-id"],
   });

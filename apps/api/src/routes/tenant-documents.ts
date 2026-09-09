@@ -4,17 +4,19 @@ import { db, tenantDocument, tenant } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
-import { param } from "../lib/http";
+import { HttpError, param } from "../lib/http";
+import { validateDocumentUpload } from "../lib/document-upload";
 import { uploadToR2, deleteFromR2, isR2Configured } from "../lib/r2-storage";
+import { pagination, sendPage } from "../lib/pagination";
+import { presentPrivateDocument } from "../lib/private-document";
 
 const router = Router({ mergeParams: true });
 
 const uploadSchema = z.object({
   type: z.enum(["aadhaar", "pan", "passport", "driving_license", "other"]),
-  fileName: z.string().min(1),
-  fileUrl: z.string().url().optional(), // Direct URL if not using R2
-  fileBase64: z.string().optional(), // Base64 encoded file for R2 upload
-  contentType: z.string().optional(),
+  fileName: z.string().min(1).max(255),
+  fileBase64: z.string().min(1),
+  contentType: z.string().min(1).max(100),
 });
 
 router.use(requireAuth, requireOwner, requireProperty);
@@ -22,6 +24,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 // Get documents for a tenant
 router.get("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const tenantId = param(req, "tenantId");
 
     const [t] = await db
@@ -35,9 +38,11 @@ router.get("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
     const documents = await db
       .select()
       .from(tenantDocument)
-      .where(eq(tenantDocument.tenantId, tenantId));
+      .where(eq(tenantDocument.tenantId, tenantId))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(documents);
+    sendPage(res, await Promise.all(documents.map((doc) => presentPrivateDocument(doc))), page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch documents" });
   }
@@ -57,36 +62,39 @@ router.post("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
 
     if (!t) return res.status(404).json({ error: "Tenant not found" });
 
-    let fileUrl = body.fileUrl || "";
-    let fileSize: number | null = null;
+    if (!isR2Configured()) throw new HttpError(503, "Document storage is temporarily unavailable");
+    const validated = validateDocumentUpload(body);
+    const result = await uploadToR2(
+      `kyc/${tenantId}`,
+      body.fileName,
+      validated.buffer,
+      validated.contentType,
+      validated.extension,
+    );
 
-    // If R2 is configured and base64 is provided, upload to R2
-    if (isR2Configured() && body.fileBase64) {
-      const buffer = Buffer.from(body.fileBase64, "base64");
-      const contentType = body.contentType || "application/octet-stream";
-      const result = await uploadToR2(`kyc/${tenantId}`, body.fileName, buffer, contentType);
-      fileUrl = result.url;
-      fileSize = result.size;
-    } else if (!fileUrl) {
-      return res.status(400).json({ error: "Either fileUrl or fileBase64 with R2 config required" });
+    let created: typeof tenantDocument.$inferSelect | undefined;
+    try {
+      [created] = await db.insert(tenantDocument).values({
+          tenantId,
+          type: body.type,
+          fileName: body.fileName,
+          fileUrl: "private",
+          storageKey: result.key,
+          contentType: validated.contentType,
+          fileSize: result.size,
+        }).returning();
+    } catch (error) {
+      await deleteFromR2(result.key).catch(() => undefined);
+      throw error;
     }
+    if (!created) throw new Error("Document insert returned no row");
 
-    const [created] = await db
-      .insert(tenantDocument)
-      .values({
-        tenantId,
-        type: body.type,
-        fileName: body.fileName,
-        fileUrl,
-        fileSize,
-      })
-      .returning();
-
-    res.status(201).json(created);
+    res.status(201).json(await presentPrivateDocument(created));
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
+    if (error instanceof HttpError) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: "Failed to upload document" });
   }
 });
@@ -106,10 +114,9 @@ router.delete("/:documentId", async (req: AuthenticatedRequest, res) => {
     if (!doc) return res.status(404).json({ error: "Document not found" });
 
     // Try to delete from R2 if configured
-    if (isR2Configured() && doc.tenant_document.fileUrl.includes("r2")) {
+    if (isR2Configured() && doc.tenant_document.storageKey) {
       try {
-        const key = doc.tenant_document.fileUrl.split("/").slice(-3).join("/");
-        await deleteFromR2(key);
+        await deleteFromR2(doc.tenant_document.storageKey);
       } catch {
         // Ignore R2 deletion errors - document record will still be deleted
       }

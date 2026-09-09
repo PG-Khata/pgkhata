@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
-import { useBookings, useCreateBooking, useCancelBooking, useConvertBooking, useUpdateBooking, useDeleteBooking } from "@/hooks/use-bookings"
+import { useBookings, useCreateBooking, useCancelBooking, useConvertBooking, useUpdateBooking, useDeleteBooking, type BedBooking } from "@/hooks/use-bookings"
 import { useBeds } from "@/hooks/use-beds"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { Button } from "@/components/ui/button"
@@ -44,7 +44,7 @@ export default function BookingsPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>("active")
   const [reserveOpen, setReserveOpen] = useState(false)
-  const [editBooking, setEditBooking] = useState<any>(null)
+  const [editBooking, setEditBooking] = useState<BedBooking | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: "cancel" | "delete"; id: string; name: string } | null>(null)
   const [form, setForm] = useState({
     bedId: "",
@@ -118,7 +118,7 @@ export default function BookingsPage() {
     }
   }
 
-  function openEdit(b: any) {
+  function openEdit(b: BedBooking) {
     setEditBooking(b)
   }
 
@@ -130,7 +130,7 @@ export default function BookingsPage() {
         data: {
           tenantName: editBooking.tenantName,
           tenantPhone: editBooking.tenantPhone,
-          notes: editBooking.notes,
+          notes: editBooking.notes ?? undefined,
         },
       },
       {

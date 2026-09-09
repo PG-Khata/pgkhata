@@ -20,6 +20,23 @@ export function passwordResetEmail(url: string): string {
   `;
 }
 
+export function emailVerificationOtpEmail(otp: string): string {
+  return `
+    <div style="font-family: ${FONT_STACK}; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 8px;">Verify your email</h2>
+      <p style="font-size: 14px; color: #52525b; margin: 0 0 20px;">
+        Enter this one-time code to verify your PGKhata account. It expires in 5 minutes.
+      </p>
+      <div style="font-size: 28px; font-weight: 700; letter-spacing: 8px; padding: 16px; background: #f4f4f5; border-radius: 8px; text-align: center;">
+        ${escapeHtml(otp)}
+      </div>
+      <p style="font-size: 12px; color: #a1a1aa; margin: 20px 0 0;">
+        If you did not request this code, you can ignore this email.
+      </p>
+    </div>
+  `;
+}
+
 export function billReminderEmail({
   tenantName,
   propertyName,

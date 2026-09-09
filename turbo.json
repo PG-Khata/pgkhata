@@ -1,17 +1,44 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "APP_URL",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "CORS_ORIGIN",
+    "DATABASE_URL",
+    "DB_SSL_MODE",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "NODE_ENV",
+    "PORT",
+    "PUBLIC_APP_URL",
+    "R2_ACCESS_KEY_ID",
+    "R2_ACCOUNT_ID",
+    "R2_BUCKET_NAME",
+    "R2_SECRET_ACCESS_KEY",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "TEST_DATABASE_URL",
+    "WHATSAPP_ACCESS_TOKEN",
+    "WHATSAPP_BUSINESS_ACCOUNT_ID",
+    "WHATSAPP_HEADER_IMAGE_URL",
+    "WHATSAPP_PHONE_NUMBER_ID"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
     },
-    "check-types": {
-      "dependsOn": ["^check-types"]
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "cache": false
     },
     "dev": {
       "cache": false,

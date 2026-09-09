@@ -458,7 +458,7 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
           <DialogHeader>
             <DialogTitle>Electricity rate</DialogTitle>
             <DialogDescription>
-              Set the per-unit rate for electricity billing. This is used when generating bills to calculate each tenant's share.
+              Set the per-unit rate for electricity billing. This is used when generating bills to calculate each tenant’s share.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -473,7 +473,7 @@ function ReadingsContent({ propertyId, propertyName }: { propertyId: string; pro
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">How it works</p>
-              <p className="mt-1">When bills are generated, each tenant's electricity charge is calculated as:</p>
+              <p className="mt-1">When bills are generated, each tenant’s electricity charge is calculated as:</p>
               <p className="mt-1 font-mono">(units consumed × rate) ÷ occupants in room</p>
               <p className="mt-1">Example: 100 units at ₹8/unit with 2 tenants in the room = ₹400 each.</p>
             </div>

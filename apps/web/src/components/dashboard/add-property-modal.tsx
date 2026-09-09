@@ -48,7 +48,7 @@ export function AddPropertyModal({ open, onOpenChange }: AddPropertyModalProps) 
     reset,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema),
   })
 
   function onSubmit(data: FormData) {

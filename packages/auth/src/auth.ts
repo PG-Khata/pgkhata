@@ -1,10 +1,16 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { emailOTP } from "better-auth/plugins";
 import { db } from "@pgkhata/db";
-import { sendEmail, passwordResetEmail } from "@pgkhata/email";
+import { sendEmail, passwordResetEmail, emailVerificationOtpEmail } from "@pgkhata/email";
 import { ensureOwnerProfile, type OwnerProfileWriter } from "./owner-profile";
+import { authEnvironmentPolicy } from "./security-policy";
 
-const isProduction = process.env.NODE_ENV === "production";
+const isTest = process.env.NODE_ENV === "test";
+const environmentPolicy = authEnvironmentPolicy({
+  nodeEnv: process.env.NODE_ENV,
+  corsOrigin: process.env.CORS_ORIGIN,
+});
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -12,6 +18,8 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       await sendEmail({
         to: user.email,
@@ -33,22 +41,41 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // 1 day
   },
-  trustedOrigins: [
-    process.env.CORS_ORIGIN || "http://localhost:3000",
-    "https://pgkhata-web.onrender.com",
-    "http://localhost:3000",
-  ],
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
-  cookies: {
-    sessionToken: {
-      // Secure, cross-site cookies are needed when the web and API apps are
-      // deployed on Render. Localhost must use a host-only, non-secure cookie.
-      name: isProduction ? "__Secure-better-auth.session_token" : "better-auth.session_token",
-      attributes: {
-        sameSite: isProduction ? "none" : "lax",
-        secure: isProduction,
-        ...(isProduction ? { domain: ".onrender.com" } : {}),
+  plugins: [
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 300,
+      allowedAttempts: 3,
+      storeOTP: "hashed",
+      sendVerificationOnSignUp: true,
+      overrideDefaultEmailVerification: true,
+      rateLimit: { window: 60, max: 3 },
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type !== "email-verification") return;
+        await sendEmail({
+          to: email,
+          subject: "Verify your PGKhata email",
+          html: emailVerificationOtpEmail(otp),
+        });
       },
+    }),
+  ],
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    window: 60,
+    max: isTest ? 10_000 : 100,
+    customRules: {
+      "/sign-in/email": { window: 15 * 60, max: 5 },
+      "/request-password-reset": { window: 15 * 60, max: 3 },
+    },
+  },
+  trustedOrigins: environmentPolicy.trustedOrigins,
+  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
+  advanced: {
+    defaultCookieAttributes: environmentPolicy.cookieAttributes,
+    ipAddress: {
+      ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
     },
   },
 });

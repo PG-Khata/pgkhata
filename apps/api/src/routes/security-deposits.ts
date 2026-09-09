@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { issueRefund, summarizeLiability } from "../lib/security-deposit";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -36,14 +37,17 @@ async function ownedTenant(propertyId: string, tenantId: string) {
 // List every deposit for the property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const deposits = await db
       .select({ deposit: securityDeposit, tenantName: tenant.name })
       .from(securityDeposit)
       .innerJoin(tenant, eq(securityDeposit.tenantId, tenant.id))
       .where(eq(securityDeposit.propertyId, req.propertyId!))
-      .orderBy(desc(securityDeposit.createdAt));
+      .orderBy(desc(securityDeposit.createdAt))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(deposits);
+    sendPage(res, deposits, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch security deposits" });
   }
@@ -111,7 +115,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to record security deposit" });
   }
@@ -156,7 +160,7 @@ router.post("/:depositId/refund", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to issue refund" });
   }

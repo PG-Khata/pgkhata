@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { decideExpense, summarizeExpenses } from "../lib/expenses";
+import { pagination, sendPage } from "../lib/pagination";
 
 /** Walks a wrapped driver error's cause chain to find the Postgres SQLSTATE code. */
 function pgErrorCode(error: unknown): string | undefined {
@@ -45,13 +46,16 @@ async function ownedCategory(propertyId: string, categoryId: string) {
 
 router.get("/categories", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const categories = await db
       .select()
       .from(expenseCategory)
       .where(eq(expenseCategory.propertyId, req.propertyId!))
-      .orderBy(expenseCategory.name);
+      .orderBy(expenseCategory.name)
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(categories);
+    sendPage(res, categories, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch expense categories" });
   }
@@ -69,7 +73,7 @@ router.post("/categories", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (pgErrorCode(error) === "23505") {
       return res.status(409).json({ error: "A category with this name already exists" });
@@ -99,14 +103,17 @@ router.delete("/categories/:categoryId", async (req: AuthenticatedRequest, res) 
 
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const rows = await db
       .select({ expense, categoryName: expenseCategory.name })
       .from(expense)
       .innerJoin(expenseCategory, eq(expense.categoryId, expenseCategory.id))
       .where(eq(expense.propertyId, req.propertyId!))
-      .orderBy(desc(expense.date));
+      .orderBy(desc(expense.date))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(rows);
+    sendPage(res, rows, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch expenses" });
   }
@@ -155,7 +162,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to record expense" });
   }

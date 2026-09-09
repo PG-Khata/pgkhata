@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { BED_STATUSES } from "../lib/beds";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -35,6 +36,7 @@ function bedInProperty(propertyId: string, bedId: string) {
 /** All beds in the property, with their room and floor for display. */
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const beds = await db
       .select({
         bed: bed,
@@ -47,9 +49,11 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .innerJoin(room, eq(bed.roomId, room.id))
       .leftJoin(floor, eq(room.floorId, floor.id))
       .where(eq(room.propertyId, req.propertyId!))
-      .orderBy(asc(floor.position), asc(room.number), asc(bed.number));
+      .orderBy(asc(floor.position), asc(room.number), asc(bed.number))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(beds);
+    sendPage(res, beds, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch beds" });
   }
@@ -58,6 +62,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 /** Beds available for assignment. Maintenance beds are deliberately excluded. */
 router.get("/vacant", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const beds = await db
       .select({
         bed: bed,
@@ -70,9 +75,11 @@ router.get("/vacant", async (req: AuthenticatedRequest, res) => {
       .innerJoin(room, eq(bed.roomId, room.id))
       .leftJoin(floor, eq(room.floorId, floor.id))
       .where(and(eq(room.propertyId, req.propertyId!), eq(bed.status, "vacant")))
-      .orderBy(asc(floor.position), asc(room.number), asc(bed.number));
+      .orderBy(asc(floor.position), asc(room.number), asc(bed.number))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(beds);
+    sendPage(res, beds, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch vacant beds" });
   }
@@ -117,7 +124,7 @@ router.patch("/:bedId/status", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update bed status" });
   }
@@ -141,7 +148,7 @@ router.put("/:bedId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update bed" });
   }

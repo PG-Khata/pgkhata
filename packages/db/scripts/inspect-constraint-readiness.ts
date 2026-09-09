@@ -1,100 +1,80 @@
-/**
- * Reports whether the live database can accept the Task 2 constraints.
- *
- * Adding a unique index fails outright if duplicates already exist, which is
- * exactly what happened in the legacy Supabase schema — one migration had to
- * delete duplicate bills before `bills_tenant_month_unique` would apply
- * (see data-points/Database.md). Read before writing.
- *
- *   pnpm --filter @pgkhata/db inspect:constraints
- */
-import "dotenv/config";
-import { sql } from "drizzle-orm";
-import { db, pool } from "../src/index";
+/** Read-only, count-only gate for migrations 0023-0025. It never prints row data. */
+import { resolve } from "node:path";
+import { config } from "dotenv";
+import { Pool, type PoolClient } from "pg";
+import { databaseSslConfig } from "../src/tls";
 
-async function main() {
-  const counts = await db.execute(sql`
-    select
-      (select count(*)::int from "user")            as users,
-      (select count(*)::int from owner_profile)     as owner_profiles,
-      (select count(*)::int from property)          as properties,
-      (select count(*)::int from floor)             as floors,
-      (select count(*)::int from room)              as rooms,
-      (select count(*)::int from bed)               as beds,
-      (select count(*)::int from tenant)            as tenants,
-      (select count(*)::int from bill)              as bills,
-      (select count(*)::int from payment)           as payments,
-      (select count(*)::int from electricity_reading) as readings,
-      (select count(*)::int from complaint)         as complaints
-  `);
-  console.log("Row counts:", counts.rows[0]);
+const envFile = process.env.MIGRATION_ENV_FILE ?? ".env";
+config({ path: resolve(import.meta.dirname, "../../../", envFile) });
 
-  // A room without beds reads as zero capacity and drags occupancy down.
-  const bedlessRooms = await db.execute(sql`
-    select r.id, r.number, r.capacity
-    from room r
-    where not exists (select 1 from bed b where b.room_id = r.id)
-  `);
-  console.log(`\nRooms with no beds: ${bedlessRooms.rows.length}`);
-  for (const row of bedlessRooms.rows) console.log("  ", row);
+type Check = { name: string; query: string; requires?: string };
 
-  const bedCountMismatch = await db.execute(sql`
-    select r.number, r.capacity, count(b.id)::int as beds
-    from room r
-    left join bed b on b.room_id = r.id
-    group by r.id, r.number, r.capacity
-    having count(b.id) <> r.capacity
-  `);
-  console.log(`\nRooms whose bed count differs from capacity: ${bedCountMismatch.rows.length}`);
-  for (const row of bedCountMismatch.rows) console.log("  ", row);
+const checks: Check[] = [
+  { name: "tenant_room_property", query: "select count(*)::int as count from tenant t join room r on r.id=t.room_id where t.property_id<>r.property_id" },
+  { name: "tenant_requested_room_property", query: "select count(*)::int as count from tenant t join room r on r.id=t.requested_room_id where t.property_id<>r.property_id" },
+  { name: "tenant_bed_room", query: "select count(*)::int as count from tenant t join bed b on b.id=t.bed_id where t.room_id is distinct from b.room_id" },
+  { name: "tenant_bed_active", query: "select count(*)::int as count from tenant where bed_id is not null and (room_id is null or status<>'active')" },
+  { name: "room_floor_property", query: "select count(*)::int as count from room r join floor f on f.id=r.floor_id where r.property_id<>f.property_id" },
+  { name: "room_rent_plan_property", query: "select count(*)::int as count from room r join rent_plan p on p.id=r.rent_plan_id where r.property_id<>p.property_id" },
+  { name: "expense_category_property", query: "select count(*)::int as count from expense e join expense_category c on c.id=e.category_id where e.property_id<>c.property_id" },
+  { name: "deposit_tenant_property", query: "select count(*)::int as count from security_deposit d join tenant t on t.id=d.tenant_id where d.property_id<>t.property_id" },
+  { name: "complaint_tenant_property", query: "select count(*)::int as count from complaint c join tenant t on t.id=c.tenant_id where c.property_id<>t.property_id" },
+  { name: "permission_staff_property", query: "select count(*)::int as count from module_permission m join staff s on s.id=m.staff_id where m.property_id<>s.property_id" },
+  { name: "duplicate_billing_policy", query: "select count(*)::int as count from (select 1 from billing_policy group by property_id having count(*)>1) x" },
+  { name: "duplicate_notification_preference", query: "select count(*)::int as count from (select 1 from notification_preference group by property_id,event_type having count(*)>1) x" },
+  { name: "duplicate_module_permission", query: "select count(*)::int as count from (select 1 from module_permission group by property_id,staff_id,module having count(*)>1) x" },
+  { name: "duplicate_property_amenity", query: "select count(*)::int as count from (select 1 from property_amenity group by property_id,lower(btrim(name)) having count(*)>1) x" },
+  { name: "duplicate_electricity_reading", query: "select count(*)::int as count from (select 1 from electricity_reading group by room_id,reading_date having count(*)>1) x" },
+  { name: "duplicate_open_bed_occupancy", requires: "occupancy_history", query: "select count(*)::int as count from (select 1 from occupancy_history where ended_on is null group by bed_id having count(*)>1) x" },
+  { name: "invalid_bill_amounts", query: "select count(*)::int as count from bill where total_amount<0 or paid_amount<0 or paid_amount>total_amount" },
+  { name: "non_positive_payments", query: "select count(*)::int as count from payment where amount<=0" },
+];
 
-  const dupBills = await db.execute(sql`
-    select tenant_id, bill_month, count(*)::int as copies
-    from bill
-    group by tenant_id, bill_month
-    having count(*) > 1
-    order by copies desc
-  `);
-  console.log(`\nDuplicate (tenant_id, bill_month) groups: ${dupBills.rows.length}`);
-  for (const row of dupBills.rows) console.log("  ", row);
-
-  const dupRooms = await db.execute(sql`
-    select property_id, number, count(*)::int as copies
-    from room
-    group by property_id, number
-    having count(*) > 1
-    order by copies desc
-  `);
-  console.log(`\nDuplicate (property_id, number) room groups: ${dupRooms.rows.length}`);
-  for (const row of dupRooms.rows) console.log("  ", row);
-
-  // Rows that would violate the amounts invariant once CHECKs arrive later.
-  const badAmounts = await db.execute(sql`
-    select count(*)::int as bad
-    from bill
-    where total_amount < 0 or paid_amount < 0 or paid_amount > total_amount
-  `);
-  console.log(`\nBills violating paid <= total: ${(badAmounts.rows[0] as { bad: number }).bad}`);
-
-  // paid_amount must equal SUM(payments) for the ledger to be the source of truth.
-  const drift = await db.execute(sql`
-    select b.id, b.paid_amount, coalesce(sum(p.amount), 0)::int as ledger
-    from bill b
-    left join payment p on p.bill_id = b.id
-    group by b.id, b.paid_amount
-    having b.paid_amount <> coalesce(sum(p.amount), 0)
-  `);
-  console.log(`\nBills whose paid_amount disagrees with the payment ledger: ${drift.rows.length}`);
-  for (const row of drift.rows) console.log("  ", row);
+async function relationExists(client: PoolClient, relation: string) {
+  const result = await client.query<{ exists: string | null }>(
+    "select to_regclass($1)::text as exists",
+    [`public.${relation}`],
+  );
+  return Boolean(result.rows[0]?.exists);
 }
 
-main()
-  .then(async () => {
-    await pool.end();
-    process.exit(0);
-  })
-  .catch(async (error) => {
-    console.error("Inspection failed:", error);
-    await pool.end();
-    process.exit(1);
+async function main() {
+  const connectionString = process.env.DATABASE_URL ?? process.env.TEST_DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL is required for readiness inspection");
+  const pool = new Pool({
+    connectionString,
+    ssl: databaseSslConfig({
+      databaseUrl: connectionString,
+      nodeEnv: process.env.NODE_ENV,
+      sslMode: process.env.DB_SSL_MODE,
+    }),
   });
+  const client = await pool.connect();
+  let failures = 0;
+  try {
+    await client.query("begin read only");
+    for (const check of checks) {
+      if (check.requires && !(await relationExists(client, check.requires))) {
+        console.log(`${check.name}: SKIP (created by a pending migration)`);
+        continue;
+      }
+      const result = await client.query<{ count: number }>(check.query);
+      const count = Number(result.rows[0]?.count ?? 0);
+      console.log(`${check.name}: ${count === 0 ? "PASS" : `FAIL (${count})`}`);
+      if (count !== 0) failures += 1;
+    }
+    await client.query("rollback");
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
+  if (failures) throw new Error(`${failures} constraint-readiness check(s) failed`);
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "Readiness inspection failed");
+  process.exitCode = 1;
+});

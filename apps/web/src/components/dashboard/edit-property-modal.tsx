@@ -45,7 +45,7 @@ interface EditPropertyModalProps {
 export function EditPropertyModal({ property, open, onOpenChange }: EditPropertyModalProps) {
   const updateProperty = useUpdateProperty(property?.id ?? "")
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema),
   })
 
   useEffect(() => {

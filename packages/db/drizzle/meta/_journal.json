@@ -162,6 +162,27 @@
       "when": 1788860000000,
       "tag": "0022_meter_safe_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788861204339,
+      "tag": "0023_gray_spencer_smythe",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788940392364,
+      "tag": "0024_wild_dark_phoenix",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788984651702,
+      "tag": "0025_secret_gauntlet",
+      "breakpoints": true
     }
   ]
 }

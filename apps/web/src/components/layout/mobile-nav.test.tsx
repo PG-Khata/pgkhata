@@ -70,15 +70,17 @@ describe("mobile navigation", () => {
     }
   })
 
-  it("marks unshipped sections as disabled rather than linking to a 404", async () => {
+  it("keeps Payments available as a shipped destination", async () => {
     const user = userEvent.setup()
     renderShell()
 
     await user.click(screen.getByRole("button", { name: "More navigation" }))
     const dialog = await screen.findByRole("dialog")
 
-    expect(within(dialog).queryByRole("link", { name: "Payments" })).toBeNull()
-    expect(within(dialog).getByText("Payments").closest("[aria-disabled]")).toBeTruthy()
+    expect(within(dialog).getByRole("link", { name: "Payments" })).toHaveAttribute(
+      "href",
+      "/dashboard/payments",
+    )
   })
 
   it("marks only the current section in the bottom bar", () => {

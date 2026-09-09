@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   db,
   user,
@@ -24,7 +24,7 @@ import {
  *
  * Runs only when DATABASE_URL is present.
  */
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let userId: string;
@@ -34,6 +34,23 @@ let roomId: string;
 let tenantId: string;
 
 describeDb("schema guardrails (database)", () => {
+  it("stores business calendar fields as date and true instants as timestamptz", async () => {
+    const result = await db.execute<{ table_name: string; column_name: string; data_type: string }>(sql`
+      select table_name, column_name, data_type
+      from information_schema.columns
+      where table_schema = 'public' and (table_name, column_name) in (
+        ('electricity_reading', 'reading_date'),
+        ('bill', 'due_date'),
+        ('payment', 'payment_date'),
+        ('bill', 'created_at')
+      )
+    `);
+    const types = new Map(result.rows.map((row) => [`${row.table_name}.${row.column_name}`, row.data_type]));
+    expect(types.get("electricity_reading.reading_date")).toBe("date");
+    expect(types.get("bill.due_date")).toBe("date");
+    expect(types.get("payment.payment_date")).toBe("date");
+    expect(types.get("bill.created_at")).toBe("timestamp with time zone");
+  });
   beforeAll(async () => {
     userId = `guardrail-user-${suffix}`;
     await db.insert(user).values({
@@ -113,7 +130,7 @@ describeDb("schema guardrails (database)", () => {
         totalAmount: 6500,
         balance: 6500,
       }),
-      { code: PG_UNIQUE_VIOLATION, constraint: "bill_tenant_month_uq" },
+      { code: PG_UNIQUE_VIOLATION, constraint: "bill_tenant_month_revision_uq" },
     );
   });
 

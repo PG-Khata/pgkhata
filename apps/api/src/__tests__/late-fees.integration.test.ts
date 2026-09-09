@@ -15,8 +15,9 @@ import {
   payment,
 } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -34,20 +35,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `latefee-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Late Fee ${label}`, email, password: "latefee-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Late Fee ${label}`, email, password: "latefee-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Late Fee PG ${label} ${suffix}` });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -116,7 +113,7 @@ describeDb("late fees (database)", () => {
         name: "Late Fee Tenant",
         phone: nextPhone(),
         roomId,
-        joiningDate: new Date().toISOString(),
+        joiningDate: "2026-06-01T00:00:00.000Z",
       });
 
     // Approve the tenant so they get a bed and become billable.
@@ -129,6 +126,12 @@ describeDb("late fees (database)", () => {
       .set("Cookie", alice.cookie)
       .send({ month: "2026-06" });
     billId = generated.body.bills[0].id;
+    // This suite verifies late-fee behavior, not bill-generation due-date
+    // policy (covered separately). Anchor the due date to its test timeline.
+    await db
+      .update(bill)
+      .set({ dueDate: new Date("2026-06-05T00:00:00.000Z") })
+      .where(eq(bill.id, billId));
   }, 20000);
 
   afterAll(async () => {
@@ -195,19 +198,25 @@ describeDb("late fees (database)", () => {
     expect(b!.totalAmount).toBe(6500);
   });
 
-  it("charges nothing once the bill is fully paid, and removes a stale LATE line", async () => {
+  it("preserves the settled invoice total and its paid late-fee audit trail", async () => {
     await request(app)
       .post(`/v1/properties/${alice.propertyId}/payments`)
       .set("Cookie", alice.cookie)
-      .send({ billId, amount: 6500, paymentDate: "2026-06-16T00:00:00.000Z", method: "cash" });
+      .send({
+        billId,
+        amount: 6500,
+        paymentDate: "2026-06-16T00:00:00.000Z",
+        method: "cash",
+        idempotencyKey: crypto.randomUUID(),
+      });
 
     const res = await applyLateFees({ billIds: [billId], asOf: "2026-06-20T00:00:00.000Z" });
     expect(res.status).toBe(200);
-    expect(res.body.updated).toBe(1); // the stale LATE line was removed
+    expect(res.body.updated).toBe(0);
 
     const [b] = await db.select().from(bill).where(eq(bill.id, billId));
-    expect((b!.lineItems as { code: string }[]).some((l) => l.code === "LATE")).toBe(false);
-    expect(b!.totalAmount).toBe(6000);
+    expect((b!.lineItems as { code: string }[]).some((l) => l.code === "LATE")).toBe(true);
+    expect(b!.totalAmount).toBe(6500);
     expect(b!.balance).toBe(0);
   });
 
@@ -219,20 +228,32 @@ describeDb("late fees (database)", () => {
         .send({ number: "201", capacity: 1, monthlyRent: 5000, rentPlanId: planId })
     ).body.id;
 
-    await request(app)
+    const secondTenant = await request(app)
       .post(`/v1/properties/${alice.propertyId}/tenants`)
       .set("Cookie", alice.cookie)
       .send({
         name: "Second Tenant",
         phone: nextPhone(),
         roomId: secondRoom,
-        joiningDate: new Date().toISOString(),
+        joiningDate: "2026-07-01T00:00:00.000Z",
       });
 
     await request(app)
+      .post(`/v1/properties/${alice.propertyId}/tenants/${secondTenant.body.id}/approve`)
+      .set("Cookie", alice.cookie);
+
+    const generated = await request(app)
       .post(`/v1/properties/${alice.propertyId}/bills/generate`)
       .set("Cookie", alice.cookie)
       .send({ month: "2026-07" });
+
+    const secondBillId = generated.body.bills.find(
+      (candidate: { tenantId: string }) => candidate.tenantId === secondTenant.body.id,
+    ).id;
+    await db
+      .update(bill)
+      .set({ dueDate: new Date("2026-07-05T00:00:00.000Z") })
+      .where(eq(bill.id, secondBillId));
 
     const res = await applyLateFees({ asOf: "2026-07-12T00:00:00.000Z" });
 
@@ -255,7 +276,7 @@ describeDb("late fees (database)", () => {
         name: "No Plan Tenant",
         phone: nextPhone(),
         roomId: roomWithoutPlan,
-        joiningDate: new Date().toISOString(),
+        joiningDate: "2026-08-01T00:00:00.000Z",
       });
 
     // Approve the tenant so they get a bed and become billable.

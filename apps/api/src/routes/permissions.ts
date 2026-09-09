@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -27,6 +28,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 // Get permissions for a staff member
 router.get("/staff/:staffId", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const staffId = param(req, "staffId");
 
     const [s] = await db
@@ -40,9 +42,11 @@ router.get("/staff/:staffId", async (req: AuthenticatedRequest, res) => {
     const permissions = await db
       .select()
       .from(modulePermission)
-      .where(eq(modulePermission.staffId, staffId));
+      .where(eq(modulePermission.staffId, staffId))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(permissions);
+    sendPage(res, permissions, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch permissions" });
   }
@@ -103,7 +107,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to set permission" });
   }

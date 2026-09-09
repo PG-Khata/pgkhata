@@ -37,7 +37,7 @@ export async function requireAuth(
 
     next();
   } catch (error) {
-    res.status(401).json({ error: "Unauthorized" });
+    res.status(503).json({ error: "Authentication service temporarily unavailable" });
   }
 }
 

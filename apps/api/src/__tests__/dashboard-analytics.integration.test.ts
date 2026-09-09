@@ -16,8 +16,9 @@ import {
   expenseCategory,
 } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -35,20 +36,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `dash-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Dash ${label}`, email, password: "dashboard-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Dash ${label}`, email, password: "dashboard-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Dash PG ${label} ${suffix}` });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -178,6 +175,15 @@ describeDb("dashboard analytics (database)", () => {
     expect(aging.body.total).toBe(5000);
     const bucket31to60 = aging.body.buckets.find((b: { bucket: string }) => b.bucket === "31-60");
     expect(bucket31to60.total).toBe(5000);
+
+    const dashboard = await request(app)
+      .get(`/v1/dashboard/property/${alice.propertyId}`)
+      .set("Cookie", alice.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.overdueRent).toBe(5000);
+    const [persisted] = await db.select({ status: bill.status }).from(bill)
+      .where(eq(bill.id, insertedBill!.id));
+    expect(persisted!.status).toBe("overdue");
 
     // Cross-owner isolation: Bob's property sees none of this.
     const bobDueRent = await request(app).get(url(bob, "/due-rent")).set("Cookie", bob.cookie);

@@ -13,7 +13,7 @@ import { app } from "../index";
  * removes it afterwards, including its session and account rows — deleting the
  * user alone would orphan them.
  */
-const hasDb = Boolean(process.env.DATABASE_URL);
+const hasDb = Boolean(process.env.TEST_DATABASE_URL);
 const describeDb = hasDb ? describe : describe.skip;
 
 const probeEmail = `provisioning-probe-${Date.now()}@pgkhata.test`;
@@ -37,12 +37,14 @@ describeDb("owner provisioning (database)", () => {
     });
 
     expect(signUp.status).toBe(200);
+    expect(signUp.headers["set-cookie"]).toBeUndefined();
 
     const [created] = await db
-      .select({ id: user.id })
+      .select({ id: user.id, emailVerified: user.emailVerified })
       .from(user)
       .where(eq(user.email, probeEmail));
     expect(created).toBeDefined();
+    expect(created!.emailVerified).toBe(false);
     probeUserId = created!.id;
 
     // The Better Auth user.create.after hook must have provisioned exactly one.
@@ -52,9 +54,17 @@ describeDb("owner provisioning (database)", () => {
       .where(eq(ownerProfile.userId, probeUserId));
     expect(profiles).toHaveLength(1);
 
-    // The 403 this task exists to remove.
-    const cookie = signUp.headers["set-cookie"] as string[] | undefined;
+    await db.update(user).set({ emailVerified: true }).where(eq(user.id, probeUserId));
+    const signIn = await request(app).post("/api/auth/sign-in/email")
+      .set("x-forwarded-for", "2001:db8:ffff::1")
+      .send({ email: probeEmail, password: probePassword });
+    expect(signIn.status).toBe(200);
+    const cookie = signIn.headers["set-cookie"] as string[] | undefined;
     expect(cookie).toBeDefined();
+    const cookieText = cookie!.join(";").toLowerCase();
+    expect(cookieText).toContain("samesite=lax");
+    expect(cookieText).toContain("httponly");
+    expect(cookieText).not.toContain("domain=");
 
     const properties = await request(app)
       .get("/v1/properties")

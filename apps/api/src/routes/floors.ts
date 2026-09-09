@@ -5,6 +5,7 @@ import { eq, and, asc, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param, aggregate } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -25,6 +26,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 /** Floors ordered for display, each with the number of rooms on it. */
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const floors = await db
       .select({
         floor: floor,
@@ -34,9 +36,11 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .leftJoin(room, eq(room.floorId, floor.id))
       .where(eq(floor.propertyId, req.propertyId!))
       .groupBy(floor.id)
-      .orderBy(asc(floor.position), asc(floor.name));
+      .orderBy(asc(floor.position), asc(floor.name))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(floors);
+    sendPage(res, floors, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch floors" });
   }
@@ -95,7 +99,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create floor" });
   }
@@ -143,7 +147,7 @@ router.post("/reorder", async (req: AuthenticatedRequest, res) => {
     res.json(reordered);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to reorder floors" });
   }
@@ -169,7 +173,7 @@ router.put("/:floorId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update floor" });
   }

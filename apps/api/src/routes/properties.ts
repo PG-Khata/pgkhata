@@ -5,6 +5,7 @@ import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param, aggregate } from "../lib/http";
 import { seedElectricityChargeType } from "../lib/charge-types";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router();
 
@@ -29,13 +30,16 @@ const updatePropertySchema = createPropertySchema.partial();
 // Get all properties for owner
 router.get("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const properties = await db
       .select()
       .from(property)
-      .where(eq(property.ownerId, req.ownerId!));
+      .where(eq(property.ownerId, req.ownerId!))
+      .limit(page.limit)
+      .offset(page.offset);
 
     if (properties.length === 0) {
-      return res.json([]);
+      return sendPage(res, [], page);
     }
 
     const propertyIds = properties.map((p) => p.id);
@@ -62,7 +66,7 @@ router.get("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res
       occupiedBeds: bedCountMap.get(p.id)?.occupiedBeds ?? 0,
     }));
 
-    res.json(result);
+    sendPage(res, result, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch properties" });
   }
@@ -173,6 +177,7 @@ router.get("/:id/complaint-qr", requireAuth, requireOwner, async (req: Authentic
 // Get complaints for a property
 router.get("/:id/complaints", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const propertyId = param(req, "id");
 
     // Verify property belongs to owner
@@ -217,9 +222,11 @@ router.get("/:id/complaints", requireAuth, requireOwner, async (req: Authenticat
           ELSE 4
         END`,
         complaint.createdAt
-      );
+      )
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(complaints);
+    sendPage(res, complaints, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch complaints" });
   }
@@ -319,7 +326,7 @@ router.post("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, re
     res.status(201).json(newProperty);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create property" });
   }
@@ -348,7 +355,7 @@ router.put("/:id", requireAuth, requireOwner, async (req: AuthenticatedRequest, 
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update property" });
   }

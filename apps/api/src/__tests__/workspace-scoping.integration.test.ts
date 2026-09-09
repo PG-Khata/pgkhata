@@ -18,7 +18,7 @@ import {
  *
  * Runs only when DATABASE_URL is present.
  */
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 

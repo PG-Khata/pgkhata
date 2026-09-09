@@ -72,7 +72,7 @@ export default function PaymentsPage() {
   }
 
   // Filter bills that have balance > 0
-  const unpaidBills = bills?.filter((b) => b.bill.balance > 0) ?? []
+  const unpaidBills = bills?.filter((b) => b.balance > 0) ?? []
 
   return (
     <div className="space-y-6">
@@ -111,8 +111,8 @@ export default function PaymentsPage() {
                 >
                   <option value="">Select a bill</option>
                   {unpaidBills.map((b) => (
-                    <option key={b.bill.id} value={b.bill.id}>
-                      {b.tenantName} — {b.bill.billMonth} (Balance: {formatCurrency(b.bill.balance)})
+                    <option key={b.id} value={b.id}>
+                      {b.tenantName} — {b.billMonth} (Balance: {formatCurrency(b.balance)})
                     </option>
                   ))}
                 </select>

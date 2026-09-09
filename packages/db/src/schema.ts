@@ -1,16 +1,26 @@
 import {
   pgTable,
   text,
-  timestamp,
+  timestamp as pgTimestamp,
+  date,
   boolean,
   integer,
+  bigint,
   uuid,
   uniqueIndex,
   index,
   check,
   jsonb,
+  foreignKey,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+// Every timestamp is an absolute instant. Calendar-only business values use
+// PostgreSQL `date` explicitly below, so neither kind depends on the Node or
+// database session timezone.
+const timestamp = <TName extends string>(name: TName) =>
+  pgTimestamp(name, { withTimezone: true });
 
 // Better Auth tables will be generated via CLI
 // These are placeholder exports that will be replaced
@@ -64,6 +74,13 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
+});
+
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
 // PGKhata domain tables
@@ -120,6 +137,7 @@ export const floor = pgTable(
   (table) => [
     // "Ground floor" twice in one property makes the room grouping ambiguous.
     uniqueIndex("floor_property_name_uq").on(table.propertyId, table.name),
+    uniqueIndex("floor_id_property_uq").on(table.id, table.propertyId),
   ],
 );
 
@@ -145,6 +163,7 @@ export const rentPlan = pgTable(
   },
   (table) => [
     uniqueIndex("rent_plan_property_name_uq").on(table.propertyId, table.name),
+    uniqueIndex("rent_plan_id_property_uq").on(table.id, table.propertyId),
     check("rent_plan_due_day_range", sql`${table.dueDay} between 1 and 28`),
     check("rent_plan_rent_nonnegative", sql`${table.monthlyRent} >= 0`),
     check(
@@ -207,6 +226,17 @@ export const room = pgTable(
     // one property make bills ambiguous. The application checked this, but a
     // concurrent create slipped through.
     uniqueIndex("room_property_number_uq").on(table.propertyId, table.number),
+    uniqueIndex("room_id_property_uq").on(table.id, table.propertyId),
+    foreignKey({
+      name: "room_floor_property_fk",
+      columns: [table.floorId, table.propertyId],
+      foreignColumns: [floor.id, floor.propertyId],
+    }),
+    foreignKey({
+      name: "room_rent_plan_property_fk",
+      columns: [table.rentPlanId, table.propertyId],
+      foreignColumns: [rentPlan.id, rentPlan.propertyId],
+    }),
   ],
 );
 
@@ -219,12 +249,12 @@ export const electricityReading = pgTable(
       .references(() => room.id, { onDelete: "cascade" }),
     reading: integer("reading").notNull(),
     units: integer("units").notNull().default(0),
-    readingDate: timestamp("reading_date").notNull(),
+    readingDate: date("reading_date", { mode: "date" }).notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
-    // Index for room-scoped queries (reading list, billing generation)
-    index("idx_electricity_reading_room_date").on(table.roomId, table.readingDate),
+    // One canonical reading per room/day also serves room/date lookups.
+    uniqueIndex("electricity_reading_room_date_uq").on(table.roomId, table.readingDate),
   ],
 );
 
@@ -244,7 +274,10 @@ export const bed = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("bed_room_number_uq").on(table.roomId, table.number)],
+  (table) => [
+    uniqueIndex("bed_room_number_uq").on(table.roomId, table.number),
+    uniqueIndex("bed_id_room_uq").on(table.id, table.roomId),
+  ],
 );
 
 export const tenant = pgTable(
@@ -280,10 +313,10 @@ export const tenant = pgTable(
     alternatePhone: text("alternate_phone"),
     gender: text("gender"),
     occupation: text("occupation"),
-    dateOfBirth: timestamp("date_of_birth"),
+    dateOfBirth: date("date_of_birth", { mode: "date" }),
     status: text("status").notNull().default("active"),
-    joiningDate: timestamp("joining_date").notNull(),
-    vacatingDate: timestamp("vacating_date"),
+    joiningDate: date("joining_date", { mode: "date" }).notNull(),
+    vacatingDate: date("vacating_date", { mode: "date" }),
     monthlyRentOverride: integer("monthly_rent_override"),
     deposit: integer("deposit"),
     notes: text("notes"),
@@ -295,7 +328,7 @@ export const tenant = pgTable(
     permanentAddressState: text("permanent_address_state"),
     permanentAddressPincode: text("permanent_address_pincode"),
     policeVerificationStatus: text("police_verification_status").default("pending"),
-    policeVerificationDate: timestamp("police_verification_date"),
+    policeVerificationDate: date("police_verification_date", { mode: "date" }),
     policeVerificationNotes: text("police_verification_notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -309,8 +342,68 @@ export const tenant = pgTable(
     uniqueIndex("tenant_bed_uq")
       .on(table.bedId)
       .where(sql`${table.bedId} is not null`),
+    uniqueIndex("tenant_id_property_uq").on(table.id, table.propertyId),
+    foreignKey({
+      name: "tenant_room_property_fk",
+      columns: [table.roomId, table.propertyId],
+      foreignColumns: [room.id, room.propertyId],
+    }),
+    foreignKey({
+      name: "tenant_requested_room_property_fk",
+      columns: [table.requestedRoomId, table.propertyId],
+      foreignColumns: [room.id, room.propertyId],
+    }),
+    foreignKey({
+      name: "tenant_bed_room_fk",
+      columns: [table.bedId, table.roomId],
+      foreignColumns: [bed.id, bed.roomId],
+    }),
+    check("tenant_bed_requires_room", sql`${table.bedId} is null or ${table.roomId} is not null`),
+    check("tenant_bed_requires_active", sql`${table.bedId} is null or ${table.status} = 'active'`),
     // Index for property-scoped queries (tenants list, billing, dashboard)
     index("idx_tenant_property_status").on(table.propertyId, table.status),
+  ],
+);
+
+/** Room/bed occupancy periods used for bed-day billing. */
+export const occupancyHistory = pgTable(
+  "occupancy_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "cascade" }),
+    propertyId: uuid("property_id").notNull().references(() => property.id, { onDelete: "cascade" }),
+    roomId: uuid("room_id").notNull().references(() => room.id, { onDelete: "cascade" }),
+    bedId: uuid("bed_id").notNull().references(() => bed.id, { onDelete: "cascade" }),
+    startedOn: date("started_on", { mode: "date" }).notNull(),
+    endedOn: date("ended_on", { mode: "date" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("occupancy_history_one_open_per_tenant_uq")
+      .on(table.tenantId)
+      .where(sql`${table.endedOn} is null`),
+    uniqueIndex("occupancy_history_one_open_per_bed_uq")
+      .on(table.bedId)
+      .where(sql`${table.endedOn} is null`),
+    foreignKey({
+      name: "occupancy_history_tenant_property_fk",
+      columns: [table.tenantId, table.propertyId],
+      foreignColumns: [tenant.id, tenant.propertyId],
+    }),
+    foreignKey({
+      name: "occupancy_history_room_property_fk",
+      columns: [table.roomId, table.propertyId],
+      foreignColumns: [room.id, room.propertyId],
+    }),
+    foreignKey({
+      name: "occupancy_history_bed_room_fk",
+      columns: [table.bedId, table.roomId],
+      foreignColumns: [bed.id, bed.roomId],
+    }),
+    check(
+      "occupancy_history_period_valid",
+      sql`${table.endedOn} is null or ${table.endedOn} >= ${table.startedOn}`,
+    ),
   ],
 );
 
@@ -338,12 +431,17 @@ export const bill = pgTable(
     paidAmount: integer("paid_amount").notNull().default(0),
     balance: integer("balance").notNull(),
     status: text("status").notNull().default("pending"),
-    /** Computed from the room's rent plan due_day at generation time. */
-    dueDate: timestamp("due_date"),
+    /** Calendar due date in the property's Asia/Kolkata business calendar. */
+    dueDate: date("due_date", { mode: "date" }),
     approved: boolean("approved").notNull().default(false),
     voidedAt: timestamp("voided_at"),
     /** Tenant's promised payment date; late fees are suspended until this date. */
-    promisedDate: timestamp("promised_date"),
+    promisedDate: date("promised_date", { mode: "date" }),
+    revision: integer("revision").notNull().default(1),
+    supersedesBillId: uuid("supersedes_bill_id").references(
+      (): AnyPgColumn => bill.id,
+      { onDelete: "restrict" },
+    ),
     /** Opaque, stable public capability URL token. Never expose an owner session. */
     accessToken: text("access_token").notNull().default(sql`gen_random_uuid()::text`).unique(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -353,13 +451,36 @@ export const bill = pgTable(
     // Billing idempotency. The generation loop checked for an existing bill
     // first, but two concurrent runs both passed the check and both inserted.
     // The legacy schema had this constraint; the rebuild dropped it.
-    uniqueIndex("bill_tenant_month_uq").on(table.tenantId, table.billMonth),
+    uniqueIndex("bill_tenant_month_revision_uq").on(
+      table.tenantId,
+      table.billMonth,
+      table.revision,
+    ),
+    uniqueIndex("bill_id_tenant_uq").on(table.id, table.tenantId),
     check(
       "bill_amounts_nonnegative",
       sql`${table.totalAmount} >= 0 and ${table.paidAmount} >= 0`,
     ),
+    check(
+      "bill_balance_consistent",
+      sql`${table.voidedAt} is not null or (${table.paidAmount} <= ${table.totalAmount} and ${table.balance} = ${table.totalAmount} - ${table.paidAmount})`,
+    ),
   ],
 );
+
+/** Auditable recalculation applied after an invoice was first generated. */
+export const billAdjustment = pgTable("bill_adjustment", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  billId: uuid("bill_id").notNull().references(() => bill.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(), // debit | credit
+  amount: integer("amount").notNull(),
+  reason: text("reason").notNull(),
+  previousTotal: integer("previous_total").notNull(),
+  adjustedTotal: integer("adjusted_total").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  check("bill_adjustment_amount_positive", sql`${table.amount} > 0`),
+]);
 
 /** Every direct bill delivery is retained so owners can see partial failures. */
 export const billDelivery = pgTable("bill_delivery", {
@@ -382,7 +503,7 @@ export const payment = pgTable(
       // restrict: payments are the source of truth for what a tenant has paid.
       .references(() => bill.id, { onDelete: "restrict" }),
     amount: integer("amount").notNull(),
-    paymentDate: timestamp("payment_date").notNull(),
+    paymentDate: date("payment_date", { mode: "date" }).notNull(),
     method: text("method"),
     notes: text("notes"),
     /**
@@ -390,16 +511,15 @@ export const payment = pgTable(
      * Generated client-side and sent with each payment request.
      * If a payment with this key already exists for this bill, the request is rejected.
      */
-    idempotencyKey: text("idempotency_key"),
+    idempotencyKey: text("idempotency_key").notNull().default(sql`gen_random_uuid()::text`),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     // Prevent duplicate payments with the same idempotency key for a bill
-    uniqueIndex("payment_bill_idempotency_uq")
-      .on(table.billId, table.idempotencyKey)
-      .where(sql`${table.idempotencyKey} is not null`),
+    uniqueIndex("payment_idempotency_uq").on(table.idempotencyKey),
     // Index for bill-scoped queries (syncBillTotals, payment list)
     index("idx_payment_bill_id").on(table.billId),
+    check("payment_amount_positive", sql`${table.amount} > 0`),
   ],
 );
 
@@ -413,7 +533,7 @@ export const advancePayment = pgTable(
       // not silently erase the record of what the owner is holding for them.
       .references(() => tenant.id, { onDelete: "restrict" }),
     amount: integer("amount").notNull(),
-    date: timestamp("date").notNull().defaultNow(),
+    date: date("date", { mode: "date" }).notNull().defaultNow(),
     /**
      * available: unapplied, still owed back or usable against a future bill.
      * applied: fully consumed against one or more bills; appliedAmount = amount.
@@ -427,11 +547,39 @@ export const advancePayment = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => [
+    uniqueIndex("advance_payment_id_tenant_uq").on(table.id, table.tenantId),
     check("advance_payment_amount_positive", sql`${table.amount} > 0`),
     check(
       "advance_payment_applied_within_amount",
       sql`${table.appliedAmount} >= 0 and ${table.appliedAmount} <= ${table.amount}`,
     ),
+  ],
+);
+
+/** Auditable link proving an advance and its target bill belong to one tenant. */
+export const advanceApplication = pgTable(
+  "advance_application",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    advanceId: uuid("advance_id").notNull().references(() => advancePayment.id, { onDelete: "cascade" }),
+    billId: uuid("bill_id").notNull().references(() => bill.id, { onDelete: "cascade" }),
+    paymentId: uuid("payment_id").notNull().references(() => payment.id, { onDelete: "cascade" }).unique(),
+    tenantId: uuid("tenant_id").notNull().references(() => tenant.id, { onDelete: "restrict" }),
+    amount: integer("amount").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "advance_application_advance_tenant_fk",
+      columns: [table.advanceId, table.tenantId],
+      foreignColumns: [advancePayment.id, advancePayment.tenantId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "advance_application_bill_tenant_fk",
+      columns: [table.billId, table.tenantId],
+      foreignColumns: [bill.id, bill.tenantId],
+    }).onDelete("cascade"),
+    check("advance_application_amount_positive", sql`${table.amount} > 0`),
   ],
 );
 
@@ -452,9 +600,9 @@ export const securityDeposit = pgTable(
     /** held: nothing refunded yet. partial: some refunded. refunded: fully settled. */
     status: text("status").notNull().default("held"),
     refundAmount: integer("refund_amount").notNull().default(0),
-    refundDate: timestamp("refund_date"),
+    refundDate: date("refund_date", { mode: "date" }),
     /** Owner's committed date for returning the balance; informational only. */
-    promisedDate: timestamp("promised_date"),
+    promisedDate: date("promised_date", { mode: "date" }),
     notes: text("notes"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -465,6 +613,11 @@ export const securityDeposit = pgTable(
       "security_deposit_refund_within_amount",
       sql`${table.refundAmount} >= 0 and ${table.refundAmount} <= ${table.amount}`,
     ),
+    foreignKey({
+      name: "security_deposit_tenant_property_fk",
+      columns: [table.tenantId, table.propertyId],
+      foreignColumns: [tenant.id, tenant.propertyId],
+    }),
   ],
 );
 
@@ -479,7 +632,10 @@ export const expenseCategory = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("expense_category_property_name_uq").on(table.propertyId, table.name)],
+  (table) => [
+    uniqueIndex("expense_category_property_name_uq").on(table.propertyId, table.name),
+    uniqueIndex("expense_category_id_property_uq").on(table.id, table.propertyId),
+  ],
 );
 
 export const expense = pgTable(
@@ -496,7 +652,7 @@ export const expense = pgTable(
       .references(() => expenseCategory.id, { onDelete: "restrict" }),
     amount: integer("amount").notNull(),
     description: text("description").notNull(),
-    date: timestamp("date").notNull().defaultNow(),
+    date: date("date", { mode: "date" }).notNull().defaultNow(),
     /** pending: awaiting the owner's decision. approved/rejected: terminal. */
     status: text("status").notNull().default("pending"),
     approvedBy: text("approved_by").references(() => user.id, { onDelete: "set null" }),
@@ -505,7 +661,14 @@ export const expense = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (table) => [check("expense_amount_positive", sql`${table.amount} > 0`)],
+  (table) => [
+    check("expense_amount_positive", sql`${table.amount} > 0`),
+    foreignKey({
+      name: "expense_category_property_fk",
+      columns: [table.categoryId, table.propertyId],
+      foreignColumns: [expenseCategory.id, expenseCategory.propertyId],
+    }),
+  ],
 );
 
 export const emergencyContact = pgTable("emergency_contact", {
@@ -535,31 +698,44 @@ export const bedBooking = pgTable("bed_booking", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const staff = pgTable("staff", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  propertyId: uuid("property_id")
-    .notNull()
-    .references(() => property.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .references(() => user.id, { onDelete: "set null" }),
-  name: text("name").notNull(),
-  phone: text("phone").notNull(),
-  role: text("role").notNull().default("warden"), // warden, manager, accountant, cleaner
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const staff = pgTable(
+  "staff",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    phone: text("phone").notNull(),
+    role: text("role").notNull().default("warden"), // warden, manager, accountant, cleaner
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("staff_id_property_uq").on(table.id, table.propertyId)],
+);
 
-export const propertyAmenity = pgTable("property_amenity", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  propertyId: uuid("property_id")
-    .notNull()
-    .references(() => property.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const propertyAmenity = pgTable(
+  "property_amenity",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    propertyId: uuid("property_id")
+      .notNull()
+      .references(() => property.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("property_amenity_property_name_uq").on(
+      table.propertyId,
+      sql`lower(btrim(${table.name}))`,
+    ),
+  ],
+);
 
 export const billingPolicy = pgTable("billing_policy", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -571,7 +747,7 @@ export const billingPolicy = pgTable("billing_policy", {
   autoAllocatePayments: boolean("auto_allocate_payments").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [uniqueIndex("billing_policy_property_uq").on(table.propertyId)]);
 
 export const notificationPreference = pgTable("notification_preference", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -584,7 +760,12 @@ export const notificationPreference = pgTable("notification_preference", {
   whatsapp: boolean("whatsapp").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("notification_preference_property_event_uq").on(
+    table.propertyId,
+    table.eventType,
+  ),
+]);
 
 export const notification = pgTable("notification", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -607,6 +788,8 @@ export const tenantDocument = pgTable("tenant_document", {
   type: text("type").notNull(), // aadhaar, pan, passport, driving_license, other
   fileName: text("file_name").notNull(),
   fileUrl: text("file_url").notNull(),
+  storageKey: text("storage_key").unique(),
+  contentType: text("content_type"),
   fileSize: integer("file_size"),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -621,6 +804,8 @@ export const adminDocument = pgTable("admin_document", {
   type: text("type").notNull(), // agreement, license, insurance, other
   fileName: text("file_name").notNull(),
   fileUrl: text("file_url").notNull(),
+  storageKey: text("storage_key").unique(),
+  contentType: text("content_type"),
   fileSize: integer("file_size"),
   uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -640,7 +825,18 @@ export const modulePermission = pgTable("module_permission", {
   canDelete: boolean("can_delete").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("module_permission_property_staff_module_uq").on(
+    table.propertyId,
+    table.staffId,
+    table.module,
+  ),
+  foreignKey({
+    name: "module_permission_staff_property_fk",
+    columns: [table.staffId, table.propertyId],
+    foreignColumns: [staff.id, staff.propertyId],
+  }),
+]);
 
 export const complaint = pgTable("complaint", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -657,7 +853,13 @@ export const complaint = pgTable("complaint", {
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  foreignKey({
+    name: "complaint_tenant_property_fk",
+    columns: [table.tenantId, table.propertyId],
+    foreignColumns: [tenant.id, tenant.propertyId],
+  }),
+]);
 
 export const platformAdmin = pgTable("platform_admin", {
   id: uuid("id").primaryKey().defaultRandom(),

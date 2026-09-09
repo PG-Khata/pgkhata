@@ -5,6 +5,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { aggregate } from "../lib/http";
 import { daysOverdue, summarizeAging, buildMonthlyTrend } from "../lib/dashboard-analytics";
+import { reconcileOverdueStatuses } from "../lib/bill-status";
 
 const router = Router();
 
@@ -74,6 +75,8 @@ router.get("/owner", requireAuth, requireOwner, async (req: AuthenticatedRequest
         overdueRent: 0,
       });
     }
+
+    await reconcileOverdueStatuses(propertyIds);
 
     // Get room count
     const { roomCount } = aggregate(
@@ -157,6 +160,7 @@ router.get(
   async (req: AuthenticatedRequest, res) => {
     try {
       const prop = req.property!;
+      await reconcileOverdueStatuses([prop.id]);
 
       const { roomCount } = aggregate(
         await db

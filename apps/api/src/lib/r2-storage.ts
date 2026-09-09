@@ -13,7 +13,6 @@ const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL; // e.g., https://pub-xxx.r2.dev
 
 let s3Client: S3Client | null = null;
 
@@ -36,7 +35,6 @@ function getClient(): S3Client {
 
 export interface UploadResult {
   key: string;
-  url: string;
   size: number;
 }
 
@@ -52,8 +50,9 @@ export async function uploadToR2(
   fileName: string,
   buffer: Buffer,
   contentType: string,
+  extension?: string,
 ): Promise<UploadResult> {
-  const ext = fileName.split(".").pop() || "bin";
+  const ext = extension ?? fileName.split(".").pop()?.toLowerCase() ?? "bin";
   const key = `${folder}/${randomUUID()}.${ext}`;
 
   const client = getClient();
@@ -63,14 +62,12 @@ export async function uploadToR2(
       Key: key,
       Body: buffer,
       ContentType: contentType,
+      ContentDisposition: "attachment",
+      CacheControl: "private, no-store",
     }),
   );
 
-  const url = R2_PUBLIC_URL
-    ? `${R2_PUBLIC_URL}/${key}`
-    : `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${key}`;
-
-  return { key, url, size: buffer.length };
+  return { key, size: buffer.length };
 }
 
 /**
@@ -90,13 +87,20 @@ export async function deleteFromR2(key: string): Promise<void> {
  * Generate a presigned URL for downloading a file.
  * Useful for private documents that shouldn't be publicly accessible.
  */
-export async function getDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+export async function getDownloadUrl(
+  key: string,
+  options: { expiresIn?: number; fileName?: string; contentType?: string } = {},
+): Promise<string> {
   const client = getClient();
   const command = new GetObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: key,
+    ResponseContentDisposition: options.fileName
+      ? `attachment; filename="${options.fileName}"`
+      : "attachment",
+    ...(options.contentType ? { ResponseContentType: options.contentType } : {}),
   });
-  return getSignedUrl(client, command, { expiresIn });
+  return getSignedUrl(client, command, { expiresIn: options.expiresIn ?? 300 });
 }
 
 /**

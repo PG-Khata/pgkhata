@@ -2,13 +2,18 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/api-client"
-import type { Bill, BillWithDetails } from "@/types"
+import type { Bill } from "@/types"
+
+export type BillListItem = Bill & {
+  tenantName: string
+  roomNumber: string
+}
 
 export function useBills(propertyId: string, month?: string) {
   const params = month ? `?month=${month}` : ""
   return useQuery({
     queryKey: ["bills", propertyId, month],
-    queryFn: () => api.get<any[]>(`/v1/properties/${propertyId}/bills${params}`),
+    queryFn: () => api.get<BillListItem[]>(`/v1/properties/${propertyId}/bills${params}`),
     enabled: !!propertyId,
   })
 }

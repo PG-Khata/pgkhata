@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { bedLabelsForCapacity, reconcileBeds } from "../lib/beds";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -57,6 +58,7 @@ async function assertPlanInProperty(
 // Get all rooms for property, grouped-ready with floor details and beds
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const rooms = await db
       .select({
         room: room,
@@ -69,7 +71,9 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .leftJoin(floor, eq(room.floorId, floor.id))
       .leftJoin(rentPlan, eq(room.rentPlanId, rentPlan.id))
       .where(eq(room.propertyId, req.propertyId!))
-      .orderBy(asc(floor.position), asc(room.number));
+      .orderBy(asc(floor.position), asc(room.number))
+      .limit(page.limit)
+      .offset(page.offset);
 
     const roomIds = rooms.map((row) => row.room.id);
     const beds =
@@ -88,7 +92,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       else bedsByRoom.set(b.roomId, [b]);
     }
 
-    res.json(
+    sendPage(res,
       rooms.map((row) => ({
         ...row.room,
         floorName: row.floorName,
@@ -96,7 +100,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         planName: row.planName,
         planRent: row.planRent,
         beds: bedsByRoom.get(row.room.id) ?? [],
-      })),
+      })), page,
     );
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch rooms" });
@@ -171,7 +175,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(newRoom);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create room" });
   }
@@ -257,7 +261,7 @@ router.put("/:roomId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update room" });
   }

@@ -28,16 +28,16 @@ export default function ComplaintsPage() {
   const resolvedCount = complaints?.filter(c => c.status === "resolved").length || 0
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="space-y-5 sm:space-y-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight">Complaints</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Manage tenant complaints for this property.
           </p>
         </div>
         {selectedProperty && (
-          <Button variant="outline" onClick={() => setComplaintQrOpen(true)}>
+          <Button variant="outline" className="shrink-0" onClick={() => setComplaintQrOpen(true)}>
             <QrCode className="mr-1.5 h-4 w-4" />
             Complaint QR
           </Button>
@@ -46,27 +46,27 @@ export default function ComplaintsPage() {
 
       {/* Stats */}
       {selectedProperty && complaints && complaints.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm font-medium">Open</span>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="min-w-0 rounded-lg border bg-card p-3 sm:p-4">
+            <div className="flex items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
+              <span className="whitespace-nowrap text-[11px] font-medium leading-none sm:text-sm">Open</span>
             </div>
-            <p className="mt-1 text-2xl font-bold">{openCount}</p>
+            <p className="mt-1.5 text-2xl font-bold">{openCount}</p>
           </div>
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-500" />
-              <span className="text-sm font-medium">In Progress</span>
+          <div className="min-w-0 rounded-lg border bg-card p-3 sm:p-4">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 shrink-0 text-blue-500" />
+              <span className="whitespace-nowrap text-[11px] font-medium leading-none sm:text-sm">In progress</span>
             </div>
-            <p className="mt-1 text-2xl font-bold">{inProgressCount}</p>
+            <p className="mt-1.5 text-2xl font-bold">{inProgressCount}</p>
           </div>
-          <div className="rounded-lg border bg-card p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium">Resolved</span>
+          <div className="min-w-0 rounded-lg border bg-card p-3 sm:p-4">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
+              <span className="whitespace-nowrap text-[11px] font-medium leading-none sm:text-sm">Resolved</span>
             </div>
-            <p className="mt-1 text-2xl font-bold">{resolvedCount}</p>
+            <p className="mt-1.5 text-2xl font-bold">{resolvedCount}</p>
           </div>
         </div>
       )}
@@ -122,7 +122,7 @@ export default function ComplaintsPage() {
   )
 }
 
-function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: string }) {
+function ComplaintCard({ complaint, propertyId }: { complaint: Complaint; propertyId: string }) {
   const updateStatus = useUpdateComplaintStatus(propertyId)
   const [isUpdating, setIsUpdating] = useState(false)
 
@@ -144,11 +144,11 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
   }
 
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+    <div className="rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-medium">{complaint.subject}</h3>
+            <h3 className="break-words font-medium">{complaint.subject}</h3>
             {complaint.category && (
               <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
                 {complaint.category}
@@ -169,7 +169,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
           </div>
 
           {/* Tenant Info */}
-          <div className="mt-2 flex items-center gap-4 text-sm">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             {complaint.tenantName && (
               <span className="font-medium">{complaint.tenantName}</span>
             )}
@@ -179,7 +179,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
               </a>
             )}
             {complaint.tenantEmail && (
-              <a href={`mailto:${complaint.tenantEmail}`} className="text-muted-foreground hover:underline">
+              <a href={`mailto:${complaint.tenantEmail}`} className="max-w-full break-all text-muted-foreground hover:underline">
                 {complaint.tenantEmail}
               </a>
             )}
@@ -190,7 +190,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
               Room: {complaint.roomNumber}
             </p>
           )}
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 break-words text-sm text-muted-foreground">
             {complaint.description}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -199,7 +199,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
         </div>
 
         {/* Status Update Buttons */}
-        <div className="flex flex-col gap-2 shrink-0">
+        <div className="flex w-full shrink-0 gap-2 sm:w-auto sm:flex-col">
           {complaint.status === "open" && (
             <>
               <Button
@@ -207,7 +207,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
                 size="sm"
                 onClick={() => handleStatusChange("in_progress")}
                 disabled={isUpdating}
-                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                className="h-10 flex-1 text-blue-600 border-blue-200 hover:bg-blue-50 sm:h-7 sm:flex-none"
               >
                 {isUpdating ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -221,7 +221,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
                 size="sm"
                 onClick={() => handleStatusChange("resolved")}
                 disabled={isUpdating}
-                className="text-green-600 border-green-200 hover:bg-green-50"
+                className="h-10 flex-1 text-green-600 border-green-200 hover:bg-green-50 sm:h-7 sm:flex-none"
               >
                 {isUpdating ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -238,7 +238,7 @@ function ComplaintCard({ complaint, propertyId }: { complaint: any; propertyId: 
               size="sm"
               onClick={() => handleStatusChange("resolved")}
               disabled={isUpdating}
-              className="text-green-600 border-green-200 hover:bg-green-50"
+              className="h-10 flex-1 text-green-600 border-green-200 hover:bg-green-50 sm:h-7 sm:flex-none"
             >
               {isUpdating ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

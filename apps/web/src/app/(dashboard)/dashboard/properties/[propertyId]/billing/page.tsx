@@ -93,7 +93,7 @@ export default function BillingPage() {
     if (selected.size === bills.length) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(bills.map((b) => b.bill.id)))
+      setSelected(new Set(bills.map((b) => b.id)))
     }
   }
 
@@ -154,9 +154,9 @@ export default function BillingPage() {
   function handleVoid(billId: string, tenantName: string) {
     if (!confirm(`Void this bill for ${tenantName}? The record will be preserved but the balance zeroed.`)) return
     voidBill.mutate(billId, {
-      onSuccess: () => toast.success("Bill deleted"),
+      onSuccess: () => toast.success("Bill voided; payment history preserved"),
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Failed to delete bill"),
+        toast.error(error instanceof ApiError ? error.message : "Failed to void bill"),
     })
   }
 
@@ -198,9 +198,9 @@ export default function BillingPage() {
     setAdvanceAmount("")
   }
 
-  const totalBilled = bills?.reduce((sum, b) => sum + b.bill.totalAmount, 0) ?? 0
-  const totalPaid = bills?.reduce((sum, b) => sum + b.bill.paidAmount, 0) ?? 0
-  const totalBalance = bills?.reduce((sum, b) => sum + b.bill.balance, 0) ?? 0
+  const totalBilled = bills?.reduce((sum, b) => sum + b.totalAmount, 0) ?? 0
+  const totalPaid = bills?.reduce((sum, b) => sum + b.paidAmount, 0) ?? 0
+  const totalBalance = bills?.reduce((sum, b) => sum + b.balance, 0) ?? 0
 
   return (
     <div className="space-y-6">
@@ -306,33 +306,33 @@ export default function BillingPage() {
               </thead>
               <tbody>
                 {bills.map((b) => {
-                  const isExpanded = expanded.has(b.bill.id)
+                  const isExpanded = expanded.has(b.id)
                   return (
-                    <Fragment key={b.bill.id}>
+                    <Fragment key={b.id}>
                       <tr
                         className="border-b last:border-0 hover:bg-muted/50 cursor-pointer"
-                        onClick={() => toggleExpanded(b.bill.id)}
+                        onClick={() => toggleExpanded(b.id)}
                       >
                         <td className="py-2.5" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
-                            checked={selected.has(b.bill.id)}
-                            onChange={() => toggleSelect(b.bill.id)}
+                            checked={selected.has(b.id)}
+                            onChange={() => toggleSelect(b.id)}
                             className="h-3.5 w-3.5"
                           />
                         </td>
                         <td className="py-2.5 font-medium">{b.tenantName}</td>
                         <td className="py-2.5 font-mono text-muted-foreground">{b.roomNumber}</td>
                         <td className="py-2.5 text-right font-mono font-medium">
-                          {formatCurrency(b.bill.totalAmount)}
+                          {formatCurrency(b.totalAmount)}
                         </td>
-                        <td className="py-2.5 text-right font-mono">{formatCurrency(b.bill.paidAmount)}</td>
-                        <td className="py-2.5 text-right font-mono">{formatCurrency(b.bill.balance)}</td>
+                        <td className="py-2.5 text-right font-mono">{formatCurrency(b.paidAmount)}</td>
+                        <td className="py-2.5 text-right font-mono">{formatCurrency(b.balance)}</td>
                         <td className="py-2.5 text-muted-foreground">
-                          {b.bill.dueDate ? formatDateShort(b.bill.dueDate) : "—"}
+                          {b.dueDate ? formatDateShort(b.dueDate) : "—"}
                         </td>
                         <td className="py-2.5">
-                          <StatusBadge status={b.bill.status} />
+                          <StatusBadge status={b.status} />
                         </td>
                         <td className="py-2.5 text-right">
                           <ChevronDown
@@ -347,9 +347,9 @@ export default function BillingPage() {
                           <td />
                           <td colSpan={7} className="py-2 pl-1">
                             <ul className="space-y-0.5 text-xs">
-                              {b.bill.lineItems.map((line: any, i: number) => (
+                              {b.lineItems.map((line, i) => (
                                 <li
-                                  key={`${b.bill.id}-${line.code}-${i}`}
+                                  key={`${b.id}-${line.code}-${i}`}
                                   className="flex justify-between gap-4 text-muted-foreground"
                                 >
                                   <span>{line.name}</span>
@@ -358,31 +358,31 @@ export default function BillingPage() {
                               ))}
                             </ul>
                             <div className="mt-2 pt-2 border-t border-muted-foreground/20 flex gap-2">
-                              {!b.bill.voidedAt && (
+                              {!b.voidedAt && (
                                 <>
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setDeliveryDialog({ billId: b.bill.id, tenantName: b.tenantName }) }}>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); setDeliveryDialog({ billId: b.id, tenantName: b.tenantName }) }}>
                                     <Send className="mr-1 h-3 w-3" /> Send bill
                                   </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); handleShare(b.bill.id) }}>
+                                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); handleShare(b.id) }}>
                                     <Share2 className="mr-1 h-3 w-3" /> Share bill
                                   </Button>
                                 </>
                               )}
-                              {b.bill.balance > 0 && (
+                              {b.balance > 0 && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   className="h-7 text-xs text-muted-foreground hover:text-foreground"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    openAdvanceDialog(b.bill.id, b.bill.tenantId, b.tenantName, b.bill.balance)
+                                    openAdvanceDialog(b.id, b.tenantId, b.tenantName, b.balance)
                                   }}
                                 >
                                   <Wallet className="mr-1 h-3 w-3" />
                                   Apply advance
                                 </Button>
                               )}
-                              {!b.bill.voidedAt && (
+                              {!b.voidedAt && (
                                 <>
                                   <Button
                                     variant="ghost"
@@ -390,7 +390,7 @@ export default function BillingPage() {
                                     className="h-7 text-xs text-muted-foreground hover:text-destructive"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      handleVoid(b.bill.id, b.tenantName)
+                                      handleVoid(b.id, b.tenantName)
                                     }}
                                   >
                                     Void bill
@@ -401,19 +401,19 @@ export default function BillingPage() {
                                     className="h-7 text-xs text-muted-foreground hover:text-foreground"
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      handleSetPromisedDate(b.bill.id)
+                                      handleSetPromisedDate(b.id)
                                     }}
                                   >
-                                    {b.bill.promisedDate ? "Change promised date" : "Set promised date"}
+                                    {b.promisedDate ? "Change promised date" : "Set promised date"}
                                   </Button>
                                 </>
                               )}
-                              {b.bill.voidedAt && (
+                              {b.voidedAt && (
                                 <span className="text-xs text-muted-foreground italic">Voided</span>
                               )}
-                              {b.bill.promisedDate && !b.bill.voidedAt && (
+                              {b.promisedDate && !b.voidedAt && (
                                 <span className="text-xs text-muted-foreground">
-                                  Promised: {formatDateShort(b.bill.promisedDate)}
+                                  Promised: {formatDateShort(b.promisedDate)}
                                 </span>
                               )}
                             </div>
@@ -446,7 +446,7 @@ export default function BillingPage() {
         <div className="rounded-md border border-dashed p-8 text-center">
           <p className="text-sm text-muted-foreground">No bills for {formatMonth(month)}.</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Click "Generate bills" to create bills for this month.
+            Click “Generate bills” to create bills for this month.
           </p>
         </div>
       )}

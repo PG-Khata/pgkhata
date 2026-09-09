@@ -4,6 +4,7 @@ import { db, electricityReading, room } from "@pgkhata/db";
 import { eq, and, asc, desc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -68,6 +69,7 @@ function validateReadingPosition(
 // Get readings for the property, optionally narrowed to one room
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const { roomId } = listReadingsSchema.parse(req.query);
 
     // Scope by room ownership, not by a client-supplied roomId alone: filtering
@@ -81,9 +83,11 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         .select()
         .from(electricityReading)
         .where(eq(electricityReading.roomId, roomId))
-        .orderBy(desc(electricityReading.readingDate));
+        .orderBy(desc(electricityReading.readingDate))
+        .limit(page.limit)
+        .offset(page.offset);
 
-      return res.json(readings);
+      return sendPage(res, readings, page);
     }
 
     const readings = await db
@@ -94,12 +98,14 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .from(electricityReading)
       .innerJoin(room, eq(electricityReading.roomId, room.id))
       .where(eq(room.propertyId, req.propertyId!))
-      .orderBy(desc(electricityReading.readingDate));
+      .orderBy(desc(electricityReading.readingDate))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(readings);
+    sendPage(res, readings, page);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to fetch readings" });
   }
@@ -146,7 +152,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(newReading);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create reading" });
   }
@@ -179,7 +185,7 @@ router.post("/batch", async (req: AuthenticatedRequest, res) => {
     });
     res.status(201).json({ readings: created });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.issues });
     if (error instanceof Error && error.message === "ROOM_NOT_FOUND") return res.status(404).json({ error: "Room not found" });
     if (error instanceof Error && error.message === "INVALID_READING_POSITION") return res.status(400).json({ error: "Reading date and value must be later than the room's previous reading" });
     res.status(500).json({ error: "Failed to create readings" });
@@ -228,7 +234,7 @@ router.patch("/:readingId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update reading" });
   }

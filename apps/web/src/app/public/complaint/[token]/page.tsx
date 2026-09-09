@@ -129,8 +129,8 @@ export default function PublicComplaintPage() {
       }
       setSuccess(true)
       toast.success("Complaint submitted successfully!")
-    } catch (err: any) {
-      toast.error(err.message)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Complaint submission failed")
     } finally {
       setSubmitting(false)
     }

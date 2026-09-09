@@ -30,6 +30,8 @@ export interface ElectricityInputs {
    * only for the days they actually occupied the room.
    */
   occupancyShare?: number | null;
+  /** Pre-reconciled integer share of the room charge. */
+  amountOverride?: number | null;
 }
 
 export interface RecurringCharge {
@@ -94,6 +96,7 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
  * the line item vanish and assume it was never metered at all.
  */
 function calculateElectricity(inputs: ElectricityInputs): number {
+  if (inputs.amountOverride != null) return Math.max(0, Math.round(inputs.amountOverride));
   if (!inputs.ratePerUnit || !inputs.unitsForMonth) return 0;
 
   const share = inputs.occupancyShare ?? 1 / Math.max(1, inputs.occupants);

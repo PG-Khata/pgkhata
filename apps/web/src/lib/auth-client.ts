@@ -1,11 +1,13 @@
 import { createAuthClient } from "better-auth/react"
+import { emailOTPClient } from "better-auth/client/plugins"
 
-if (!process.env.NEXT_PUBLIC_API_URL) {
-  throw new Error("NEXT_PUBLIC_API_URL environment variable is required")
-}
+const webOrigin = typeof window === "undefined"
+  ? process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  : window.location.origin
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: `${webOrigin}/api/backend`,
+  plugins: [emailOTPClient()],
 })
 
 export const { signIn, signUp, signOut, useSession } = authClient

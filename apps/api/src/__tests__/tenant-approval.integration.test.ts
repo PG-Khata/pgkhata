@@ -4,17 +4,19 @@ import request from "supertest";
 import { eq, inArray } from "drizzle-orm";
 import { db, user, ownerProfile, property, room, bed, tenant } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
 vi.mock("../lib/r2-storage", () => ({
   isR2Configured: () => true,
   uploadToR2: async (_folder: string, fileName: string, buffer: Buffer) => ({
-    key: `test/${fileName}`,
+    key: `test/${crypto.randomUUID()}-${fileName}`,
     url: `https://example.test/${fileName}`,
     size: buffer.length,
   }),
+  deleteFromR2: async () => undefined,
 }));
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -32,20 +34,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `tapproval-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Approval ${label}`, email, password: "approval-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Approval ${label}`, email, password: "approval-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Approval PG ${label} ${suffix}` });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -119,7 +117,7 @@ describeDb("tenant approval workflow (database)", () => {
         documents: [{
           type: "aadhaar",
           fileName: "aadhaar.png",
-          fileBase64: "dGVzdA==",
+          fileBase64: "iVBORw0KGgo=",
           contentType: "image/png",
         }],
       });
@@ -210,7 +208,7 @@ describeDb("tenant approval workflow (database)", () => {
         documents: [{
           type: "aadhaar",
           fileName: "aadhaar.png",
-          fileBase64: "dGVzdA==",
+          fileBase64: "iVBORw0KGgo=",
           contentType: "image/png",
         }],
       });
@@ -246,7 +244,7 @@ describeDb("tenant approval workflow (database)", () => {
         documents: [{
           type: "aadhaar",
           fileName: "aadhaar.png",
-          fileBase64: "dGVzdA==",
+          fileBase64: "iVBORw0KGgo=",
           contentType: "image/png",
         }],
       });

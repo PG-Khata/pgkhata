@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 
 const router = Router({ mergeParams: true });
+const MAX_STRUCTURE_ROWS = 10_000;
 
 router.use(requireAuth, requireOwner, requireProperty);
 
@@ -15,17 +16,26 @@ router.get("/export", async (req: AuthenticatedRequest, res) => {
     const floors = await db
       .select()
       .from(floor)
-      .where(eq(floor.propertyId, req.propertyId!));
+      .where(eq(floor.propertyId, req.propertyId!))
+      .limit(MAX_STRUCTURE_ROWS + 1);
 
     const rooms = await db
       .select()
       .from(room)
-      .where(eq(room.propertyId, req.propertyId!));
+      .where(eq(room.propertyId, req.propertyId!))
+      .limit(MAX_STRUCTURE_ROWS + 1);
+
+    if (floors.length > MAX_STRUCTURE_ROWS || rooms.length > MAX_STRUCTURE_ROWS) {
+      return res.status(413).json({ error: `Structure export exceeds ${MAX_STRUCTURE_ROWS} rows` });
+    }
 
     const roomIds = rooms.map((r) => r.id);
     const beds = roomIds.length > 0
-      ? await db.select().from(bed).where(inArray(bed.roomId, roomIds))
+      ? await db.select().from(bed).where(inArray(bed.roomId, roomIds)).limit(MAX_STRUCTURE_ROWS + 1)
       : [];
+    if (beds.length > MAX_STRUCTURE_ROWS) {
+      return res.status(413).json({ error: `Structure export exceeds ${MAX_STRUCTURE_ROWS} rows` });
+    }
 
     // Build hierarchical structure
     const structure = floors.map((f) => ({
@@ -165,7 +175,7 @@ router.post("/import", async (req: AuthenticatedRequest, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to import structure" });
   }

@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useProperties } from "@/hooks/use-properties"
 import { useTenants } from "@/hooks/use-tenants"
-import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type MeterPreflight } from "@/hooks/use-bills"
+import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type BillListItem, type MeterPreflight } from "@/hooks/use-bills"
 import { useRecordPayment } from "@/hooks/use-payments"
 import { useSecurityDeposits, useCreateSecurityDeposit } from "@/hooks/use-security-deposits"
 import { useAdvancePayments, useCreateAdvancePayment } from "@/hooks/use-advance-payments"
@@ -20,7 +20,6 @@ import { InvoiceTemplate } from "@/components/dashboard/invoice-template"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
 import { api, ApiError } from "@/lib/api-client"
-import { useQueryClient } from "@tanstack/react-query"
 import {
   AlertTriangle,
   Banknote,
@@ -35,7 +34,6 @@ import {
   Send,
   Share2,
   ShieldCheck,
-  Zap,
 } from "lucide-react"
 import {
   Dialog,
@@ -105,8 +103,6 @@ export default function BillingPage() {
 }
 
 function BillingContent({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
-  const qc = useQueryClient()
-
   const [statusFilter, setStatusFilter] = useState("all")
   const [monthFilter, setMonthFilter] = useState(currentMonth())
   const [generateOpen, setGenerateOpen] = useState(false)
@@ -122,7 +118,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const [paymentOpen, setPaymentOpen] = useState<{ billId: string; tenantName: string; balance: number } | null>(null)
   const [promiseOpen, setPromiseOpen] = useState<{ billId: string; tenantName: string } | null>(null)
   const [voidConfirm, setVoidConfirm] = useState<{ billId: string; tenantName: string } | null>(null)
-  const [viewInvoice, setViewInvoice] = useState<any>(null)
+  const [viewInvoice, setViewInvoice] = useState<BillListItem | null>(null)
   const [depositOpen, setDepositOpen] = useState(false)
   const [advanceOpen, setAdvanceOpen] = useState(false)
   const [depositForm, setDepositForm] = useState({ tenantId: "", amount: "", notes: "" })
@@ -148,13 +144,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const { data: tenants } = useTenants(propertyId)
 
   const activeBills = bills ?? []
-  const filtered = activeBills.filter((b: any) => statusFilter === "all" || b.status === statusFilter)
+  const filtered = activeBills.filter((b) => statusFilter === "all" || b.status === statusFilter)
 
   const totalInvoices = activeBills.length
-  const pending = activeBills.filter((b: any) => b.status === "pending").length
-  const partial = activeBills.filter((b: any) => b.status === "partial").length
-  const overdue = activeBills.filter((b: any) => b.status === "overdue").length
-  const collectedThisMonth = activeBills.reduce((s: number, b: any) => s + b.paidAmount, 0)
+  const pending = activeBills.filter((b) => b.status === "pending").length
+  const partial = activeBills.filter((b) => b.status === "partial").length
+  const overdue = activeBills.filter((b) => b.status === "overdue").length
+  const collectedThisMonth = activeBills.reduce((sum, bill) => sum + bill.paidAmount, 0)
 
   // Use dueRent API for actual outstanding amounts (across all months, not just filtered)
   const totalDue = (dueRent ?? []).reduce((s, r) => s + r.amountDue, 0)
@@ -266,21 +262,11 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
     if (!voidConfirm) return
     voidBill.mutate(voidConfirm.billId, {
       onSuccess: () => {
-        toast.success("Bill deleted")
+        toast.success("Bill voided; payment history preserved")
         setVoidConfirm(null)
       },
-      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to delete"),
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to void"),
     })
-  }
-
-  function handleAutoAllocate() {
-    api.post(`/v1/properties/${propertyId}/payments/auto-allocate`, {})
-      .then(() => {
-        toast.success("Payments auto-allocated")
-        qc.invalidateQueries({ queryKey: ["bills", propertyId] })
-        qc.invalidateQueries({ queryKey: ["payments", propertyId] })
-      })
-      .catch((error) => toast.error(error instanceof ApiError ? error.message : "Failed"))
   }
 
   function handleCreateDeposit() {
@@ -371,9 +357,6 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               <Button variant="outline" onClick={() => toast.info("Use Remind on an individual invoice.")}>
                 <Send className="mr-1 h-4 w-4" /> Reminders
               </Button>
-              <Button variant="outline" onClick={handleAutoAllocate}>
-                <Zap className="mr-1 h-4 w-4" /> Allocate
-              </Button>
               <Button onClick={() => setGenerateOpen(true)}>
                 <Plus className="mr-1 h-4 w-4" /> Invoice
               </Button>
@@ -403,7 +386,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((b: any, i: number) => (
+                    {filtered.map((b, i) => (
                       <tr key={b.id || i} className="border-b last:border-0 transition-colors hover:bg-muted/30">
                         <td className="px-3 py-2.5 font-medium">{b.tenantName}</td>
                         <td className="px-3 py-2.5 text-muted-foreground">{b.billMonth}</td>
@@ -444,7 +427,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               </div>
               {/* Mobile cards */}
               <div className="sm:hidden divide-y">
-                {filtered.map((b: any, i: number) => (
+                {filtered.map((b, i) => (
                   <div key={b.id || i} className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{b.tenantName}</span>

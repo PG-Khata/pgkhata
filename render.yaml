@@ -2,11 +2,13 @@ services:
   # API Service (Express Backend)
   - type: web
     name: pgkhata-api
-    runtime: docker
-    dockerfilePath: ./apps/api/Dockerfile
+    runtime: node
     region: singapore
     branch: staging
     plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pgkhata/api build
+    preDeployCommand: pnpm --filter @pgkhata/db migrate:deploy
+    startCommand: pnpm --filter @pgkhata/api start
     envVars:
       - key: NODE_ENV
         value: production
@@ -32,15 +34,18 @@ services:
   # Web Service (Next.js Frontend)
   - type: web
     name: pgkhata-web
-    runtime: docker
-    dockerfilePath: ./apps/web/Dockerfile
+    runtime: node
     region: singapore
     branch: staging
     plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter web build
+    startCommand: pnpm --filter web start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: API_URL
+        value: https://pgkhata-api.onrender.com
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: /api/backend
       - key: NEXT_PUBLIC_APP_URL
         sync: false

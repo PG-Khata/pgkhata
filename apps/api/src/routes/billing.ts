@@ -9,8 +9,8 @@ import {
   rentPlan,
   chargeType,
   electricityReading,
-  payment,
   billDelivery,
+  billAdjustment,
   property,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
@@ -20,14 +20,17 @@ import { param } from "../lib/http";
 import { calculateBill } from "../lib/billing-calculator";
 import {
   occupiedDaysInReadingPeriod,
+  allocateExactAmount,
   readingForMonth,
   readingPairForMonth,
   rentProrationForMonth,
 } from "../lib/electricity";
-import { computeDueDate } from "../lib/due-date";
+import { computeDueDate, isOverdue } from "../lib/due-date";
 import { calculateLateFee } from "../lib/late-fee";
 import { billReadyEmail, formatCurrency, sendEmail } from "@pgkhata/email";
 import { isWhatsAppConfigured, sendBillNotification } from "../lib/whatsapp";
+import { reconcileOverdueStatuses } from "../lib/bill-status";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -123,7 +126,7 @@ router.get("/preflight", async (req: AuthenticatedRequest, res) => {
     const missingRooms = await missingMeterReadings(req.propertyId!, month, tenantId);
     res.json({ complete: missingRooms.length === 0, missingRooms });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.issues });
     res.status(500).json({ error: "Failed to check meter readings" });
   }
 });
@@ -131,6 +134,8 @@ router.get("/preflight", async (req: AuthenticatedRequest, res) => {
 // Get bills for property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
+    await reconcileOverdueStatuses([req.propertyId!]);
     const month = req.query.month as string | undefined;
 
     const where = month
@@ -146,15 +151,15 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .from(bill)
       .innerJoin(tenant, eq(bill.tenantId, tenant.id))
       .leftJoin(room, eq(tenant.roomId, room.id))
-      .where(where);
+      .where(where)
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(
-      bills.map((row) => ({
+    sendPage(res, bills.map((row) => ({
         ...row.bill,
         tenantName: row.tenantName,
         roomNumber: row.roomNumber,
-      })),
-    );
+      })), page);
   } catch (error) {
     console.error("[Billing] List error:", error);
     res.status(500).json({ error: "Failed to fetch bills" });
@@ -163,6 +168,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 
 router.get("/:billId", async (req: AuthenticatedRequest, res) => {
   try {
+    await reconcileOverdueStatuses([req.propertyId!]);
     const [row] = await db
       .select({
         bill: bill,
@@ -187,7 +193,7 @@ router.get("/:billId", async (req: AuthenticatedRequest, res) => {
 
 router.get("/:billId/share-link", async (req: AuthenticatedRequest, res) => {
   const row = await ownedBillWithDetails(req.propertyId!, param(req, "billId"));
-  if (!row) return res.status(404).json({ error: "Bill not found" });
+  if (!row || row.bill.voidedAt) return res.status(404).json({ error: "Bill not found" });
   res.json({ url: publicInvoiceUrl(row.bill.accessToken), message: shareMessage(row) });
 });
 
@@ -196,10 +202,11 @@ router.post("/:billId/deliver", async (req: AuthenticatedRequest, res) => {
     const { channels } = deliverySchema.parse(req.body);
     const row = await ownedBillWithDetails(req.propertyId!, param(req, "billId"));
     if (!row) return res.status(404).json({ error: "Bill not found" });
+    if (row.bill.voidedAt) return res.status(409).json({ error: "Voided bills cannot be delivered" });
     const results = await deliverBill(row, channels);
     res.json({ results });
   } catch (error) {
-    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.errors });
+    if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.issues });
     res.status(500).json({ error: "Failed to deliver bill" });
   }
 });
@@ -218,9 +225,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
     // tenants with their room, bed and rent plan, plus the property's active
     // recurring charge types (excluding electricity, which is always computed
     // from readings rather than a flat default).
-    const tenantFilter = tenantId
-      ? and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active"), eq(tenant.id, tenantId))
-      : and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active"));
+    // Always load the full property cohort. A tenant-specific run still needs
+    // every roommate in its denominator and may reconcile their earlier bill.
+    const tenantFilter = and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, "active"));
 
     const activeTenants = await db
       .select({ tenant: tenant, room: room, bed: bed, plan: rentPlan })
@@ -272,18 +279,40 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       else tenantsByRoom.set(row.room.id, [row]);
     }
 
+    const electricityByTenant = new Map<string, number>();
+    for (const [roomId, occupants] of tenantsByRoom) {
+      const readingPair = readingPairForMonth(readingsByRoom.get(roomId) ?? [], month);
+      const totalCharge = Math.round(
+        Math.max(0, readingPair?.units ?? 0) * Math.max(0, prop.electricityRatePerUnit ?? 0),
+      );
+      const shares = occupants.map((occupant) => ({
+        key: occupant.tenant.id,
+        weight: readingPair
+          ? occupiedDaysInReadingPeriod(
+              occupant.tenant.joiningDate,
+              readingPair.first.readingDate,
+              readingPair.second.readingDate,
+              occupant.tenant.vacatingDate,
+            )
+          : 0,
+      }));
+      for (const [tenantKey, amount] of allocateExactAmount(totalCharge, shares)) {
+        electricityByTenant.set(tenantKey, amount);
+      }
+    }
+
     // The whole run is one transaction: either every bill this month lands
     // together, or none do. A partial run previously left some tenants billed
     // and others not with no way to tell which had already happened.
     const issuedAt = new Date();
-    const dueDate = computeDueDate(issuedAt);
-
     const { generatedBills, skipped } = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${req.propertyId!}:${month}`}))`);
       const generatedBills: (typeof bill.$inferSelect)[] = [];
       let skipped = 0;
 
       for (const { tenant: t, room: r, bed: b, plan } of activeTenants) {
         if (!r) continue;
+        const isRequestedTenant = !tenantId || tenantId === t.id;
 
         // Do not create a historical bill for someone who had not moved in.
         // This also makes a late billing run safe: its result is anchored to
@@ -333,27 +362,55 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             unitsForMonth: readingPair?.units,
             occupants: roomOccupants.length || 1,
             occupancyShare: totalOccupancyDays > 0 ? tenantOccupancyDays / totalOccupancyDays : undefined,
+            amountOverride: electricityByTenant.get(t.id) ?? 0,
           },
           recurringCharges,
         });
 
         // Check if a bill already exists for this tenant+month
-        const [existingBill] = await tx
-          .select({ id: bill.id, voidedAt: bill.voidedAt })
+        const existingBills = await tx
+          .select({ bill })
           .from(bill)
           .where(and(eq(bill.tenantId, t.id), eq(bill.billMonth, month)))
-          .limit(1);
+          .orderBy(sql`${bill.revision} desc`);
+        const existingBill = existingBills[0]?.bill;
 
-        if (existingBill) {
-          if (existingBill.voidedAt) {
-            // Voided bill exists — delete it so we can regenerate
-            await tx.delete(bill).where(eq(bill.id, existingBill.id));
-          } else {
-            // Active bill already exists — skip
+        if (existingBill && !existingBill.voidedAt) {
+          const changed = existingBill.totalAmount !== calculated.totalAmount
+            || existingBill.electricityAmount !== calculated.electricityAmount;
+          if (changed) {
+            const delta = calculated.totalAmount - existingBill.totalAmount;
+            await tx.insert(billAdjustment).values({
+              billId: existingBill.id,
+              kind: delta >= 0 ? "debit" : "credit",
+              amount: Math.abs(delta),
+              reason: "Room electricity allocation reconciled after occupancy changed",
+              previousTotal: existingBill.totalAmount,
+              adjustedTotal: calculated.totalAmount,
+            });
+            if (existingBill.paidAmount <= calculated.totalAmount) {
+              const balance = calculated.totalAmount - existingBill.paidAmount;
+              await tx.update(bill).set({
+                rentAmount: calculated.rentAmount,
+                electricityAmount: calculated.electricityAmount,
+                lineItems: calculated.lineItems,
+                totalAmount: calculated.totalAmount,
+                balance,
+                status: balance === 0 ? "paid" : isOverdue(existingBill.dueDate) ? "overdue" : existingBill.paidAmount > 0 ? "partial" : "pending",
+                updatedAt: new Date(),
+              }).where(eq(bill.id, existingBill.id));
+            }
+          }
+          if (!isRequestedTenant || existingBill) {
             skipped += 1;
             continue;
           }
         }
+
+        if (!isRequestedTenant) continue;
+
+        const dueDate = computeDueDate(month, plan?.dueDay ?? 5);
+        const revision = existingBill ? existingBill.revision + 1 : 1;
 
         const [newBill] = await tx
           .insert(bill)
@@ -366,6 +423,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             totalAmount: calculated.totalAmount,
             balance: calculated.totalAmount,
             dueDate,
+            status: isOverdue(dueDate, issuedAt) ? "overdue" : "pending",
+            revision,
+            supersedesBillId: existingBill?.id,
             createdAt: issuedAt,
             approved: false,
           })
@@ -389,7 +449,7 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to generate bills" });
   }
@@ -424,6 +484,9 @@ router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
       const updated: (typeof bill.$inferSelect)[] = [];
 
       for (const { bill: b, plan } of targetBills) {
+        // Once settled, an invoice is historical financial evidence. A later
+        // cron run must not remove a fee that the tenant already paid.
+        if (b.balance <= 0 || b.voidedAt) continue;
         const { amount, daysOverdue } = calculateLateFee({
           dueDate: b.dueDate,
           lateFeePerDay: plan?.lateFeePerDay,
@@ -487,7 +550,7 @@ router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to apply late fees" });
   }
@@ -523,14 +586,13 @@ router.patch("/:billId/promised-date", async (req: AuthenticatedRequest, res) =>
     res.json({ message: promisedDate ? "Promised date set" : "Promised date cleared", bill: updated });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update promised date" });
   }
 });
 
-// Void a bill — sets voidedAt, zeros balance, preserves the record for audit.
-// Delete a bill permanently
+// Terminal soft-void: financial records and payments remain immutable audit evidence.
 router.delete("/:billId", async (req: AuthenticatedRequest, res) => {
   try {
     const billId = param(req, "billId");
@@ -544,15 +606,18 @@ router.delete("/:billId", async (req: AuthenticatedRequest, res) => {
 
     if (!target) return res.status(404).json({ error: "Bill not found" });
 
-    // Delete associated payments and bill in a transaction
-    await db.transaction(async (tx) => {
-      await tx.delete(payment).where(eq(payment.billId, billId));
-      await tx.delete(bill).where(eq(bill.id, billId));
-    });
+    if (target.bill.voidedAt) return res.status(409).json({ error: "Bill is already voided" });
 
-    res.json({ message: "Bill deleted" });
+    const [voided] = await db.update(bill).set({
+      voidedAt: new Date(),
+      balance: 0,
+      status: "voided",
+      updatedAt: new Date(),
+    }).where(eq(bill.id, billId)).returning();
+
+    res.json({ message: "Bill voided", bill: voided });
   } catch (error) {
-    res.status(500).json({ error: "Failed to delete bill" });
+    res.status(500).json({ error: "Failed to void bill" });
   }
 });
 
@@ -578,7 +643,7 @@ router.post("/approve", async (req: AuthenticatedRequest, res) => {
     res.json({ message: `Approved ${approved.length} bills`, bills: approved });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to approve bills" });
   }

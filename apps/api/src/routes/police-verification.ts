@@ -5,6 +5,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -13,6 +14,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 // Get police verification status for all tenants in a property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const propertyId = req.propertyId!;
 
     const rows = await db
@@ -35,9 +37,11 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .leftJoin(room, eq(tenant.roomId, room.id))
       .leftJoin(floor, eq(room.floorId, floor.id))
       .where(and(eq(tenant.propertyId, propertyId), sql`${tenant.status} != 'deleted'`))
-      .orderBy(tenant.name);
+      .orderBy(tenant.name)
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(rows);
+    sendPage(res, rows, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch police verification status" });
   }

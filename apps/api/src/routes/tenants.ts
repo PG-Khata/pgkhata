@@ -12,6 +12,7 @@ import {
 import { decideTenantApproval, generateOnboardingToken } from "../lib/tenant-approval";
 import { calculateCheckoutPreview } from "../lib/checkout-preview";
 import { validateTransfer } from "../lib/bed-transfer";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -67,6 +68,7 @@ function tenantSelection() {
 // Get all tenants for property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const status = req.query.status as string | undefined;
 
     const where = status
@@ -79,15 +81,15 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .leftJoin(bed, eq(tenant.bedId, bed.id))
       .leftJoin(room, eq(tenant.roomId, room.id))
       .where(where)
-      .orderBy(asc(tenant.name));
+      .orderBy(asc(tenant.name))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(
-      tenants.map((row) => ({
+    sendPage(res, tenants.map((row) => ({
         ...row.tenant,
         bedNumber: row.bedNumber,
         roomNumber: row.roomNumber,
-      })),
-    );
+      })), page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch tenants" });
   }
@@ -171,7 +173,7 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
     res.status(201).json(newTenant);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (error instanceof HttpError) return next(error);
     next(error);
@@ -206,7 +208,7 @@ router.post("/:tenantId/assign-bed", async (req: AuthenticatedRequest, res, next
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to assign bed" });
@@ -347,15 +349,19 @@ router.put("/:tenantId", async (req: AuthenticatedRequest, res, next) => {
     // occupancy cannot keep counting them.
     const vacating = fields.status === "vacated" && existing.status !== "vacated";
 
+    // Release first: tenant_bed_requires_active deliberately rejects the
+    // transient state "vacated while still holding a bed".
+    if (vacating) {
+      await vacateTenantBed(req.propertyId!, tenantId);
+    }
+
     const [updated] = await db
       .update(tenant)
       .set({ ...fields, updatedAt: new Date() })
       .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, req.propertyId!)))
       .returning();
 
-    if (vacating) {
-      await vacateTenantBed(req.propertyId!, tenantId);
-    } else if (bedId || roomId) {
+    if (!vacating && (bedId || roomId)) {
       const outcome = await assignTenantToBed(req.propertyId!, tenantId, {
         bedId,
         roomId,
@@ -379,7 +385,7 @@ router.put("/:tenantId", async (req: AuthenticatedRequest, res, next) => {
     res.json(fresh);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to update tenant" });
@@ -501,7 +507,7 @@ router.post("/:tenantId/transfer", async (req: AuthenticatedRequest, res, next) 
     res.json({ message: `Transferred to bed ${outcome.roomNumber}-${outcome.bedNumber}`, ...outcome });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to transfer bed" });

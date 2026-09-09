@@ -1,10 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateExactAmount,
   occupiedDaysInReadingPeriod,
   readingForMonth,
   readingPairForMonth,
   rentProrationForMonth,
 } from "../lib/electricity";
+
+describe("allocateExactAmount", () => {
+  it("exactly reconciles integer shares with deterministic remainders", () => {
+    const allocated = allocateExactAmount(100, [
+      { key: "b", weight: 1 },
+      { key: "a", weight: 1 },
+      { key: "c", weight: 1 },
+    ]);
+    expect([...allocated.values()].reduce((sum, value) => sum + value, 0)).toBe(100);
+    expect(allocated).toEqual(new Map([["b", 33], ["a", 34], ["c", 33]]));
+  });
+
+  it("returns zero shares for empty, zero, negative, and non-finite weights", () => {
+    expect(allocateExactAmount(100, [
+      { key: "zero", weight: 0 },
+      { key: "negative", weight: -1 },
+      { key: "invalid", weight: Number.NaN },
+    ])).toEqual(new Map([["zero", 0], ["negative", 0], ["invalid", 0]]));
+  });
+});
 
 describe("readingForMonth", () => {
   it("picks the reading dated within the target month", () => {
@@ -79,6 +100,17 @@ describe("readingForMonth", () => {
         "2026-05-16T00:00:00.000Z",
         "2026-05-01T00:00:00.000Z",
         "2026-05-31T00:00:00.000Z",
+      ),
+    ).toBe(15);
+  });
+
+  it("stops bed-day allocation on the vacating date", () => {
+    expect(
+      occupiedDaysInReadingPeriod(
+        "2026-05-05",
+        "2026-05-01",
+        "2026-05-31",
+        "2026-05-20",
       ),
     ).toBe(15);
   });

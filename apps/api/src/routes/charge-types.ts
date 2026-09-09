@@ -6,6 +6,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
 import { ELECTRICITY_CODE, seedElectricityChargeType } from "../lib/charge-types";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -29,6 +30,7 @@ router.use(requireAuth, requireOwner, requireProperty);
 
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     // Seeded lazily here too: a property created before this feature shipped
     // would otherwise never get ELEC and billing would have nothing to charge
     // electricity against.
@@ -38,9 +40,11 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .select()
       .from(chargeType)
       .where(eq(chargeType.propertyId, req.propertyId!))
-      .orderBy(asc(chargeType.name));
+      .orderBy(asc(chargeType.name))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(types);
+    sendPage(res, types, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch charge types" });
   }
@@ -85,7 +89,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create charge type" });
   }
@@ -121,7 +125,7 @@ router.put("/:chargeTypeId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update charge type" });
   }

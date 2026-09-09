@@ -29,6 +29,7 @@ import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import type { RentPlanWithRoomCount } from "@/types"
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(50),
@@ -100,7 +101,7 @@ function RentPlansContent({ propertyId, propertyName }: { propertyId: string; pr
   const deletePlan = useDeleteRentPlan(propertyId)
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<any>(null)
+  const [editTarget, setEditTarget] = useState<RentPlanWithRoomCount["plan"] | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; roomCount: number } | null>(null)
 
   const {
@@ -141,7 +142,7 @@ function RentPlansContent({ propertyId, propertyName }: { propertyId: string; pr
     }
   }
 
-  function openEdit(plan: any) {
+  function openEdit(plan: RentPlanWithRoomCount["plan"]) {
     setEditTarget(plan)
     reset({
       name: plan.name,

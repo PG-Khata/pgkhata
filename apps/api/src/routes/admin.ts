@@ -3,6 +3,7 @@ import { db, user, ownerProfile, property, tenant, platformAdmin } from "@pgkhat
 import { eq, sql } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import { param, aggregate } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router();
 
@@ -69,6 +70,7 @@ router.get("/overview", requireAuth, requireSuperAdmin, async (req: Authenticate
 // Get all owners
 router.get("/owners", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const owners = await db
       .select({
         owner: ownerProfile,
@@ -79,9 +81,11 @@ router.get("/owners", requireAuth, requireSuperAdmin, async (req: AuthenticatedR
         },
       })
       .from(ownerProfile)
-      .leftJoin(user, eq(ownerProfile.userId, user.id));
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(owners);
+    sendPage(res, owners, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch owners" });
   }

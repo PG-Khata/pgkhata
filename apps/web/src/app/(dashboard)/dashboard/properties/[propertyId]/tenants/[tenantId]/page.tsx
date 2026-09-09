@@ -34,7 +34,7 @@ export default function TenantProfilePage() {
   const [deactivateOpen, setDeactivateOpen] = useState(false)
 
   function handleDeactivate() {
-    updateTenant.mutate({ status: "vacated" } as any, {
+    updateTenant.mutate({ status: "vacated" }, {
       onSuccess: () => { toast.success("Tenant deactivated"); setDeactivateOpen(false); router.push("/dashboard/tenants") },
       onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to deactivate"),
     })

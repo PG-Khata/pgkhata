@@ -16,45 +16,50 @@ const PropertyContext = createContext<PropertyContextState | null>(null)
 const STORAGE_KEY = "pgkhata-selected-property"
 const ALL_PROPERTIES_VALUE = "__all__"
 
+function readStoredSelection(): string | null | undefined {
+  if (typeof window === "undefined") return undefined
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored === ALL_PROPERTIES_VALUE ? null : stored ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
+function storeSelection(value: string | null) {
+  try {
+    localStorage.setItem(STORAGE_KEY, value ?? ALL_PROPERTIES_VALUE)
+  } catch {
+    // Selection remains usable in memory when storage is unavailable.
+  }
+}
+
 export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const { data: properties = [], isLoading } = useProperties()
-  const [selectedId, setSelectedId] = useState<string | null | undefined>(undefined)
-  const [initialized, setInitialized] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null | undefined>(readStoredSelection)
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === ALL_PROPERTIES_VALUE) {
-      setSelectedId(null)
-    } else if (stored) {
-      setSelectedId(stored)
-    } else {
-      setSelectedId(null)
+    if (!isLoading && properties.length > 0 && selectedId === undefined) {
+      storeSelection(properties[0].id)
     }
-    setInitialized(true)
-  }, [])
-
-  useEffect(() => {
-    if (initialized && !isLoading && properties.length > 0 && selectedId === null) {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (!stored) {
-        setSelectedId(properties[0].id)
-        localStorage.setItem(STORAGE_KEY, properties[0].id)
-      }
-    }
-  }, [initialized, isLoading, properties, selectedId])
+  }, [isLoading, properties, selectedId])
 
   const selectedProperty = useMemo(
-    () => (selectedId ? properties.find((p) => p.id === selectedId) ?? null : null),
+    () => selectedId === undefined
+      ? properties[0] ?? null
+      : selectedId
+        ? properties.find((p) => p.id === selectedId) ?? null
+        : null,
     [properties, selectedId],
   )
 
   const setSelectedProperty = (property: Property | null) => {
     if (property) {
       setSelectedId(property.id)
-      localStorage.setItem(STORAGE_KEY, property.id)
+      storeSelection(property.id)
     } else {
       setSelectedId(null)
-      localStorage.setItem(STORAGE_KEY, ALL_PROPERTIES_VALUE)
+      storeSelection(null)
     }
   }
 

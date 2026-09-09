@@ -26,6 +26,7 @@ const schema = z.object({
 })
 
 type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
 
 export default function NewRoomPage() {
   const params = useParams()
@@ -40,8 +41,8 @@ export default function NewRoomPage() {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+  } = useForm<FormInput, unknown, FormData>({
+    resolver: zodResolver(schema),
     defaultValues: { type: "single", capacity: 1 },
   })
 

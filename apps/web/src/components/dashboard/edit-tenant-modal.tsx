@@ -71,9 +71,14 @@ interface TenantDocument {
   tenantId: string
   type: string
   fileName: string
-  fileUrl: string
+  downloadUrl: string | null
   fileSize: number | null
   uploadedAt: string
+}
+
+interface NewTenantDocument extends TenantDocument {
+  isNew: true
+  index: number
 }
 
 interface EditTenantModalProps {
@@ -107,7 +112,7 @@ export function EditTenantModal({
     reset,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema),
   })
 
   useEffect(() => {
@@ -208,19 +213,19 @@ export function EditTenantModal({
     setIdProofFiles([])
   }
 
-  const newFiles = idProofFiles.map((file, i) => ({
+  const newFiles: NewTenantDocument[] = idProofFiles.map((file, i) => ({
     id: `new-${i}`,
     tenantId: tenant?.id ?? "",
     type: guessDocType(file.name),
     fileName: file.name,
-    fileUrl: "",
+    downloadUrl: null,
     fileSize: file.size,
     uploadedAt: new Date().toISOString(),
     isNew: true as const,
     index: i,
   }))
 
-  const allDocuments = [
+  const allDocuments: Array<TenantDocument | NewTenantDocument> = [
     ...(documents ?? []),
     ...newFiles,
   ]
@@ -381,13 +386,13 @@ export function EditTenantModal({
                         </p>
                       </div>
                     </div>
-                    {"isNew" in doc && (doc as any).isNew ? (
+                    {"isNew" in doc && doc.isNew ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeIdProof((doc as any).index)}
+                        onClick={() => removeIdProof(doc.index)}
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>

@@ -37,7 +37,11 @@ export default function LoginPage() {
         password: data.password,
       })
       if (result.error) {
-        toast.error(result.error.message || "Invalid credentials")
+        if (result.error.code === "EMAIL_NOT_VERIFIED") {
+          router.push(`/verify-email?email=${encodeURIComponent(data.email)}`)
+        } else {
+          toast.error(result.error.message || "Invalid credentials")
+        }
       } else {
         router.push("/dashboard")
       }

@@ -199,7 +199,7 @@ export default function AdvancePaymentsPage() {
           <DialogHeader>
             <DialogTitle>Record advance</DialogTitle>
             <DialogDescription>
-              Apply it to a bill later from the tenant's page, or forfeit it if it
+              Apply it to a bill later from the tenant’s page, or forfeit it if it
               is not returned.
             </DialogDescription>
           </DialogHeader>

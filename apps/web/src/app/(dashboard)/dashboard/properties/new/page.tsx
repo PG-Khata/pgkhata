@@ -25,6 +25,7 @@ const schema = z.object({
 })
 
 type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
 
 export default function NewPropertyPage() {
   const router = useRouter()
@@ -35,8 +36,8 @@ export default function NewPropertyPage() {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+  } = useForm<FormInput, unknown, FormData>({
+    resolver: zodResolver(schema),
     defaultValues: { electricityMode: "flat" },
   })
 

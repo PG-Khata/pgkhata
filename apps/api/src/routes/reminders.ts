@@ -9,7 +9,7 @@ import { sendEmail, billReminderEmail, formatCurrency } from "@pgkhata/email";
 const router = Router({ mergeParams: true });
 
 const sendReminderSchema = z.object({
-  billIds: z.array(z.string().uuid()),
+  billIds: z.array(z.string().uuid()).min(1).max(100),
   channel: z.enum(["email", "whatsapp", "both"]).default("email"),
 });
 
@@ -100,7 +100,7 @@ router.post("/send", async (req: AuthenticatedRequest, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to send reminders" });
   }

@@ -2,7 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { db, property, room, tenant, tenantDocument, complaint, bill } from "@pgkhata/db";
 import { eq, and } from "drizzle-orm";
-import { uploadToR2, isR2Configured } from "../lib/r2-storage";
+import { validateDocumentUpload } from "../lib/document-upload";
+import { deleteFromR2, uploadToR2, isR2Configured } from "../lib/r2-storage";
+import { HttpError } from "../lib/http";
+import { randomUUID } from "node:crypto";
 
 const router = Router();
 
@@ -116,63 +119,76 @@ router.post("/signup/:token", async (req, res) => {
       return res.status(503).json({ error: "Document uploads are temporarily unavailable" });
     }
 
-    // Self-registered tenants start pending: no bed is assigned and they do
-    // not count toward occupancy until the owner approves them. The room
-    // they asked for is remembered on requestedRoomId so approval knows where
-    // to place them.
-    const [newTenant] = await db
-      .insert(tenant)
-      .values({
-        propertyId: prop.id,
-        name: body.name,
-        phone: body.phone,
-        email: body.email,
-        alternatePhone: body.alternatePhone || null,
-        dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
-        gender: body.gender || null,
-        occupation: body.occupation || null,
-        aadhaarNumber: body.aadhaarNumber || null,
-        panNumber: body.panNumber || null,
-        permanentAddress: body.permanentAddress || null,
-        permanentAddressCity: body.permanentAddressCity || null,
-        permanentAddressState: body.permanentAddressState || null,
-        permanentAddressPincode: body.permanentAddressPincode || null,
-        requestedRoomId: body.roomId,
-        joiningDate: new Date(),
-        status: "pending",
-      })
-      .returning();
+    const validatedDocuments = body.documents.map(validateDocumentUpload);
 
-    if (!newTenant) {
-      return res.status(500).json({ error: "Failed to process signup" });
-    }
+    const tenantId = randomUUID();
+    const uploadedDocuments: Array<{ key: string; size: number }> = [];
+    try {
+      for (const [index, document] of body.documents.entries()) {
+        const validated = validatedDocuments[index]!;
+        uploadedDocuments.push(await uploadToR2(
+          `kyc/${tenantId}`,
+          document.fileName,
+          validated.buffer,
+          validated.contentType,
+          validated.extension,
+        ));
+      }
 
-    for (const document of body.documents) {
-      const buffer = Buffer.from(document.fileBase64, "base64");
-      const uploaded = await uploadToR2(
-        `kyc/${newTenant.id}`,
-        document.fileName,
-        buffer,
-        document.contentType,
-      );
+      // The tenant and every document row commit together. Uploads happen
+      // first and are compensating-deleted if storage or PostgreSQL fails, so
+      // an external outage cannot leave a half-created onboarding record.
+      const newTenant = await db.transaction(async (tx) => {
+        const [created] = await tx.insert(tenant).values({
+          id: tenantId,
+          propertyId: prop.id,
+          name: body.name,
+          phone: body.phone,
+          email: body.email,
+          alternatePhone: body.alternatePhone || null,
+          dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null,
+          gender: body.gender || null,
+          occupation: body.occupation || null,
+          aadhaarNumber: body.aadhaarNumber || null,
+          panNumber: body.panNumber || null,
+          permanentAddress: body.permanentAddress || null,
+          permanentAddressCity: body.permanentAddressCity || null,
+          permanentAddressState: body.permanentAddressState || null,
+          permanentAddressPincode: body.permanentAddressPincode || null,
+          requestedRoomId: body.roomId,
+          joiningDate: new Date(),
+          status: "pending",
+        }).returning();
+        if (!created) throw new Error("Tenant insert returned no row");
 
-      await db.insert(tenantDocument).values({
-        tenantId: newTenant.id,
-        type: document.type,
-        fileName: document.fileName,
-        fileUrl: uploaded.url,
-        fileSize: uploaded.size,
+        if (body.documents.length > 0) {
+          await tx.insert(tenantDocument).values(body.documents.map((document, index) => ({
+            tenantId,
+            type: document.type,
+            fileName: document.fileName,
+            fileUrl: "private",
+            storageKey: uploadedDocuments[index]!.key,
+            contentType: validatedDocuments[index]!.contentType,
+            fileSize: uploadedDocuments[index]!.size,
+          })));
+        }
+        return created;
       });
-    }
 
-    res.status(201).json({
-      message: "Signup received. The owner will review and approve it shortly.",
-      tenant: newTenant,
-    });
+      res.status(201).json({
+        message: "Signup received. The owner will review and approve it shortly.",
+        tenant: newTenant,
+      });
+      return;
+    } catch (error) {
+      await Promise.allSettled(uploadedDocuments.map((document) => deleteFromR2(document.key)));
+      throw error;
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
+    if (error instanceof HttpError) return res.status(error.status).json({ error: error.message });
     res.status(500).json({ error: "Failed to process signup" });
   }
 });
@@ -286,7 +302,7 @@ router.post("/complaint/:token", async (req, res) => {
     res.status(201).json({ message: "Complaint submitted", complaint: newComplaint });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to submit complaint" });
   }

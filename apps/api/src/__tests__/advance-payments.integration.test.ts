@@ -13,10 +13,12 @@ import {
   bill,
   payment,
   advancePayment,
+  advanceApplication,
 } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -34,20 +36,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `advance-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Advance ${label}`, email, password: "advance-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Advance ${label}`, email, password: "advance-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Advance PG ${label} ${suffix}` });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -105,7 +103,7 @@ describeDb("advance payments (database)", () => {
         name: "Advance Tenant",
         phone: nextPhone(),
         roomId: roomRes.body.id,
-        joiningDate: new Date().toISOString(),
+        joiningDate: "2026-06-01T00:00:00.000Z",
       });
     aliceTenantId = tenantRes.body.id;
 
@@ -119,7 +117,7 @@ describeDb("advance payments (database)", () => {
       .set("Cookie", alice.cookie)
       .send({ month: "2026-06" });
     aliceBillId = generated.body.bills[0].id;
-  }, 20000);
+  }, 60000);
 
   afterAll(async () => {
     await teardown(alice);
@@ -197,7 +195,7 @@ describeDb("advance payments (database)", () => {
 
     const [b] = await db.select().from(bill).where(eq(bill.id, aliceBillId));
     expect(b!.paidAmount).toBe(2000);
-    expect(b!.status).toBe("partial");
+    expect(b!.status).toBe("overdue");
   });
 
   it("records the application as a payment with method advance", async () => {
@@ -206,6 +204,46 @@ describeDb("advance payments (database)", () => {
     expect(payments).toHaveLength(1);
     expect(payments[0]!.method).toBe("advance");
     expect(payments[0]!.amount).toBe(2000);
+    const applications = await db.select().from(advanceApplication)
+      .where(eq(advanceApplication.paymentId, payments[0]!.id));
+    expect(applications).toHaveLength(1);
+    expect(applications[0]).toMatchObject({
+      tenantId: aliceTenantId,
+      billId: aliceBillId,
+      amount: 2000,
+    });
+  });
+
+  it("rejects applying one tenant's advance to another tenant's bill", async () => {
+    const [otherTenant] = await db.insert(tenant).values({
+      propertyId: alice.propertyId,
+      name: "Other Tenant",
+      phone: nextPhone(),
+      joiningDate: new Date("2026-06-01T00:00:00.000Z"),
+      status: "active",
+    }).returning();
+    const [otherBill] = await db.insert(bill).values({
+      tenantId: otherTenant!.id,
+      billMonth: "2026-06",
+      rentAmount: 1000,
+      electricityAmount: 0,
+      lineItems: [{ code: "RENT", name: "Rent", amount: 1000 }],
+      totalAmount: 1000,
+      balance: 1000,
+      dueDate: new Date("2026-06-05T00:00:00.000Z"),
+    }).returning();
+    const list = await request(app).get(url(alice)).set("Cookie", alice.cookie);
+    const advanceId = list.body[0].advance.id;
+    const before = list.body[0].advance.appliedAmount;
+
+    const response = await request(app)
+      .post(url(alice, `/${advanceId}/apply`))
+      .set("Cookie", alice.cookie)
+      .send({ billId: otherBill!.id, amount: 100 });
+    expect(response.status).toBe(409);
+    const [stored] = await db.select().from(advancePayment).where(eq(advancePayment.id, advanceId));
+    expect(stored!.appliedAmount).toBe(before);
+    expect(await db.select().from(advanceApplication).where(eq(advanceApplication.billId, otherBill!.id))).toHaveLength(0);
   });
 
   it("refuses to apply more than what remains available on the advance", async () => {

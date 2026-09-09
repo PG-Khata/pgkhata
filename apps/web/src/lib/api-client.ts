@@ -1,8 +1,4 @@
-if (!process.env.NEXT_PUBLIC_API_URL) {
-  throw new Error("NEXT_PUBLIC_API_URL environment variable is required")
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+const API_URL = "/api/backend"
 
 export class ApiError extends Error {
   constructor(

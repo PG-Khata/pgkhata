@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -18,12 +19,15 @@ router.use(requireAuth, requireOwner, requireProperty);
 // Get amenities for property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const amenities = await db
       .select()
       .from(propertyAmenity)
-      .where(eq(propertyAmenity.propertyId, req.propertyId!));
+      .where(eq(propertyAmenity.propertyId, req.propertyId!))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(amenities);
+    sendPage(res, amenities, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch amenities" });
   }
@@ -42,7 +46,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to add amenity" });
   }
@@ -65,7 +69,7 @@ router.put("/:amenityId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update amenity" });
   }

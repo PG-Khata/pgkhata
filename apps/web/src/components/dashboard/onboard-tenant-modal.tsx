@@ -98,7 +98,7 @@ export function OnboardTenantModal({
     setError,
     formState: { errors },
   } = useForm<FormData>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema),
   })
 
   function handleProfileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -138,7 +138,7 @@ export function OnboardTenantModal({
     try {
       if (isPublic) {
         // Public mode - use the public signup API
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"
+        const API_URL = "/api/backend"
         const res = await fetch(`${API_URL}/public/signup/${propertyId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

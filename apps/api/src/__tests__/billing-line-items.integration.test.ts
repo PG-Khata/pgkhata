@@ -13,11 +13,13 @@ import {
   chargeType,
   tenant,
   bill,
+  billAdjustment,
   electricityReading,
 } from "@pgkhata/db";
 import { app } from "../index";
+import { registerVerifiedUser } from "./db-auth-helper";
 
-const describeDb = process.env.DATABASE_URL ? describe : describe.skip;
+const describeDb = process.env.TEST_DATABASE_URL ? describe : describe.skip;
 
 const suffix = Date.now();
 let phoneSeq = 0;
@@ -35,20 +37,16 @@ interface Owner {
 
 async function createOwner(label: string): Promise<Owner> {
   const email = `lineitems-${label}-${suffix}@pgkhata.test`;
-  const signUp = await request(app)
-    .post("/api/auth/sign-up/email")
-    .send({ name: `Line Items ${label}`, email, password: "lineitems-password-123" });
-  expect(signUp.status).toBe(200);
-
-  const [created] = await db.select({ id: user.id }).from(user).where(eq(user.email, email));
-  const cookie = signUp.headers["set-cookie"] as unknown as string[];
+  const { userId, cookie } = await registerVerifiedUser(app, {
+    name: `Line Items ${label}`, email, password: "lineitems-password-123",
+  });
 
   const prop = await request(app)
     .post("/v1/properties")
     .set("Cookie", cookie)
     .send({ name: `Line Items PG ${label} ${suffix}`, electricityRatePerUnit: 10 });
 
-  return { userId: created!.id, cookie, propertyId: prop.body.id };
+  return { userId, cookie, propertyId: prop.body.id };
 }
 
 async function teardown(owner: Owner) {
@@ -170,8 +168,7 @@ describeDb("billing on line items (database)", () => {
       { code: "ELEC", name: "Electricity", amount: 500, units: 50, ratePerUnit: 10 },
     ]);
     expect(theBill.totalAmount).toBe(7000);
-    expect(new Date(theBill.dueDate).getTime()).toBeGreaterThan(new Date(theBill.createdAt).getTime());
-    expect(Math.round((new Date(theBill.dueDate).getTime() - new Date(theBill.createdAt).getTime()) / 86_400_000)).toBe(5);
+    expect(new Date(theBill.dueDate).toISOString().slice(0, 10)).toBe("2026-06-07");
   });
 
   it("bills the correct month's reading, not the latest one", async () => {
@@ -185,7 +182,7 @@ describeDb("billing on line items (database)", () => {
       name: "Month Tenant",
       phone: nextPhone(),
       roomId,
-      joiningDate: new Date().toISOString(),
+      joiningDate: "2026-07-01T00:00:00.000Z",
     });
 
     // Readings for June and August, but bill July — no reading exists for it.
@@ -240,6 +237,46 @@ describeDb("billing on line items (database)", () => {
     const sharedBill = roomBills.find((b: { electricityAmount: number }) => b.electricityAmount === 500);
     // 1000 total / 2 occupants = 500 each.
     expect(sharedBill).toBeDefined();
+  });
+
+  it("reconciles an earlier sole-occupant bill when a roommate is billed later", async () => {
+    const roomRes = await request(app).post(rooms()).set("Cookie", alice.cookie)
+      .send({ number: "STAGGERED", capacity: 2, monthlyRent: 6000 });
+    const roomId = roomRes.body.id;
+    const first = await addAndApproveTenant({
+      name: "Staggered First", phone: nextPhone(), roomId,
+      joiningDate: "2026-09-01T00:00:00.000Z",
+    });
+    const pendingSecond = await request(app).post(tenants()).set("Cookie", alice.cookie).send({
+      name: "Staggered Second", phone: nextPhone(), roomId,
+      joiningDate: "2026-09-01T00:00:00.000Z",
+    });
+    await request(app).post(readings()).set("Cookie", alice.cookie)
+      .send({ roomId, reading: 100, readingDate: "2026-08-31" });
+    await request(app).post(readings()).set("Cookie", alice.cookie)
+      .send({ roomId, reading: 280, readingDate: "2026-09-30" });
+
+    const firstRun = await request(app).post(bills("/generate")).set("Cookie", alice.cookie)
+      .send({ month: "2026-09", tenantId: first.body.id });
+    expect(firstRun.body.bills[0].electricityAmount).toBe(1800);
+
+    const approvedSecond = await request(app)
+      .post(tenants(`/${pendingSecond.body.id}/approve`)).set("Cookie", alice.cookie);
+    expect(approvedSecond.status).toBe(200);
+    const secondRun = await request(app).post(bills("/generate")).set("Cookie", alice.cookie)
+      .send({ month: "2026-09", tenantId: pendingSecond.body.id });
+    expect(secondRun.status).toBe(201);
+
+    const stored = await db.select().from(bill).where(inArray(
+      bill.tenantId, [first.body.id, pendingSecond.body.id],
+    ));
+    expect(stored.map((row) => row.electricityAmount).sort()).toEqual([900, 900]);
+    expect(stored.reduce((sum, row) => sum + row.electricityAmount, 0)).toBe(1800);
+    const firstBill = stored.find((row) => row.tenantId === first.body.id)!;
+    const adjustments = await db.select().from(billAdjustment)
+      .where(eq(billAdjustment.billId, firstBill.id));
+    expect(adjustments).toHaveLength(1);
+    expect(adjustments[0]).toMatchObject({ kind: "credit", amount: 900 });
   });
 
   it("prorates a mid-month tenant's electricity from the two readings", async () => {
@@ -362,17 +399,17 @@ describeDb("billing on line items (database)", () => {
     const list = await request(app).get(bills()).set("Cookie", alice.cookie);
 
     for (const row of list.body) {
-      const sum = row.bill.lineItems.reduce(
+      const sum = row.lineItems.reduce(
         (total: number, line: { amount: number }) => total + line.amount,
         0,
       );
-      expect(row.bill.totalAmount).toBe(sum);
+      expect(row.totalAmount).toBe(sum);
     }
   });
 
   it("scopes bill approval to the requesting owner's property", async () => {
     const list = await request(app).get(bills()).set("Cookie", alice.cookie);
-    const targetId = list.body[0].bill.id;
+    const targetId = list.body[0].id;
 
     // A second owner, with no relationship to Alice's bills.
     const bob = await createOwner("bob-approve");

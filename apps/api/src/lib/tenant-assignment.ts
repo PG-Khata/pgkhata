@@ -1,5 +1,5 @@
-import { db, bed, room, tenant } from "@pgkhata/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, bed, room, tenant, occupancyHistory } from "@pgkhata/db";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import {
   FREED,
   OCCUPIED,
@@ -8,6 +8,7 @@ import {
   type AssignableBed,
 } from "./assignment";
 import { HttpError } from "./http";
+import { businessDate } from "./due-date";
 
 /** Beds of a property, with the room they sit in, for assignment decisions. */
 async function assignableBeds(propertyId: string): Promise<
@@ -83,7 +84,7 @@ export async function assignTenantToBed(
       }
 
       const [current] = await tx
-        .select({ id: tenant.id, bedId: tenant.bedId })
+        .select({ id: tenant.id, bedId: tenant.bedId, joiningDate: tenant.joiningDate })
         .from(tenant)
         .where(and(eq(tenant.id, tenantId), eq(tenant.propertyId, propertyId)))
         .limit(1);
@@ -92,21 +93,40 @@ export async function assignTenantToBed(
 
       // Free the bed being left behind, so a move never leaves two beds held.
       if (current.bedId && current.bedId !== chosen.id) {
+        await tx.update(occupancyHistory)
+          .set({ endedOn: businessDate() })
+          .where(and(eq(occupancyHistory.tenantId, tenantId), isNull(occupancyHistory.endedOn)));
         await tx
           .update(bed)
           .set({ status: FREED, updatedAt: new Date() })
           .where(eq(bed.id, current.bedId));
       }
 
+      // A bed holder is an active occupant. Set the three related fields in
+      // one statement so the database CHECK never observes a pending/vacated
+      // tenant holding a bed, including during approval and concurrent moves.
       await tx
         .update(tenant)
-        .set({ bedId: chosen.id, roomId: chosen.roomId, updatedAt: new Date() })
+        .set({
+          bedId: chosen.id,
+          roomId: chosen.roomId,
+          status: "active",
+          updatedAt: new Date(),
+        })
         .where(eq(tenant.id, tenantId));
 
       await tx
         .update(bed)
         .set({ status: OCCUPIED, updatedAt: new Date() })
         .where(eq(bed.id, chosen.id));
+
+      await tx.insert(occupancyHistory).values({
+        tenantId,
+        propertyId,
+        roomId: chosen.roomId,
+        bedId: chosen.id,
+        startedOn: current.bedId ? businessDate() : current.joiningDate,
+      });
 
       return {
         bedId: chosen.id,
@@ -147,6 +167,10 @@ export async function vacateTenantBed(
 
     if (!current) throw new HttpError(404, "Tenant not found");
     if (!current.bedId) return { freedBedId: null };
+
+    await tx.update(occupancyHistory)
+      .set({ endedOn: businessDate() })
+      .where(and(eq(occupancyHistory.tenantId, tenantId), isNull(occupancyHistory.endedOn)));
 
     await tx
       .update(tenant)

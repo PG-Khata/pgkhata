@@ -1,12 +1,14 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, advancePayment, tenant, bill, payment } from "@pgkhata/db";
+import { db, advancePayment, advanceApplication, tenant, bill, payment } from "@pgkhata/db";
 import { eq, and, desc } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param, HttpError } from "../lib/http";
 import { applyAdvanceToBill } from "../lib/advance-payment";
 import { syncBillTotals } from "./payments";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -48,14 +50,17 @@ async function ownedAdvance(propertyId: string, advanceId: string) {
 // List every advance for the property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const advances = await db
       .select({ advance: advancePayment, tenantName: tenant.name })
       .from(advancePayment)
       .innerJoin(tenant, eq(advancePayment.tenantId, tenant.id))
       .where(eq(tenant.propertyId, req.propertyId!))
-      .orderBy(desc(advancePayment.date));
+      .orderBy(desc(advancePayment.date))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(advances);
+    sendPage(res, advances, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch advance payments" });
   }
@@ -64,6 +69,7 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 // Advances for one tenant
 router.get("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const tenantId = param(req, "tenantId");
     if (!(await ownedTenant(req.propertyId!, tenantId))) {
       return res.status(404).json({ error: "Tenant not found" });
@@ -73,9 +79,11 @@ router.get("/tenant/:tenantId", async (req: AuthenticatedRequest, res) => {
       .select()
       .from(advancePayment)
       .where(eq(advancePayment.tenantId, tenantId))
-      .orderBy(desc(advancePayment.date));
+      .orderBy(desc(advancePayment.date))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(advances);
+    sendPage(res, advances, page);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch tenant advance payments" });
   }
@@ -103,7 +111,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to record advance payment" });
   }
@@ -132,24 +140,37 @@ router.post("/:advanceId/apply", async (req: AuthenticatedRequest, res, next) =>
       .limit(1);
 
     if (!targetBill) return res.status(404).json({ error: "Bill not found" });
-
-    const decision = applyAdvanceToBill({
-      advance,
-      billBalance: targetBill.bill.balance,
-      requestedAmount: body.amount,
-    });
-
-    if (!decision.ok) {
-      const messages: Record<typeof decision.reason, string> = {
-        forfeited: "Advance has been forfeited and cannot be applied",
-        "nothing-available": "No balance remains on this advance",
-        "exceeds-available": "Amount exceeds what remains available on this advance",
-        "exceeds-bill-balance": "Amount exceeds the bill's outstanding balance",
-      };
-      return res.status(409).json({ error: messages[decision.reason] });
+    if (advance.tenantId !== targetBill.bill.tenantId) {
+      return res.status(409).json({ error: "Advance and bill must belong to the same tenant" });
     }
+    if (targetBill.bill.voidedAt) return res.status(409).json({ error: "Voided bills cannot accept advances" });
 
     const result = await db.transaction(async (tx) => {
+      const [lockedAdvance] = await tx.select().from(advancePayment)
+        .where(eq(advancePayment.id, advanceId)).for("update").limit(1);
+      const [lockedBill] = await tx.select().from(bill)
+        .where(eq(bill.id, body.billId)).for("update").limit(1);
+      if (!lockedAdvance || !lockedBill) throw new HttpError(409, "Advance or bill changed; retry");
+      if (lockedAdvance.tenantId !== lockedBill.tenantId) {
+        throw new HttpError(409, "Advance and bill must belong to the same tenant");
+      }
+      if (lockedBill.voidedAt) throw new HttpError(409, "Voided bills cannot accept advances");
+
+      const decision = applyAdvanceToBill({
+        advance: lockedAdvance,
+        billBalance: lockedBill.balance,
+        requestedAmount: body.amount,
+      });
+      if (!decision.ok) {
+        const messages: Record<typeof decision.reason, string> = {
+          forfeited: "Advance has been forfeited and cannot be applied",
+          "nothing-available": "No balance remains on this advance",
+          "exceeds-available": "Amount exceeds what remains available on this advance",
+          "exceeds-bill-balance": "Amount exceeds the bill's outstanding balance",
+        };
+        throw new HttpError(409, messages[decision.reason]);
+      }
+
       const [updatedAdvance] = await tx
         .update(advancePayment)
         .set({
@@ -160,28 +181,37 @@ router.post("/:advanceId/apply", async (req: AuthenticatedRequest, res, next) =>
         .where(eq(advancePayment.id, advanceId))
         .returning();
 
-      await tx.insert(payment).values({
+      const [createdPayment] = await tx.insert(payment).values({
         billId: body.billId,
         amount: decision.amountApplied,
         paymentDate: new Date(),
         method: "advance",
         notes: `Applied from advance payment ${advanceId}`,
+        idempotencyKey: randomUUID(),
+      }).returning();
+
+      await tx.insert(advanceApplication).values({
+        advanceId,
+        billId: body.billId,
+        paymentId: createdPayment!.id,
+        tenantId: lockedAdvance.tenantId,
+        amount: decision.amountApplied,
       });
 
-      return updatedAdvance;
+      const billStatus = await syncBillTotals(body.billId, lockedBill.totalAmount, tx);
+
+      return { updatedAdvance, billStatus, amountApplied: decision.amountApplied };
     });
 
-    const billStatus = await syncBillTotals(body.billId, targetBill.bill.totalAmount);
-
     res.json({
-      message: `Applied ${decision.amountApplied} from advance to bill`,
-      amountApplied: decision.amountApplied,
-      advance: result,
-      bill: billStatus,
+      message: `Applied ${result.amountApplied} from advance to bill`,
+      amountApplied: result.amountApplied,
+      advance: result.updatedAdvance,
+      bill: result.billStatus,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     if (error instanceof HttpError) return next(error);
     res.status(500).json({ error: "Failed to apply advance payment" });

@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
+import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
 
@@ -33,6 +34,7 @@ async function verifyBookingOwnership(bookingId: string, propertyId: string) {
 // Get bookings for property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
+    const page = pagination(req);
     const bookings = await db
       .select({
         booking: bedBooking,
@@ -42,14 +44,16 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
       .from(bedBooking)
       .innerJoin(bed, eq(bedBooking.bedId, bed.id))
       .innerJoin(room, eq(bed.roomId, room.id))
-      .where(eq(room.propertyId, req.propertyId!));
+      .where(eq(room.propertyId, req.propertyId!))
+      .limit(page.limit)
+      .offset(page.offset);
 
-    res.json(
+    sendPage(res,
       bookings.map((row) => ({
         ...row.booking,
         bedNumber: row.bedNumber,
         roomNumber: row.roomNumber,
-      })),
+      })), page,
     );
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch bookings" });
@@ -90,7 +94,7 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
     res.status(201).json(created);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to create booking" });
   }
@@ -149,7 +153,7 @@ router.put("/:bookingId", async (req: AuthenticatedRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: "Validation error", details: error.errors });
+      return res.status(400).json({ error: "Validation error", details: error.issues });
     }
     res.status(500).json({ error: "Failed to update booking" });
   }

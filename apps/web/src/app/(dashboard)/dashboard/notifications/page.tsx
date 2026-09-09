@@ -120,7 +120,7 @@ export default function NotificationsPage() {
           <Bell className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">No notifications</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            You'll see rent, payment, and tenant updates here.
+            You’ll see rent, payment, and tenant updates here.
           </p>
         </div>
       )}

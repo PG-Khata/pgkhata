@@ -9,6 +9,7 @@ node_modules/
 
 # production
 /build
+/apps/api/dist/
 
 # debug
 npm-debug.log*
