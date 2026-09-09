@@ -6,7 +6,7 @@ services:
     region: singapore
     branch: staging
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @pgkhata/api build
+    buildCommand: npm install -g pnpm@10.15.1 && pnpm install --frozen-lockfile && pnpm --filter @pgkhata/api build
     preDeployCommand: pnpm --filter @pgkhata/db migrate:deploy
     startCommand: pnpm --filter @pgkhata/api start
     envVars:
@@ -38,7 +38,7 @@ services:
     region: singapore
     branch: staging
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter web build
+    buildCommand: npm install -g pnpm@10.15.1 && pnpm install --frozen-lockfile && pnpm --filter web build
     startCommand: pnpm --filter web start
     envVars:
       - key: NODE_ENV
