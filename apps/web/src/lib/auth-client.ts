@@ -6,7 +6,7 @@ const webOrigin = typeof window === "undefined"
   : window.location.origin
 
 export const authClient = createAuthClient({
-  baseURL: `${webOrigin}/api/backend`,
+  baseURL: `${webOrigin}/api/backend/api/auth`,
   plugins: [emailOTPClient()],
 })
 
