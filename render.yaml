@@ -6,9 +6,9 @@ services:
     region: singapore
     branch: staging
     plan: free
-    buildCommand: npm install -g pnpm@10.15.1 && pnpm install --frozen-lockfile && pnpm --filter @pgkhata/api build
-    preDeployCommand: pnpm --filter @pgkhata/db migrate:deploy
-    startCommand: pnpm --filter @pgkhata/api start
+    buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter @pgkhata/api build
+    preDeployCommand: npx pnpm@10.15.1 --filter @pgkhata/db migrate:deploy
+    startCommand: node apps/api/dist/server.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -38,8 +38,8 @@ services:
     region: singapore
     branch: staging
     plan: free
-    buildCommand: npm install -g pnpm@10.15.1 && pnpm install --frozen-lockfile && pnpm --filter web build
-    startCommand: pnpm --filter web start
+    buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter web build
+    startCommand: cd apps/web && npx next start
     envVars:
       - key: NODE_ENV
         value: production
