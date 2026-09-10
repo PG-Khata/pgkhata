@@ -55,27 +55,11 @@ app.use((req, res, next) => {
 });
 
 // Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:"],
-      fontSrc: ["'self'", "https:", "data:"],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'self'"],
-      formAction: ["'self'"],
-      baseUri: ["'self'"],
-      upgradeInsecureRequests: [],
-    },
-  },
-  permissionsPolicy: {
-    camera: [],
-    microphone: [],
-    geolocation: [],
-  },
-}));
+app.use(helmet());
+app.use((req, res, next) => {
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  next();
+});
 if (!process.env.CORS_ORIGIN) {
   throw new Error("CORS_ORIGIN environment variable is required");
 }
