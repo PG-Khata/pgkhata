@@ -21,6 +21,8 @@ import {
 import { formatCurrency, formatMonth, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
+import { usePrompt } from "@/components/ui/prompt-modal"
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Clock, FileCheck, Play, Send, Share2, Wallet } from "lucide-react"
 
 function getCurrentMonth() {
@@ -151,8 +153,17 @@ export default function BillingPage() {
     })
   }
 
-  function handleVoid(billId: string, tenantName: string) {
-    if (!confirm(`Void this bill for ${tenantName}? The record will be preserved but the balance zeroed.`)) return
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+  const { prompt: promptInput, modal: promptModal } = usePrompt()
+
+  async function handleVoid(billId: string, tenantName: string) {
+    const confirmed = await confirmAction({
+      title: "Void Bill",
+      description: `Void this bill for ${tenantName}? The record will be preserved but the balance zeroed.`,
+      confirmLabel: "Void",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     voidBill.mutate(billId, {
       onSuccess: () => toast.success("Bill voided; payment history preserved"),
       onError: (error) =>
@@ -160,8 +171,12 @@ export default function BillingPage() {
     })
   }
 
-  function handleSetPromisedDate(billId: string) {
-    const date = prompt("Enter promised payment date (YYYY-MM-DD), or leave empty to clear:")
+  async function handleSetPromisedDate(billId: string) {
+    const date = await promptInput({
+      title: "Set Promised Date",
+      description: "Enter promised payment date (YYYY-MM-DD), or leave empty to clear.",
+      placeholder: "YYYY-MM-DD",
+    })
     if (date === null) return // cancelled
     const value = date.trim() === "" ? null : date
     setPromisedDate.mutate(
@@ -548,6 +563,12 @@ export default function BillingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
+
+      {/* Prompt modal */}
+      {promptModal}
     </div>
   )
 }

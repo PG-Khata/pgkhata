@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 
 const schema = z.object({
   tenantId: z.string().min(1, "Select a tenant"),
@@ -66,8 +67,16 @@ export default function AdvancePaymentsPage() {
     })
   }
 
-  function handleForfeit(id: string, tenantName: string) {
-    if (!confirm(`Forfeit this advance for ${tenantName}? This cannot be undone.`)) return
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+
+  async function handleForfeit(id: string, tenantName: string) {
+    const confirmed = await confirmAction({
+      title: "Forfeit Advance",
+      description: `Forfeit this advance for ${tenantName}? This cannot be undone.`,
+      confirmLabel: "Forfeit",
+      variant: "destructive",
+    })
+    if (!confirmed) return
 
     forfeitAdvance.mutate(id, {
       onSuccess: () => toast.success("Advance forfeited"),
@@ -250,6 +259,9 @@ export default function AdvancePaymentsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatCurrency } from "@/lib/utils"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(50),
@@ -88,12 +89,20 @@ export default function ChargeTypesPage() {
     )
   }
 
-  function handleDelete(id: string, name: string, code: string) {
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+
+  async function handleDelete(id: string, name: string, code: string) {
     if (code === "ELEC") {
       toast.error("The electricity charge type cannot be deleted")
       return
     }
-    if (!confirm(`Delete ${name}?`)) return
+    const confirmed = await confirmAction({
+      title: "Delete Charge Type",
+      description: `Delete ${name}?`,
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
 
     deleteType.mutate(id, {
       onSuccess: () => toast.success(`${name} deleted`),
@@ -278,6 +287,9 @@ export default function ChargeTypesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

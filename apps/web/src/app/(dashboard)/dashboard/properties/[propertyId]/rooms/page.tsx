@@ -24,11 +24,14 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import { groupRoomsByFloor, structureTotals } from "@/lib/structure"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 import type { Bed } from "@/types"
 
 export default function StructurePage() {
   const params = useParams()
   const propertyId = params.propertyId as string
+
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
 
   const { data: property } = useProperty(propertyId)
   const { data: floors, isLoading: floorsLoading } = useFloors(propertyId)
@@ -73,8 +76,14 @@ export default function StructurePage() {
     )
   }
 
-  function handleDeleteFloor(floorId: string, name: string) {
-    if (!confirm(`Delete ${name}?`)) return
+  async function handleDeleteFloor(floorId: string, name: string) {
+    const confirmed = await confirmAction({
+      title: "Delete Floor",
+      description: `Delete ${name}?`,
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     deleteFloor.mutate(floorId, {
       onSuccess: () => toast.success(`${name} deleted`),
       onError: (error) =>
@@ -98,8 +107,14 @@ export default function StructurePage() {
     })
   }
 
-  function handleDeleteRoom(roomId: string, number: string) {
-    if (!confirm(`Delete room ${number}?`)) return
+  async function handleDeleteRoom(roomId: string, number: string) {
+    const confirmed = await confirmAction({
+      title: "Delete Room",
+      description: `Delete room ${number}?`,
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     deleteRoom.mutate(roomId, {
       onSuccess: () => toast.success("Room deleted"),
       onError: (error) =>
@@ -379,6 +394,9 @@ export default function StructurePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

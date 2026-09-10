@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { toast } from "sonner"
+import { useConfirm } from "@/components/ui/confirm-modal"
 import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 import {
   Dialog,
@@ -63,8 +64,16 @@ export default function PaymentsPage() {
     )
   }
 
-  function handleDelete(paymentId: string) {
-    if (!confirm("Delete this payment? The bill will be recalculated.")) return
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+
+  async function handleDelete(paymentId: string) {
+    const confirmed = await confirmAction({
+      title: "Delete Payment",
+      description: "Delete this payment? The bill will be recalculated.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     deletePayment.mutate(paymentId, {
       onSuccess: () => toast.success("Payment deleted"),
       onError: () => toast.error("Failed to delete payment"),
@@ -219,6 +228,9 @@ export default function PaymentsPage() {
           <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
         </div>
       )}
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

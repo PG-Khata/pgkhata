@@ -14,6 +14,7 @@ import { formatCurrency, formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
 import { api, ApiError } from "@/lib/api-client"
 import { useQueryClient } from "@tanstack/react-query"
+import { usePrompt } from "@/components/ui/prompt-modal"
 import {
   ArrowRightLeft,
   Bed,
@@ -42,6 +43,8 @@ export default function OccupancyPage() {
 
   const { data: beds, isLoading: bedsLoading } = useBeds(propertyId)
   const { data: tenants, isLoading: tenantsLoading } = useTenants(propertyId)
+
+  const { prompt: promptInput, modal: promptModal } = usePrompt()
 
   const [search, setSearch] = useState("")
   const [onboardOpen, setOnboardOpen] = useState(false)
@@ -160,7 +163,12 @@ export default function OccupancyPage() {
   }
 
   async function handleTransfer(tenantId: string, tenantName: string) {
-    const bedId = prompt(`Transfer ${tenantName} to which vacant bed?\nEnter bed ID:`)
+    const bedId = await promptInput({
+      title: `Transfer ${tenantName}`,
+      description: "Enter the bed ID to transfer this tenant to.",
+      placeholder: "Enter bed ID",
+      required: true,
+    })
     if (!bedId) return
     try {
       await api.post(
@@ -460,6 +468,9 @@ export default function OccupancyPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Prompt modal */}
+      {promptModal}
     </div>
   )
 }

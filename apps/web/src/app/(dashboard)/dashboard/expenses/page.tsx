@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 
 const expenseSchema = z.object({
   categoryId: z.string().min(1, "Select a category"),
@@ -85,8 +86,16 @@ export default function ExpensesPage() {
     })
   }
 
-  function handleDeleteCategory(id: string, name: string) {
-    if (!confirm(`Delete category ${name}?`)) return
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+
+  async function handleDeleteCategory(id: string, name: string) {
+    const confirmed = await confirmAction({
+      title: "Delete Category",
+      description: `Delete category ${name}?`,
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     deleteCategory.mutate(id, {
       onSuccess: () => toast.success(`${name} deleted`),
       onError: (error) =>
@@ -396,6 +405,9 @@ export default function ExpensesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

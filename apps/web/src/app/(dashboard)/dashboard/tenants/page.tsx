@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { formatPhone } from "@/lib/utils"
 import { toast } from "sonner"
+import { useConfirm } from "@/components/ui/confirm-modal"
 import {
   Download,
   FileText,
@@ -39,6 +40,7 @@ export default function TenantsPage() {
   const { data: tenants, isLoading } = useTenants(propertyId)
   const approveTenant = useApproveTenant(propertyId)
   const rejectTenant = useRejectTenant(propertyId)
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -47,7 +49,12 @@ export default function TenantsPage() {
   const [importOpen, setImportOpen] = useState(false)
 
   async function handleApprove(tenantId: string, tenantName: string) {
-    if (!confirm(`Approve ${tenantName}? They will become active and can be assigned a bed.`)) return
+    const confirmed = await confirmAction({
+      title: "Approve Tenant",
+      description: `Approve ${tenantName}? They will become active and can be assigned a bed.`,
+      confirmLabel: "Approve",
+    })
+    if (!confirmed) return
     try {
       await approveTenant.mutateAsync(tenantId)
       toast.success(`${tenantName} approved`)
@@ -57,7 +64,13 @@ export default function TenantsPage() {
   }
 
   async function handleReject(tenantId: string, tenantName: string) {
-    if (!confirm(`Reject ${tenantName}? This cannot be undone.`)) return
+    const confirmed = await confirmAction({
+      title: "Reject Tenant",
+      description: `Reject ${tenantName}? This cannot be undone.`,
+      confirmLabel: "Reject",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     try {
       await rejectTenant.mutateAsync(tenantId)
       toast.success(`${tenantName} rejected`)
@@ -398,6 +411,9 @@ export default function TenantsPage() {
           }
         }}
       />
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }

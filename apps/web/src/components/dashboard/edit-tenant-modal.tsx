@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ApiError, api } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -100,6 +101,8 @@ export function EditTenantModal({
   const [idProofFiles, setIdProofFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
 
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
+
   const { data: documents, isLoading: docsLoading } = useQuery<TenantDocument[]>({
     queryKey: ["tenant-documents", propertyId, tenant?.id],
     queryFn: () => api.get(`/v1/properties/${propertyId}/tenant-documents/tenant/${tenant?.id}`),
@@ -147,7 +150,13 @@ export function EditTenantModal({
   }
 
   async function handleDeleteDocument(docId: string) {
-    if (!confirm("Delete this document?")) return
+    const confirmed = await confirmAction({
+      title: "Delete Document",
+      description: "Delete this document?",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     try {
       await api.delete(`/v1/properties/${propertyId}/tenant-documents/${docId}`)
       toast.success("Document deleted")
@@ -461,6 +470,9 @@ export function EditTenantModal({
             </Button>
           </DialogFooter>
         </form>
+
+        {/* Confirm modal */}
+        {confirmModal}
       </DialogContent>
     </Dialog>
   )

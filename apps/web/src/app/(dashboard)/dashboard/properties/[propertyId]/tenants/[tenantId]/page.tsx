@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { formatDateShort } from "@/lib/utils"
 import { toast } from "sonner"
 import { ApiError } from "@/lib/api-client"
+import { useConfirm } from "@/components/ui/confirm-modal"
 import {
   ArrowLeft, Bed, Clock, CreditCard, FileText, Pencil, ShieldOff, Users,
 } from "lucide-react"
@@ -32,21 +33,33 @@ export default function TenantProfilePage() {
   const updateTenant = useUpdateTenant(propertyId, tenantId)
   const approveTenant = useApproveTenant(propertyId)
   const rejectTenant = useRejectTenant(propertyId)
+  const { confirm: confirmAction, modal: confirmModal } = useConfirm()
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
 
-  function handleApprove() {
+  async function handleApprove() {
     if (!tenant) return
-    if (!confirm(`Approve ${tenant.name}? They will become active and can be assigned a bed.`)) return
+    const confirmed = await confirmAction({
+      title: "Approve Tenant",
+      description: `Approve ${tenant.name}? They will become active and can be assigned a bed.`,
+      confirmLabel: "Approve",
+    })
+    if (!confirmed) return
     approveTenant.mutate(tenantId, {
       onSuccess: () => toast.success(`${tenant.name} approved`),
       onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to approve tenant"),
     })
   }
 
-  function handleReject() {
+  async function handleReject() {
     if (!tenant) return
-    if (!confirm(`Reject ${tenant.name}? This cannot be undone.`)) return
+    const confirmed = await confirmAction({
+      title: "Reject Tenant",
+      description: `Reject ${tenant.name}? This cannot be undone.`,
+      confirmLabel: "Reject",
+      variant: "destructive",
+    })
+    if (!confirmed) return
     rejectTenant.mutate(tenantId, {
       onSuccess: () => { toast.success(`${tenant.name} rejected`); router.push("/dashboard/tenants") },
       onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to reject tenant"),
@@ -177,6 +190,9 @@ export default function TenantProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm modal */}
+      {confirmModal}
     </div>
   )
 }
