@@ -55,7 +55,27 @@ app.use((req, res, next) => {
 });
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  permissionsPolicy: {
+    camera: [],
+    microphone: [],
+    geolocation: [],
+  },
+}));
 if (!process.env.CORS_ORIGIN) {
   throw new Error("CORS_ORIGIN environment variable is required");
 }
@@ -200,6 +220,15 @@ app.use("/v1/admin", adminRouter);
 
 // Public routes (no auth required)
 app.use("/public", publicRouter);
+
+// 404 handler - must be after all routes
+app.use((req, res) => {
+  res.status(404).json({
+    error: "Not Found",
+    message: `Cannot ${req.method} ${req.path}`,
+    requestId: req.headers["x-request-id"],
+  });
+});
 
 // Error handling
 app.use((err: Error & { type?: string; status?: number }, req: express.Request, res: express.Response, next: express.NextFunction) => {
