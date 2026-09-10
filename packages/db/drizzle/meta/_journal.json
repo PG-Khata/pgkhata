@@ -183,6 +183,13 @@
       "when": 1788984651702,
       "tag": "0025_secret_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789073355885,
+      "tag": "0026_add_blog_post",
+      "breakpoints": true
     }
   ]
 }

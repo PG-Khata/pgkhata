@@ -869,3 +869,18 @@ export const platformAdmin = pgTable("platform_admin", {
     .unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const blogPost = pgTable("blog_post", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  excerpt: text("excerpt"),
+  content: text("content").notNull(),
+  author: text("author").notNull().default("Mukund Jha"),
+  tags: jsonb("tags").notNull().default([]),
+  coverImage: text("cover_image"),
+  published: boolean("published").notNull().default(false),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});

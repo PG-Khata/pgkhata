@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property, room, tenant, tenantDocument, complaint, bill } from "@pgkhata/db";
-import { eq, and } from "drizzle-orm";
+import { db, property, room, tenant, tenantDocument, complaint, bill, blogPost } from "@pgkhata/db";
+import { eq, and, desc } from "drizzle-orm";
 import { validateDocumentUpload } from "../lib/document-upload";
 import { deleteFromR2, uploadToR2, isR2Configured } from "../lib/r2-storage";
 import { HttpError } from "../lib/http";
@@ -341,6 +341,48 @@ router.get("/onboarding/:token", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch onboarding status" });
+  }
+});
+
+// ──────────────────────────────────────────────
+// Blog (public — for pgkhata.com to consume)
+// ──────────────────────────────────────────────
+
+router.get("/blog/posts", async (_req, res) => {
+  try {
+    const posts = await db
+      .select({
+        id: blogPost.id,
+        slug: blogPost.slug,
+        title: blogPost.title,
+        excerpt: blogPost.excerpt,
+        author: blogPost.author,
+        tags: blogPost.tags,
+        coverImage: blogPost.coverImage,
+        publishedAt: blogPost.publishedAt,
+      })
+      .from(blogPost)
+      .where(eq(blogPost.published, true))
+      .orderBy(desc(blogPost.publishedAt));
+
+    res.json(posts);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch blog posts" });
+  }
+});
+
+router.get("/blog/posts/:slug", async (req, res) => {
+  try {
+    const [post] = await db
+      .select()
+      .from(blogPost)
+      .where(and(eq(blogPost.slug, req.params.slug), eq(blogPost.published, true)))
+      .limit(1);
+
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    res.json(post);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch blog post" });
   }
 });
 
