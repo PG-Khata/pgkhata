@@ -58,11 +58,11 @@ export default function OccupancyPage() {
   const bedMap = new Map((beds ?? []).map((b) => [b.bed.id, b]))
 
   const activeTenants = (tenants ?? []).filter(
-    (t) => t.status === "active" || t.status === "vacating",
+    (t) => t.status === "active" || t.status === "vacating" || t.status === "pending",
   )
 
   const unassignedTenants = (tenants ?? []).filter(
-    (t) => !t.bedId && t.status === "active",
+    (t) => !t.bedId && (t.status === "active" || t.status === "pending"),
   )
   const vacantBeds = (beds ?? []).filter((b) => b.bed.status === "vacant")
 

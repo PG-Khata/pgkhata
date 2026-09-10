@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useSelectedProperty } from "@/components/layout/property-context"
-import { useTenants } from "@/hooks/use-tenants"
+import { useTenants, useApproveTenant, useRejectTenant } from "@/hooks/use-tenants"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -37,12 +37,34 @@ export default function TenantsPage() {
   const propertyId = selectedProperty?.id ?? ""
 
   const { data: tenants, isLoading } = useTenants(propertyId)
+  const approveTenant = useApproveTenant(propertyId)
+  const rejectTenant = useRejectTenant(propertyId)
 
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [onboardOpen, setOnboardOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+
+  async function handleApprove(tenantId: string, tenantName: string) {
+    if (!confirm(`Approve ${tenantName}? They will become active and can be assigned a bed.`)) return
+    try {
+      await approveTenant.mutateAsync(tenantId)
+      toast.success(`${tenantName} approved`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve tenant")
+    }
+  }
+
+  async function handleReject(tenantId: string, tenantName: string) {
+    if (!confirm(`Reject ${tenantName}? This cannot be undone.`)) return
+    try {
+      await rejectTenant.mutateAsync(tenantId)
+      toast.success(`${tenantName} rejected`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reject tenant")
+    }
+  }
 
   function handleExport() {
     if (!filtered.length) {
@@ -238,12 +260,33 @@ export default function TenantsPage() {
                       <StatusBadge status={t.status} />
                     </td>
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
-                        className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
-                      >
-                        View
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        {t.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => handleApprove(t.id, t.name)}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-destructive hover:text-destructive"
+                              onClick={() => handleReject(t.id, t.name)}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
+                        <Link
+                          href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
+                          className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted"
+                        >
+                          View
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -281,12 +324,33 @@ export default function TenantsPage() {
                       : "Unassigned"}
                   </span>
                 </div>
-                <Link
-                  href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
-                  className="block w-full text-center rounded-md border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  View Details
-                </Link>
+                <div className="flex gap-2">
+                  {t.status === "pending" && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="flex-1 h-8"
+                        onClick={() => handleApprove(t.id, t.name)}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-8 text-destructive hover:text-destructive"
+                        onClick={() => handleReject(t.id, t.name)}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  <Link
+                    href={`/dashboard/properties/${t.propertyId}/tenants/${t.id}`}
+                    className={`block text-center rounded-md border bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-muted ${t.status === "pending" ? "flex-1" : "w-full"}`}
+                  >
+                    View Details
+                  </Link>
+                </div>
               </div>
             ))}
             <div className="px-4 py-3 text-xs text-muted-foreground text-center">

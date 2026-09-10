@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { useTenant, useUpdateTenant } from "@/hooks/use-tenants"
+import { useTenant, useUpdateTenant, useApproveTenant, useRejectTenant } from "@/hooks/use-tenants"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { EditTenantModal } from "@/components/dashboard/edit-tenant-modal"
 import { Button } from "@/components/ui/button"
@@ -30,8 +30,28 @@ export default function TenantProfilePage() {
   const tenantId = params.tenantId as string
   const { data: tenant, isLoading } = useTenant(propertyId, tenantId)
   const updateTenant = useUpdateTenant(propertyId, tenantId)
+  const approveTenant = useApproveTenant(propertyId)
+  const rejectTenant = useRejectTenant(propertyId)
   const [editOpen, setEditOpen] = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
+
+  function handleApprove() {
+    if (!tenant) return
+    if (!confirm(`Approve ${tenant.name}? They will become active and can be assigned a bed.`)) return
+    approveTenant.mutate(tenantId, {
+      onSuccess: () => toast.success(`${tenant.name} approved`),
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to approve tenant"),
+    })
+  }
+
+  function handleReject() {
+    if (!tenant) return
+    if (!confirm(`Reject ${tenant.name}? This cannot be undone.`)) return
+    rejectTenant.mutate(tenantId, {
+      onSuccess: () => { toast.success(`${tenant.name} rejected`); router.push("/dashboard/tenants") },
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to reject tenant"),
+    })
+  }
 
   function handleDeactivate() {
     updateTenant.mutate({ status: "vacated" }, {
@@ -70,8 +90,20 @@ export default function TenantProfilePage() {
           <p className="mt-0.5 text-sm text-muted-foreground">Onboarded {formatDateShort(tenant.joiningDate)}</p>
         </div>
         <div className="flex items-center gap-2">
+          {tenant.status === "pending" && (
+            <>
+              <Button size="sm" onClick={handleApprove} disabled={approveTenant.isPending}>
+                {approveTenant.isPending ? "Approving..." : "Approve"}
+              </Button>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleReject} disabled={rejectTenant.isPending}>
+                {rejectTenant.isPending ? "Rejecting..." : "Reject"}
+              </Button>
+            </>
+          )}
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
-          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeactivateOpen(true)}><ShieldOff className="mr-1.5 h-3.5 w-3.5" /> Deactivate</Button>
+          {tenant.status !== "pending" && (
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeactivateOpen(true)}><ShieldOff className="mr-1.5 h-3.5 w-3.5" /> Deactivate</Button>
+          )}
         </div>
       </div>
 
