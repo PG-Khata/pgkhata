@@ -15,16 +15,6 @@ export interface ImpersonationStatus {
   absoluteExpiresAt?: string
 }
 
-export interface SupportVisit {
-  id: string
-  adminName: string
-  reason: string
-  mode: "read_only" | "read_write"
-  writeReason: string | null
-  writeGrantedAt: string | null
-  startedAt: string
-  endedAt: string | null
-}
 
 const STATUS_KEY = ["impersonation-status"]
 
@@ -66,12 +56,3 @@ export function useExitImpersonation() {
   })
 }
 
-/** The owner's own log of every support visit to their account. */
-export function useSupportHistory(enabled = true) {
-  return useQuery({
-    queryKey: ["impersonation-history"],
-    queryFn: () => api.get<SupportVisit[]>("/v1/impersonation/history"),
-    retry: false,
-    enabled,
-  })
-}

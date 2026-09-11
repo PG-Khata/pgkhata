@@ -106,7 +106,6 @@ describe("impersonation control router", () => {
     // session is read-only, its non-GET routes still run. Anything added here
     // that touches owner data would silently become writable.
     expect(paths).toEqual([
-      "GET /history",
       "GET /status",
       "POST /claim",
       "POST /escalate",
@@ -121,7 +120,6 @@ describe("impersonation endpoints reject anonymous callers", () => {
     ["/v1/impersonation/escalate"],
     ["/v1/impersonation/extend"],
     ["/v1/impersonation/exit"],
-    ["/v1/impersonation/history"],
   ])("POST/GET %s requires a session or grant", async (path) => {
     const res = await request(app).get(path);
     // No session and no grant: requireAuth answers 401 before any handler runs.

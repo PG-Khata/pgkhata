@@ -34,7 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { SupportAccessLog } from "@/components/layout/support-access-log"
 
 /** Stored as +91XXXXXXXXXX; grouped for readability. */
 function formatPhone(phone: string) {
@@ -355,8 +354,6 @@ function ProfileContent() {
           </div>
         </div>
       </div>
-
-      <SupportAccessLog />
 
       <Dialog open={passwordOpen} onOpenChange={setPasswordDialog}>
         <DialogContent className="sm:max-w-md">

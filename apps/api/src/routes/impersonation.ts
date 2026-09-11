@@ -1,8 +1,7 @@
 import { Router, type Response } from "express";
 import { z } from "zod";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
-import { db, adminAuditLog, impersonationSession, ownerProfile, user } from "@pgkhata/db";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { db, adminAuditLog, impersonationSession } from "@pgkhata/db";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
 import {
   IMPERSONATION_COOKIE,
@@ -256,51 +255,6 @@ router.post("/exit", requireAuth, async (req: AuthenticatedRequest, res) => {
 
   clearSecureCookie(res, IMPERSONATION_COOKIE);
   res.json({ ok: true, returnUrl: adminAppUrl() });
-});
-
-const adminUser = alias(user, "admin_user");
-
-/**
- * The owner's own record of every time support entered their account. Zero
- * noise, full transparency, and the thing to point at when an owner asks.
- * Refuses to answer during impersonation so support cannot read it as the owner.
- */
-router.get("/history", requireAuth, async (req: AuthenticatedRequest, res) => {
-  if (req.impersonation) {
-    return res.status(403).json({ error: "Not available during a support session" });
-  }
-
-  const [profile] = await db
-    .select({ id: ownerProfile.id })
-    .from(ownerProfile)
-    .where(eq(ownerProfile.userId, req.user!.id))
-    .limit(1);
-  if (!profile) return res.status(403).json({ error: "Owner profile not found" });
-
-  const rows = await db
-    .select({
-      id: impersonationSession.id,
-      adminName: adminUser.name,
-      reason: impersonationSession.reason,
-      mode: impersonationSession.mode,
-      writeReason: impersonationSession.writeReason,
-      writeGrantedAt: impersonationSession.writeGrantedAt,
-      startedAt: impersonationSession.startedAt,
-      endedAt: impersonationSession.endedAt,
-    })
-    .from(impersonationSession)
-    .innerJoin(adminUser, eq(adminUser.id, impersonationSession.adminUserId))
-    .where(
-      and(
-        eq(impersonationSession.targetOwnerId, profile.id),
-        // Unclaimed handoffs never became access; showing them would be noise.
-        sql`${impersonationSession.handoffClaimedAt} is not null`,
-      ),
-    )
-    .orderBy(desc(impersonationSession.startedAt))
-    .limit(50);
-
-  res.json(rows);
 });
 
 export default router;
