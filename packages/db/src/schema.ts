@@ -538,6 +538,103 @@ export const billDelivery = pgTable("bill_delivery", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const MESSAGE_CHANNELS = ["email", "whatsapp"] as const;
+export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];
+
+export const MESSAGE_KINDS = [
+  "bill",
+  "reminder",
+  "otp",
+  "password_reset",
+  "onboarding",
+  "complaint_ack",
+] as const;
+export type MessageKind = (typeof MESSAGE_KINDS)[number];
+
+export const MESSAGE_DELIVERY_STATUSES = ["queued", "sent", "failed", "skipped"] as const;
+export type MessageDeliveryStatus = (typeof MESSAGE_DELIVERY_STATUSES)[number];
+
+export const MESSAGE_PROVIDERS = ["resend", "meta"] as const;
+export type MessageProvider = (typeof MESSAGE_PROVIDERS)[number];
+
+/**
+ * One row per message the platform attempts to send, on any channel.
+ *
+ * A superset of `bill_delivery` rather than a widening of it: that table's
+ * `bill_id` is NOT NULL and foreign-keyed to `bill`, which structurally
+ * excludes every message that is not about an invoice — the OTP a signing-up
+ * owner never received, the password reset, the complaint acknowledgement.
+ * Those are exactly the sends support is asked about, so they are exactly the
+ * ones that must be loggable. `bill_delivery` is backfilled into this table by
+ * migration 0030 and left in place, read-only, as the historical record.
+ *
+ * Append-only: a delivery attempt is a fact about a moment, not a mutable
+ * entity, so there is no `updated_at` and no `set_updated_at` trigger. A later
+ * provider webhook is a new row, not an edit to this one.
+ *
+ * No `owner_id`. Ownership is reached the way it is everywhere else in this
+ * schema — `property -> owner_id` — so the two can never disagree, and auth
+ * emails sent before a property exists simply carry a null `property_id`.
+ *
+ * `cost_units` is the metering column. WhatsApp template messages are billed
+ * per conversation by Meta; email is effectively free. Summing this column per
+ * property is the only way to answer "what did this owner's messaging cost".
+ */
+export const messageDelivery = pgTable(
+  "message_delivery",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Nullable: an OTP or password-reset email is sent before the recipient has
+    // a property, and sometimes before they have an account at all.
+    //
+    // set null rather than cascade, matching admin_audit_log's reasoning: the
+    // delivery log outliving the property it describes is the point. A null
+    // here is already a well-formed value every reader must handle.
+    propertyId: uuid("property_id").references(() => property.id, { onDelete: "set null" }),
+    tenantId: uuid("tenant_id").references(() => tenant.id, { onDelete: "set null" }),
+    billId: uuid("bill_id").references(() => bill.id, { onDelete: "set null" }),
+    // Normalised at write time by lib/delivery.ts: digits-only phone, or a
+    // lowercased trimmed email. Denormalised on purpose — "which number did we
+    // actually dial" must survive the tenant later editing their phone.
+    recipient: text("recipient").notNull(),
+    channel: text("channel").notNull(),
+    kind: text("kind").notNull(),
+    // Provider template name (WhatsApp) or the email template identifier.
+    template: text("template"),
+    status: text("status").notNull(),
+    // Failure message, or the reason a send was deliberately skipped.
+    error: text("error"),
+    provider: text("provider"),
+    providerMessageId: text("provider_message_id"),
+    // 1 per WhatsApp template message that left the building, 0 for email.
+    costUnits: integer("cost_units").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "message_delivery_channel_check",
+      sql`${table.channel} in ('email', 'whatsapp')`,
+    ),
+    check(
+      "message_delivery_kind_check",
+      sql`${table.kind} in ('bill', 'reminder', 'otp', 'password_reset', 'onboarding', 'complaint_ack')`,
+    ),
+    check(
+      "message_delivery_status_check",
+      sql`${table.status} in ('queued', 'sent', 'failed', 'skipped')`,
+    ),
+    check("message_delivery_cost_units_check", sql`${table.costUnits} >= 0`),
+    // Every read is "most recent first", within one of three scopes: an owner's
+    // property timeline, the failure queue, and per-channel cost reporting.
+    index("idx_message_delivery_property_created").on(
+      table.propertyId,
+      table.createdAt.desc(),
+    ),
+    index("idx_message_delivery_status_created").on(table.status, table.createdAt.desc()),
+    index("idx_message_delivery_channel_created").on(table.channel, table.createdAt.desc()),
+  ],
+);
+
 export const payment = pgTable(
   "payment",
   {

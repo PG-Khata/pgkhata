@@ -9,9 +9,7 @@ import {
   rentPlan,
   chargeType,
   electricityReading,
-  billDelivery,
   billAdjustment,
-  property,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
@@ -27,8 +25,12 @@ import {
 } from "../lib/electricity";
 import { computeDueDate, isOverdue } from "../lib/due-date";
 import { calculateLateFee } from "../lib/late-fee";
-import { billReadyEmail, formatCurrency, sendEmail } from "@pgkhata/email";
-import { isWhatsAppConfigured, sendBillNotification } from "../lib/whatsapp";
+import {
+  deliverBill,
+  ownedBillWithDetails,
+  publicInvoiceUrl,
+  shareMessage,
+} from "../lib/delivery";
 import { reconcileOverdueStatuses } from "../lib/bill-status";
 import { pagination, sendPage } from "../lib/pagination";
 
@@ -44,56 +46,6 @@ const applyLateFeesSchema = z.object({
   asOf: z.string().optional(),
 });
 const deliverySchema = z.object({ channels: z.array(z.enum(["email", "whatsapp"])).min(1) });
-
-function publicInvoiceUrl(token: string) {
-  return `${process.env.PUBLIC_APP_URL || process.env.CORS_ORIGIN || ""}/invoice/${token}`;
-}
-
-function billAmounts(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>) {
-  const lines = row.bill.lineItems as { code: string; amount: number }[];
-  const rentAmount = lines.find((line) => line.code === "RENT")?.amount ?? 0;
-  const electricityAmount = lines.find((line) => line.code === "ELEC")?.amount ?? 0;
-  return { rentAmount, electricityAmount, otherCharges: row.bill.totalAmount - rentAmount - electricityAmount };
-}
-
-function shareMessage(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>) {
-  const { rentAmount, electricityAmount, otherCharges } = billAmounts(row);
-  return `Hi ${row.tenant.name}, your ${row.bill.billMonth} bill for ${row.propertyName} Room ${row.roomNumber || "—"} is ready.\n\nRent: ${formatCurrency(rentAmount)}\nElectricity: ${formatCurrency(electricityAmount)}\nOther charges: ${formatCurrency(otherCharges)}\n------------------\nTotal due: ${formatCurrency(row.bill.totalAmount)}\n\nDue by ${row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—"}. Pay by UPI to ${row.upiId || "the property owner"}.\n\nSave this message as your bill receipt.`;
-}
-
-async function ownedBillWithDetails(propertyId: string, billId: string) {
-  const [row] = await db.select({ bill: bill, tenant: tenant, roomNumber: room.number, propertyName: property.name, upiId: property.upiVpa })
-    .from(bill).innerJoin(tenant, eq(bill.tenantId, tenant.id)).leftJoin(room, eq(tenant.roomId, room.id))
-    .innerJoin(property, eq(tenant.propertyId, property.id))
-    .where(and(eq(bill.id, billId), eq(tenant.propertyId, propertyId))).limit(1);
-  return row;
-}
-
-async function deliverBill(row: NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>, channels: Array<"email" | "whatsapp">, kind: "bill" | "reminder" = "bill") {
-  const results: Array<{ channel: string; status: string; reason?: string }> = [];
-  for (const channel of channels) {
-    let status = "sent"; let reason: string | undefined; let providerMessageId: string | undefined;
-    try {
-      if (channel === "email") {
-        if (!row.tenant.email) { status = "skipped"; reason = "Tenant has no email address"; }
-        else if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) { status = "skipped"; reason = "Email delivery is not configured"; }
-        else {
-          const amounts = billAmounts(row);
-          const result = await sendEmail({ to: row.tenant.email, subject: `${kind === "reminder" ? "Payment reminder" : "Bill ready"} — ${row.propertyName}`, html: billReadyEmail({ tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", month: row.bill.billMonth, rentAmount: formatCurrency(amounts.rentAmount), electricityAmount: formatCurrency(amounts.electricityAmount), otherCharges: formatCurrency(amounts.otherCharges), totalAmount: formatCurrency(row.bill.totalAmount), balance: formatCurrency(row.bill.balance), dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", invoiceUrl: publicInvoiceUrl(row.bill.accessToken) }) });
-          providerMessageId = result?.id;
-        }
-      } else if (!isWhatsAppConfigured()) { status = "skipped"; reason = "WhatsApp delivery is not configured"; }
-      else {
-        const amounts = billAmounts(row);
-        const result = await sendBillNotification({ phone: row.tenant.phone, tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", billMonth: row.bill.billMonth, ...amounts, totalAmount: row.bill.totalAmount, dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", upiId: row.upiId || undefined });
-        if (!result.success) { status = "failed"; reason = result.error; } else providerMessageId = result.messageId;
-      }
-    } catch (error) { status = "failed"; reason = error instanceof Error ? error.message : "Delivery failed"; }
-    await db.insert(billDelivery).values({ billId: row.bill.id, channel, kind, status, error: reason || null, providerMessageId: providerMessageId || null });
-    results.push({ channel, status, reason });
-  }
-  return results;
-}
 
 router.use(requireAuth, requireOwner, requireProperty);
 

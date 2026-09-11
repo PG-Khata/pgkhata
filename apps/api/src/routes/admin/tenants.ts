@@ -5,6 +5,7 @@ import { eq, desc, inArray } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../../middleware/auth";
 import { aggregate, param } from "../../lib/http";
 import { pagination, sendPageWithTotal } from "../../lib/pagination";
+import { scrubPii } from "../../lib/pii";
 import {
   countAll,
   every,
@@ -59,6 +60,25 @@ const tenantListColumns = {
   policeVerificationStatus: tenant.policeVerificationStatus,
   roomNumber: room.number,
   bedNumber: bed.number,
+};
+
+/**
+ * KYC identifiers, selected only by the single-tenant view and only ever served
+ * through `scrubPii`, which reduces each to its last four digits.
+ *
+ * Both columns are plaintext `text` in the database. A support agent verifying
+ * a caller needs "the Aadhaar ending 9012" and nothing more, so the full value
+ * never leaves this API — there is deliberately no reveal endpoint, and adding
+ * one would make every admin session a copy of the platform's ID corpus.
+ *
+ * Kept out of `tenantColumns` on purpose: that object is spread into
+ * `tenantListColumns`, so anything added to it ships on a paginated list of up
+ * to `MAX_PAGE_SIZE` tenants at a time. Bulk is where masking stops being
+ * enough, so identifiers stay off the list entirely.
+ */
+const tenantIdentityColumns = {
+  aadhaarNumber: tenant.aadhaarNumber,
+  panNumber: tenant.panNumber,
 };
 
 const tenantFilterSchema = z.object({
@@ -116,14 +136,14 @@ router.get("/tenants", async (req, res) => {
       .where(where),
   ]);
 
-  sendPageWithTotal(res, tenants, page, aggregate(totalRows, { total: 0 }).total);
+  sendPageWithTotal(res, scrubPii(tenants), page, aggregate(totalRows, { total: 0 }).total);
 });
 
 router.get("/tenants/:tenantId", async (req: AuthenticatedRequest, res) => {
   const tenantId = param(req, "tenantId");
 
   const [t] = await db
-    .select(tenantColumns)
+    .select({ ...tenantColumns, ...tenantIdentityColumns })
     .from(tenant)
     .leftJoin(property, eq(tenant.propertyId, property.id))
     .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
@@ -132,7 +152,7 @@ router.get("/tenants/:tenantId", async (req: AuthenticatedRequest, res) => {
     .limit(1);
 
   if (!t) return res.status(404).json({ error: "Tenant not found" });
-  res.json(t);
+  res.json(scrubPii(t));
 });
 
 /** Tenant detail with bill and payment history. */
@@ -177,7 +197,7 @@ router.get("/tenants/:tenantId/details", async (req: AuthenticatedRequest, res) 
         .orderBy(desc(payment.paymentDate))
     : [];
 
-  res.json({ ...t, bills, payments });
+  res.json(scrubPii({ ...t, bills, payments }));
 });
 
 export default router;

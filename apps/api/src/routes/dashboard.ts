@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, property, room, bed, tenant, bill, payment, expense } from "@pgkhata/db";
-import { eq, and, sql, inArray, gte } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, isNull } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { aggregate } from "../lib/http";
@@ -303,7 +303,7 @@ router.get(
         .from(bill)
         .innerJoin(tenant, eq(bill.tenantId, tenant.id))
         .leftJoin(room, eq(tenant.roomId, room.id))
-        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`))
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`, isNull(bill.voidedAt)))
         .orderBy(bill.dueDate);
 
       const withOverdue = rows
@@ -339,7 +339,7 @@ router.get(
         })
         .from(bill)
         .innerJoin(tenant, eq(bill.tenantId, tenant.id))
-        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`));
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`, isNull(bill.voidedAt)));
 
       const agingRows = rows.map((r) => ({
         tenantId: r.tenantId,
@@ -375,7 +375,7 @@ router.get(
         .from(bill)
         .innerJoin(tenant, eq(bill.tenantId, tenant.id))
         .leftJoin(room, eq(tenant.roomId, room.id))
-        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`));
+        .where(and(eq(tenant.propertyId, req.propertyId!), sql`${bill.balance} > 0`, isNull(bill.voidedAt)));
 
       const buckets: Record<string, typeof rows> = {
         current: [],

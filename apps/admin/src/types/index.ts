@@ -91,8 +91,9 @@ export interface AdminPayment {
 }
 
 export interface AdminAnalytics {
-  totalUsers: number;
   totalOwners: number;
+  /** Distinct owners with >=1 non-voided bill; the real "using the product" number. */
+  activatedOwners: number;
   totalProperties: number;
   activeTenants: number;
 }

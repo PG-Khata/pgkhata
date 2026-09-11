@@ -9,6 +9,8 @@ import { validatePaginationQuery } from "./lib/pagination";
 import { logger } from "./lib/logger";
 import { resolveImpersonation, enforceImpersonationReadOnly } from "./middleware/impersonation";
 import { auditPrivilegedWrites } from "./middleware/audit";
+import { requireAuth } from "./middleware/auth";
+import { adminRateLimit } from "./middleware/rate-limit";
 import impersonationRouter from "./routes/impersonation";
 import propertiesRouter from "./routes/properties";
 import floorsRouter from "./routes/floors";
@@ -219,7 +221,20 @@ app.use("/v1/properties/:propertyId/whatsapp", whatsappRouter);
 app.use("/v1/properties/:propertyId/police-verification", policeVerificationRouter);
 app.use("/v1/profile", profileRouter);
 app.use("/v1/dashboard", dashboardRouter);
-app.use("/v1/admin", adminRouter);
+/**
+ * The admin surface is rate limited per admin user, not per IP.
+ *
+ * `requireAuth` is named again here, ahead of the limiter, purely so the limiter
+ * has a `req.user` to key on. The admin router applies its own
+ * `requireAuth, requirePlatformAdmin` gate at its root (routes/admin/index.ts),
+ * and that gate stays where it is — it is what makes a new admin route guarded
+ * by construction. The cost of this arrangement is one extra session lookup per
+ * admin request; the alternative, an IP bucket in front of the router, would
+ * pool every admin together because the console reaches us through a Next
+ * rewrite. See middleware/rate-limit.ts. If the limiter can ever be mounted
+ * inside routes/admin/index.ts directly after that gate, drop this `requireAuth`.
+ */
+app.use("/v1/admin", requireAuth, adminRateLimit, adminRouter);
 app.use("/v1/impersonation", impersonationRouter);
 
 // Public routes (no auth required)

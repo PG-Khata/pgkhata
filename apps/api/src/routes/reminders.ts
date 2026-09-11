@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, bill, tenant } from "@pgkhata/db";
-import { eq, and, sql } from "drizzle-orm";
+import { db, bill, tenant, room, property } from "@pgkhata/db";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
-import { sendEmail, billReminderEmail, formatCurrency } from "@pgkhata/email";
+import { deliverBill } from "../lib/delivery";
 
 const router = Router({ mergeParams: true });
 
@@ -15,81 +15,59 @@ const sendReminderSchema = z.object({
 
 router.use(requireAuth, requireOwner, requireProperty);
 
-// Send reminders for bills
+/**
+ * Send reminders for a set of bills.
+ *
+ * This used to carry its own email block and a `not_implemented` stub for
+ * WhatsApp, which meant two divergent renderings of the same message and one
+ * channel that silently did nothing. Both are gone: delivery goes through
+ * `deliverBill`, the same path `POST /bills/:billId/deliver` uses, so WhatsApp
+ * genuinely sends and every attempt — sent, failed or skipped — lands in the
+ * delivery log via `recordDelivery`.
+ */
 router.post("/send", async (req: AuthenticatedRequest, res) => {
   try {
     const { billIds, channel } = sendReminderSchema.parse(req.body);
 
-    // Get bills with tenant info
+    // Same row shape `deliverBill` is built against: the bill, its tenant, and
+    // the property fields the templates render.
     const billsToSend = await db
       .select({
         bill: bill,
         tenant: tenant,
+        roomNumber: room.number,
+        propertyName: property.name,
+        upiId: property.upiVpa,
       })
       .from(bill)
       .innerJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(
-        sql`${bill.id} = ANY(${billIds})`,
-        eq(tenant.propertyId, req.propertyId!)
-      ));
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .innerJoin(property, eq(tenant.propertyId, property.id))
+      .where(
+        and(
+          inArray(bill.id, billIds),
+          eq(tenant.propertyId, req.propertyId!),
+          // A voided bill is not owed, so chasing it is always wrong. The
+          // single-bill deliver route already refuses one; this route did not.
+          isNull(bill.voidedAt),
+        ),
+      );
 
-    const prop = req.property!;
+    const channels: Array<"email" | "whatsapp"> =
+      channel === "both" ? ["email", "whatsapp"] : [channel];
 
     const results = [];
 
-    for (const { bill: b, tenant: t } of billsToSend) {
-      if (!t) continue;
-
-      if (channel === "email" || channel === "both") {
-        if (t.email) {
-          try {
-            await sendEmail({
-              to: t.email,
-              subject: `Payment reminder — ${prop?.name || "Your PG"}`,
-              html: billReminderEmail({
-                tenantName: t.name,
-                propertyName: prop?.name || "Your PG",
-                month: b.billMonth,
-                totalAmount: formatCurrency(b.totalAmount),
-                balance: formatCurrency(b.balance),
-              }),
-            });
-            results.push({
-              billId: b.id,
-              tenantId: t.id,
-              tenantName: t.name,
-              channel: "email",
-              status: "sent",
-            });
-          } catch {
-            results.push({
-              billId: b.id,
-              tenantId: t.id,
-              tenantName: t.name,
-              channel: "email",
-              status: "failed",
-            });
-          }
-        } else {
-          results.push({
-            billId: b.id,
-            tenantId: t.id,
-            tenantName: t.name,
-            channel: "email",
-            status: "skipped",
-            reason: "No email on file",
-          });
-        }
-      }
-
-      // TODO: Integrate with Meta WhatsApp Cloud API
-      if (channel === "whatsapp" || channel === "both") {
+    for (const row of billsToSend) {
+      const outcomes = await deliverBill(row, channels, "reminder");
+      for (const outcome of outcomes) {
         results.push({
-          billId: b.id,
-          tenantId: t.id,
-          tenantName: t.name,
-          channel: "whatsapp",
-          status: "not_implemented",
+          billId: row.bill.id,
+          tenantId: row.tenant.id,
+          tenantName: row.tenant.name,
+          channel: outcome.channel,
+          status: outcome.status,
+          ...(outcome.reason ? { reason: outcome.reason } : {}),
         });
       }
     }

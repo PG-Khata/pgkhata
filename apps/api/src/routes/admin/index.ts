@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { db, user, ownerProfile, property, tenant, bill, platformAdmin } from "@pgkhata/db";
-import { eq, sql, and } from "drizzle-orm";
+import { db, platformAdmin } from "@pgkhata/db";
+import { eq } from "drizzle-orm";
 import { type AuthenticatedRequest, requireAuth } from "../../middleware/auth";
 import { requirePlatformAdmin } from "../../middleware/admin";
-import { aggregate } from "../../lib/http";
 import { adminErrorTranslator } from "./errors";
 import ownersRouter from "./owners";
 import propertiesRouter from "./properties";
@@ -18,6 +17,8 @@ import impersonationRouter from "./impersonation";
 import searchRouter from "./search";
 import overviewRouter from "./overview";
 import lifecycleRouter from "./lifecycle";
+import metricsRouter from "./metrics";
+import commsRouter from "./comms";
 
 const router = Router();
 
@@ -56,79 +57,6 @@ router.get("/me", async (req: AuthenticatedRequest, res) => {
   });
 });
 
-router.get("/analytics", async (_req, res) => {
-  const [userRows, ownerRows, propertyRows, tenantRows] = await Promise.all([
-    db.select({ userCount: sql<number>`count(*)::int` }).from(user),
-    db.select({ ownerCount: sql<number>`count(*)::int` }).from(ownerProfile),
-    db.select({ propertyCount: sql<number>`count(*)::int` }).from(property),
-    db
-      .select({ tenantCount: sql<number>`count(*)::int` })
-      .from(tenant)
-      .where(eq(tenant.status, "active")),
-  ]);
-
-  res.json({
-    totalUsers: aggregate(userRows, { userCount: 0 }).userCount,
-    totalOwners: aggregate(ownerRows, { ownerCount: 0 }).ownerCount,
-    totalProperties: aggregate(propertyRows, { propertyCount: 0 }).propertyCount,
-    activeTenants: aggregate(tenantRows, { tenantCount: 0 }).tenantCount,
-  });
-});
-
-/** Cumulative totals at the end of each of the last six months. */
-router.get("/analytics/trends", async (_req, res) => {
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - (5 - i));
-    return d.toISOString().slice(0, 7); // YYYY-MM
-  });
-
-  const trends = await Promise.all(
-    months.map(async (month) => {
-      const [ownerRows, propertyRows, tenantRows, billRows] = await Promise.all([
-        db
-          .select({ ownerCount: sql<number>`count(*)::int` })
-          .from(ownerProfile)
-          .where(sql`to_char(${ownerProfile.createdAt}, 'YYYY-MM') <= ${month}`),
-        db
-          .select({ propertyCount: sql<number>`count(*)::int` })
-          .from(property)
-          .where(sql`to_char(${property.createdAt}, 'YYYY-MM') <= ${month}`),
-        db
-          .select({ tenantCount: sql<number>`count(*)::int` })
-          .from(tenant)
-          .where(
-            and(
-              eq(tenant.status, "active"),
-              sql`to_char(${tenant.joiningDate}, 'YYYY-MM') <= ${month}`,
-            ),
-          ),
-        // Billed and collected come off the same rows; two queries scanned the
-        // same range twice for no reason.
-        db
-          .select({
-            billed: sql<number>`coalesce(sum(${bill.totalAmount}), 0)::int`,
-            collected: sql<number>`coalesce(sum(${bill.paidAmount}), 0)::int`,
-          })
-          .from(bill)
-          .where(sql`to_char(${bill.createdAt}, 'YYYY-MM') <= ${month}`),
-      ]);
-
-      const { billed, collected } = aggregate(billRows, { billed: 0, collected: 0 });
-      return {
-        month,
-        owners: aggregate(ownerRows, { ownerCount: 0 }).ownerCount,
-        properties: aggregate(propertyRows, { propertyCount: 0 }).propertyCount,
-        tenants: aggregate(tenantRows, { tenantCount: 0 }).tenantCount,
-        billed,
-        collected,
-      };
-    }),
-  );
-
-  res.json(trends);
-});
-
 // Mounted at the root so each sub-router keeps its full, greppable path. Order
 // is irrelevant: Express matches a route's whole path, so `/properties/:id` and
 // `/properties/:id/structure` never contend.
@@ -145,6 +73,8 @@ router.use(impersonationRouter);
 router.use(searchRouter);
 router.use(overviewRouter);
 router.use(lifecycleRouter);
+router.use(metricsRouter);
+router.use(commsRouter);
 
 // Last: turns a database constraint failure into the status it actually means
 // before the app-wide handler in src/index.ts sees it.

@@ -53,10 +53,10 @@ export default function DashboardPage() {
           description="Currently active"
         />
         <AdminStatCard
-          label="Users"
-          value={analytics?.totalUsers ?? 0}
+          label="Activated"
+          value={analytics?.activatedOwners ?? 0}
           icon={CreditCard}
-          description="Total registered users"
+          description="Owners who have billed at least once"
         />
       </div>
     </div>
