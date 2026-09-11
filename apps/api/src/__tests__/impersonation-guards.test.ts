@@ -178,3 +178,29 @@ describe("audit interceptor covers every response shape", () => {
     expect(source).toContain("req.originalUrl");
   });
 });
+
+describe("CORS accepts every configured origin", () => {
+  /**
+   * CORS_ORIGIN carries all allowed origins comma-separated, because that is
+   * how better-auth reads it for trustedOrigins. Passing the raw string to the
+   * `cors` package makes it an exact match against the Origin header, so adding
+   * the admin console silently broke the owner app instead of failing loudly.
+   */
+  const source = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
+
+  it("splits CORS_ORIGIN rather than matching the joined string", () => {
+    const corsCall = source.slice(source.indexOf("cors({"), source.indexOf("express.json"));
+    expect(corsCall).toContain('.split(",")');
+    expect(corsCall).not.toMatch(/origin:\s*process\.env\.CORS_ORIGIN\s*,/);
+  });
+
+  it("stays in step with better-auth's own parsing", () => {
+    const policy = readFileSync(
+      new URL("../../../../packages/auth/src/security-policy.ts", import.meta.url),
+      "utf8",
+    );
+    // Both consumers must agree on the separator, or one will trust an origin
+    // the other rejects.
+    expect(policy).toContain('.split(",")');
+  });
+});

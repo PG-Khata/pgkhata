@@ -65,7 +65,13 @@ if (!process.env.CORS_ORIGIN) {
 }
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    // Split, because CORS_ORIGIN carries every allowed origin (owner app, admin
+    // console) comma-separated — which is how better-auth already reads it in
+    // packages/auth/src/security-policy.ts. Handing the raw string to `cors`
+    // makes it an exact match against the Origin header, so the moment a second
+    // origin is added the joined value matches neither and every browser call
+    // fails CORS.
+    origin: process.env.CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean),
     credentials: true,
   })
 );
