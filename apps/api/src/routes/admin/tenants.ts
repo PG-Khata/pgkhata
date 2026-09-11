@@ -1,8 +1,18 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db, user, ownerProfile, property, tenant, bill, payment, room, bed } from "@pgkhata/db";
 import { eq, desc, inArray } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../../middleware/auth";
-import { param } from "../../lib/http";
+import { aggregate, param } from "../../lib/http";
+import { pagination, sendPageWithTotal } from "../../lib/pagination";
+import {
+  countAll,
+  every,
+  idParam,
+  parseFilters,
+  searchAcross,
+  searchParam,
+} from "../../lib/admin-list";
 
 /**
  * `PUT`, `DELETE`, `POST /approve` and `POST /reject` on `/tenants/:tenantId`
@@ -33,16 +43,80 @@ const tenantColumns = {
   ownerName: user.name,
 };
 
-router.get("/tenants", async (_req, res) => {
-  const tenants = await db
-    .select(tenantColumns)
-    .from(tenant)
-    .leftJoin(property, eq(tenant.propertyId, property.id))
-    .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
-    .leftJoin(user, eq(ownerProfile.userId, user.id))
-    .orderBy(desc(tenant.createdAt));
+/**
+ * The list adds the owner, the police verification state and — the point of the
+ * extra two joins — the room and bed *numbers*.
+ *
+ * The list only ever returned `roomId`/`bedId`, so the admin table had no
+ * number to render and showed "Unassigned" for every tenant including the ones
+ * holding a bed. Both joins are `left`: a pending signup legitimately holds
+ * neither, and an inner join would have quietly dropped exactly the tenants
+ * support is looking for.
+ */
+const tenantListColumns = {
+  ...tenantColumns,
+  ownerId: property.ownerId,
+  policeVerificationStatus: tenant.policeVerificationStatus,
+  roomNumber: room.number,
+  bedNumber: bed.number,
+};
 
-  res.json(tenants);
+const tenantFilterSchema = z.object({
+  q: searchParam.optional(),
+  ownerId: idParam.optional(),
+  propertyId: idParam.optional(),
+  status: z.enum(["pending", "active", "vacating", "vacated", "rejected"]).optional(),
+  // Police verification is a statutory obligation for PG operators in most
+  // Indian states, so "which of this owner's tenants are still unverified" is a
+  // compliance question support gets asked directly, not a nice-to-have facet.
+  policeVerificationStatus: z
+    .enum(["pending", "submitted", "verified", "rejected", "not_required"])
+    .optional(),
+});
+
+router.get("/tenants", async (req, res) => {
+  const filters = parseFilters(req, res, tenantFilterSchema);
+  if (!filters) return;
+  const page = pagination(req);
+
+  const where = every(
+    filters.q ? searchAcross(filters.q, [tenant.name, tenant.phone, tenant.email]) : undefined,
+    // `property.ownerId` is the only column carrying an owner, so the owner
+    // filter rides the join that is already here rather than pre-resolving a
+    // property id list that would be empty for a brand new owner.
+    filters.ownerId ? eq(property.ownerId, filters.ownerId) : undefined,
+    filters.propertyId ? eq(tenant.propertyId, filters.propertyId) : undefined,
+    filters.status ? eq(tenant.status, filters.status) : undefined,
+    filters.policeVerificationStatus
+      ? eq(tenant.policeVerificationStatus, filters.policeVerificationStatus)
+      : undefined,
+  );
+
+  const [tenants, totalRows] = await Promise.all([
+    db
+      .select(tenantListColumns)
+      .from(tenant)
+      .leftJoin(property, eq(tenant.propertyId, property.id))
+      .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .leftJoin(bed, eq(tenant.bedId, bed.id))
+      .where(where)
+      .orderBy(desc(tenant.createdAt))
+      .limit(page.limit)
+      .offset(page.offset),
+    // Only `property` is joined here because that is the only joined table any
+    // filter reads. The others exist purely to decorate the page. If a future
+    // filter searches `ownerName` or a room number, it must be joined here too
+    // or the total will stop agreeing with the rows.
+    db
+      .select({ total: countAll })
+      .from(tenant)
+      .leftJoin(property, eq(tenant.propertyId, property.id))
+      .where(where),
+  ]);
+
+  sendPageWithTotal(res, tenants, page, aggregate(totalRows, { total: 0 }).total);
 });
 
 router.get("/tenants/:tenantId", async (req: AuthenticatedRequest, res) => {

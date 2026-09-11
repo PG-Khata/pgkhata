@@ -1,11 +1,23 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db, user, ownerProfile, property, tenant, floor, room, bed } from "@pgkhata/db";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, exists, not } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../../middleware/auth";
 import { requireSuperAdminRole } from "../../middleware/admin";
 import { aggregate, param } from "../../lib/http";
 import { reconcileBedStatuses } from "../../lib/tenant-assignment";
 import { reconcileOverdueStatuses } from "../../lib/bill-status";
+import { pagination, sendPageWithTotal } from "../../lib/pagination";
+import {
+  booleanParam,
+  contains,
+  countAll,
+  every,
+  idParam,
+  parseFilters,
+  searchAcross,
+  searchParam,
+} from "../../lib/admin-list";
 
 /**
  * `PUT /properties/:propertyId` and `DELETE /properties/:propertyId` used to
@@ -38,15 +50,96 @@ const propertyColumns = {
   ownerName: user.name,
 };
 
-router.get("/properties", async (_req, res) => {
-  const properties = await db
-    .select(propertyColumns)
-    .from(property)
-    .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
-    .leftJoin(user, eq(ownerProfile.userId, user.id))
-    .orderBy(desc(property.createdAt));
+/**
+ * Occupancy for one property, as correlated scalar subqueries.
+ *
+ * The list endpoint could not afford these while it was unbounded — one pair of
+ * subqueries per property across the whole platform — which is why it returned
+ * no counts at all and the admin table rendered a hardcoded-looking `0/0`.
+ * Bounded to a page they are at most `pageSize` index lookups.
+ */
+const totalBedsExpr = sql<number>`(
+  select count(*)::int from ${bed}
+  join ${room} on ${bed.roomId} = ${room.id}
+  where ${room.propertyId} = ${property.id}
+)`;
 
-  res.json(properties);
+const occupiedBedsExpr = sql<number>`(
+  select count(*)::int from ${bed}
+  join ${room} on ${bed.roomId} = ${room.id}
+  where ${room.propertyId} = ${property.id} and ${bed.status} = 'occupied'
+)`;
+
+const activeTenantsExpr = sql<number>`(
+  select count(*)::int from ${tenant}
+  where ${tenant.propertyId} = ${property.id} and ${tenant.status} = 'active'
+)`;
+
+const propertyFilterSchema = z.object({
+  q: searchParam.optional(),
+  ownerId: idParam.optional(),
+  city: z.string().trim().min(1).max(100).optional(),
+  // "meter", not "metered": these are the literals the owner-side property
+  // route writes (`src/routes/properties.ts`) and `src/routes/billing.ts`
+  // compares against. A filter that accepted a different spelling would 400 on
+  // the value the column actually holds.
+  electricityMode: z.enum(["flat", "meter"]).optional(),
+  hasTenants: booleanParam.optional(),
+});
+
+/**
+ * Platform-wide property list, one page at a time, with occupancy per row.
+ *
+ * `hasTenants` is defined as "has at least one *active* tenant", deliberately
+ * the same predicate as the `activeTenants` column this row returns, so
+ * `hasTenants=false` and `activeTenants === 0` can never disagree in the UI.
+ * Pending signups therefore do not count as tenants — which is the reading
+ * support wants, since the question behind the filter is "is this property
+ * actually live".
+ */
+router.get("/properties", async (req, res) => {
+  const filters = parseFilters(req, res, propertyFilterSchema);
+  if (!filters) return;
+  const page = pagination(req);
+
+  const occupied = exists(
+    db
+      .select({ one: sql`1` })
+      .from(tenant)
+      .where(and(eq(tenant.propertyId, property.id), eq(tenant.status, "active"))),
+  );
+
+  const where = every(
+    filters.q ? searchAcross(filters.q, [property.name, property.code, property.city]) : undefined,
+    filters.ownerId ? eq(property.ownerId, filters.ownerId) : undefined,
+    // Substring, not equality: `city` is free text an owner typed, so exact
+    // matching would miss "Bengaluru " and "bengaluru" in the same breath.
+    filters.city ? contains(property.city, filters.city) : undefined,
+    filters.electricityMode ? eq(property.electricityMode, filters.electricityMode) : undefined,
+    filters.hasTenants === undefined ? undefined : filters.hasTenants ? occupied : not(occupied),
+  );
+
+  const [properties, totalRows] = await Promise.all([
+    db
+      .select({
+        ...propertyColumns,
+        totalBeds: totalBedsExpr,
+        occupiedBeds: occupiedBedsExpr,
+        activeTenants: activeTenantsExpr,
+      })
+      .from(property)
+      .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .where(where)
+      .orderBy(desc(property.createdAt))
+      .limit(page.limit)
+      .offset(page.offset),
+    // No owner join: nothing filterable lives on `user`, and the occupancy
+    // subqueries are per-returned-row so the count must not carry them.
+    db.select({ total: countAll }).from(property).where(where),
+  ]);
+
+  sendPageWithTotal(res, properties, page, aggregate(totalRows, { total: 0 }).total);
 });
 
 router.get("/properties/:propertyId", async (req: AuthenticatedRequest, res) => {

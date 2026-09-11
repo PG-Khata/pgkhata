@@ -85,16 +85,60 @@ export const rateLimit = pgTable("rate_limit", {
 
 // PGKhata domain tables
 
-export const ownerProfile = pgTable("owner_profile", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" })
-    .unique(),
-  phone: text("phone"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+/**
+ * Lifecycle of an owner account, in the order it can move:
+ *   active -> suspended -> active            (an ops pause, fully reversible)
+ *   active -> pending_deletion -> deleted    (offboarding, staged)
+ *
+ * `deleted` is a *logical* state. Nothing below the owner carries a deletedAt
+ * of its own, because no property, tenant, bill or payment is reachable except
+ * through the owner — one gate at the boundary is the whole enforcement
+ * surface. Rows are removed physically only at purge time, a later phase.
+ */
+export const OWNER_STATUSES = [
+  "active",
+  "suspended",
+  "pending_deletion",
+  "deleted",
+] as const;
+export type OwnerStatus = (typeof OWNER_STATUSES)[number];
+
+export const ownerProfile = pgTable(
+  "owner_profile",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" })
+      .unique(),
+    phone: text("phone"),
+    // Defaults to 'active' so the column is additive: rows written by the
+    // currently running code, which does not know this column exists, land in
+    // exactly the state they are already in.
+    status: text("status").notNull().default("active"),
+    suspendedAt: timestamp("suspended_at"),
+    suspendedReason: text("suspended_reason"),
+    // set null, not cascade: removing the admin who paused an account must not
+    // silently un-pause it, and admin_audit_log still names the human.
+    suspendedBy: text("suspended_by").references(() => user.id, { onDelete: "set null" }),
+    deletedAt: timestamp("deleted_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "owner_profile_status_check",
+      sql`${table.status} in ('active', 'suspended', 'pending_deletion', 'deleted')`,
+    ),
+    // A suspension with no timestamp is a suspension nobody can explain or
+    // date, which is exactly the state support is asked to account for later.
+    check(
+      "owner_profile_suspended_requires_timestamp",
+      sql`${table.status} <> 'suspended' or ${table.suspendedAt} is not null`,
+    ),
+    index("idx_owner_profile_status").on(table.status),
+  ],
+);
 
 export const property = pgTable("property", {
   id: uuid("id").primaryKey().defaultRandom(),

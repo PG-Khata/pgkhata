@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property, room, tenant, tenantDocument, complaint, bill, blogPost } from "@pgkhata/db";
+import { db, property, room, tenant, tenantDocument, complaint, bill, blogPost, ownerProfile } from "@pgkhata/db";
 import { eq, and, desc } from "drizzle-orm";
 import { validateDocumentUpload } from "../lib/document-upload";
 import { deleteFromR2, uploadToR2, isR2Configured } from "../lib/r2-storage";
@@ -8,6 +8,44 @@ import { HttpError } from "../lib/http";
 import { randomUUID } from "node:crypto";
 
 const router = Router();
+
+/**
+ * Owner account lifecycle, for the one surface `requireOwner` cannot see.
+ *
+ * Every route in this file is reached by a capability token rather than a
+ * session, so none of them pass through `requireOwner` — the single chokepoint
+ * where a suspended account is refused. Without this, suspending an owner would
+ * stop them using their own dashboard while their public signup and complaint
+ * links kept accepting new tenants into an account nobody is running.
+ *
+ * Deliberately applied to the WRITE paths only. The reads stay open, and the
+ * invoice read most of all: the tenant holding that link is not the suspended
+ * party, and taking away the receipt for rent they already paid because their
+ * landlord is in a billing dispute with us punishes the wrong person and
+ * generates the support ticket the suspension was meant to resolve.
+ */
+async function propertyOwnerActive(propertyId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ status: ownerProfile.status })
+    .from(property)
+    .innerJoin(ownerProfile, eq(ownerProfile.id, property.ownerId))
+    .where(eq(property.id, propertyId))
+    .limit(1);
+
+  // No row means the property or its owner vanished mid-request. Closed, not
+  // open: the caller's own 404 on the token is the honest answer, and this
+  // guard must never be the thing that lets a write through.
+  return row?.status === "active";
+}
+
+/**
+ * Says nothing about *why*. The reason belongs to the owner and the audit log,
+ * not to whoever pasted the link into a browser.
+ */
+const OWNER_INACTIVE = {
+  error: "account_suspended",
+  message: "This link is temporarily unavailable. Please contact the property owner.",
+};
 
 const signupSchema = z.object({
   name: z.string().min(1).max(100),
@@ -72,6 +110,10 @@ router.get("/signup/:token", async (req, res) => {
 
 // Capability-token invoice view. Deliberately selects only tenant-facing bill
 // fields, never property ownership or dashboard data.
+//
+// Intentionally NOT gated on owner account status — see `propertyOwnerActive`.
+// A tenant must keep access to the receipt for rent they have already paid,
+// whatever is going on between the platform and their landlord.
 router.get("/invoice/:token", async (req, res) => {
   try {
     const [row] = await db.select({ bill: bill, tenantName: tenant.name, propertyName: property.name, roomNumber: room.number, upiVpa: property.upiVpa })
@@ -94,6 +136,10 @@ router.post("/signup/:token", async (req, res) => {
       .limit(1);
 
     if (!prop) return res.status(404).json({ error: "Invalid signup link" });
+
+    if (!(await propertyOwnerActive(prop.id))) {
+      return res.status(403).json(OWNER_INACTIVE);
+    }
 
     // Verify room belongs to property
     const [r] = await db
@@ -262,6 +308,10 @@ router.post("/complaint/:token", async (req, res) => {
 
     if (!prop) return res.status(404).json({ error: "Invalid complaint link" });
 
+    if (!(await propertyOwnerActive(prop.id))) {
+      return res.status(403).json(OWNER_INACTIVE);
+    }
+
     const [selectedRoom] = await db
       .select({ id: room.id, number: room.number })
       .from(room)
@@ -310,6 +360,12 @@ router.post("/complaint/:token", async (req, res) => {
 
 // Get onboarding status by token (public) — the private link an approved
 // tenant is given, so they can see their placement without an account.
+//
+// Read-only, so it is not gated on owner status, for the same reason the
+// invoice read is not. There is no onboarding *submit* on this surface today:
+// placement is decided by the owner through /v1/properties/:id/tenants, which
+// already runs through `requireOwner`. If a tenant-facing submit is ever added
+// here it is a write and must call `propertyOwnerActive` first.
 router.get("/onboarding/:token", async (req, res) => {
   try {
     const [t] = await db

@@ -1,11 +1,20 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db, property, tenant, bill, payment } from "@pgkhata/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gt, isNotNull, isNull, lte } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../../middleware/auth";
 import { requireSuperAdminRole } from "../../middleware/admin";
-import { param } from "../../lib/http";
+import { aggregate, param } from "../../lib/http";
 import { captureBefore } from "../../lib/audit";
 import { syncBillTotals } from "../../lib/bill-totals";
+import { pagination, sendPageWithTotal } from "../../lib/pagination";
+import {
+  booleanParam,
+  countAll,
+  every,
+  idParam,
+  parseFilters,
+} from "../../lib/admin-list";
 
 /**
  * `PATCH /bills/:billId` and `POST /bills/:billId/void` used to live here and
@@ -39,15 +48,89 @@ const billColumns = {
   propertyName: property.name,
 };
 
-router.get("/bills", async (_req, res) => {
-  const bills = await db
-    .select(billColumns)
-    .from(bill)
-    .leftJoin(tenant, eq(bill.tenantId, tenant.id))
-    .leftJoin(property, eq(tenant.propertyId, property.id))
-    .orderBy(desc(bill.createdAt));
+/**
+ * The list also returns the ids the filters accept, so a row the admin is
+ * looking at can be turned into "show me everything else for this property"
+ * without a second lookup. Both come off joins the list already performs.
+ */
+const billListColumns = {
+  ...billColumns,
+  propertyId: tenant.propertyId,
+  ownerId: property.ownerId,
+};
 
-  res.json(bills);
+const billFilterSchema = z.object({
+  ownerId: idParam.optional(),
+  propertyId: idParam.optional(),
+  tenantId: idParam.optional(),
+  billMonth: z.string().regex(/^\d{4}-\d{2}$/, "billMonth must be YYYY-MM").optional(),
+  // The full set `syncBillTotals` writes, "voided" included — it is a status
+  // value, not only a timestamp, so leaving it out would make the filter unable
+  // to name a state the column really holds.
+  status: z.enum(["pending", "partial", "paid", "overdue", "voided"]).optional(),
+  approved: booleanParam.optional(),
+  voided: booleanParam.optional(),
+  hasBalance: booleanParam.optional(),
+});
+
+/**
+ * Platform-wide bill list, one page at a time.
+ *
+ * There is no free-text search: a bill has no name. Every question support
+ * actually arrives with ("this owner's unapproved March bills", "everything
+ * still outstanding for this tenant") is a combination of the identifiers and
+ * the three booleans below, all of which are exact.
+ *
+ * `voided` and `hasBalance` are derived rather than stored: a bill is voided
+ * when `voidedAt` is set, and outstanding when `balance > 0`. Reading them off
+ * `status` instead would be wrong, because a voided bill keeps whatever status
+ * it had when it was voided.
+ */
+router.get("/bills", async (req, res) => {
+  const filters = parseFilters(req, res, billFilterSchema);
+  if (!filters) return;
+  const page = pagination(req);
+
+  const where = every(
+    // The owner hop is `bill -> tenant -> property.ownerId`; there is no
+    // ownerId on the bill itself and there must not be one.
+    filters.ownerId ? eq(property.ownerId, filters.ownerId) : undefined,
+    filters.propertyId ? eq(tenant.propertyId, filters.propertyId) : undefined,
+    filters.tenantId ? eq(bill.tenantId, filters.tenantId) : undefined,
+    filters.billMonth ? eq(bill.billMonth, filters.billMonth) : undefined,
+    filters.status ? eq(bill.status, filters.status) : undefined,
+    filters.approved === undefined ? undefined : eq(bill.approved, filters.approved),
+    filters.voided === undefined
+      ? undefined
+      : filters.voided
+        ? isNotNull(bill.voidedAt)
+        : isNull(bill.voidedAt),
+    filters.hasBalance === undefined
+      ? undefined
+      : filters.hasBalance
+        ? gt(bill.balance, 0)
+        : lte(bill.balance, 0),
+  );
+
+  const [bills, totalRows] = await Promise.all([
+    db
+      .select(billListColumns)
+      .from(bill)
+      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
+      .leftJoin(property, eq(tenant.propertyId, property.id))
+      .where(where)
+      .orderBy(desc(bill.createdAt))
+      .limit(page.limit)
+      .offset(page.offset),
+    db
+      .select({ total: countAll })
+      .from(bill)
+      .leftJoin(tenant, eq(bill.tenantId, tenant.id))
+      .leftJoin(property, eq(tenant.propertyId, property.id))
+      .where(where),
+  ]);
+
+  sendPageWithTotal(res, bills, page, aggregate(totalRows, { total: 0 }).total);
 });
 
 router.get("/bills/:billId", async (req: AuthenticatedRequest, res) => {

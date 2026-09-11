@@ -15,6 +15,9 @@ import blogRouter from "./blog";
 import auditRouter from "./audit";
 import adminsRouter from "./admins";
 import impersonationRouter from "./impersonation";
+import searchRouter from "./search";
+import overviewRouter from "./overview";
+import lifecycleRouter from "./lifecycle";
 
 const router = Router();
 
@@ -139,6 +142,9 @@ router.use(blogRouter);
 router.use(auditRouter);
 router.use(adminsRouter);
 router.use(impersonationRouter);
+router.use(searchRouter);
+router.use(overviewRouter);
+router.use(lifecycleRouter);
 
 // Last: turns a database constraint failure into the status it actually means
 // before the app-wide handler in src/index.ts sees it.

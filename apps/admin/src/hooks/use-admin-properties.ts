@@ -1,13 +1,33 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api-client";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, buildQuery } from "@/lib/api-client";
 import type { AdminProperty } from "@/types";
 
-export function useAdminProperties() {
+export const PROPERTIES_PAGE_SIZE = 25;
+
+export interface AdminPropertyFilters {
+  /** Free text across name, code and city. */
+  q?: string;
+  ownerId?: string;
+  city?: string;
+  electricityMode?: "flat" | "metered";
+  /** "Has at least one active tenant" — the same predicate as `activeTenants > 0`. */
+  hasTenants?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * One page of the platform-wide property list. Rows now carry `totalBeds`,
+ * `occupiedBeds` and `activeTenants`, which the unbounded version could not
+ * afford and which is why the table used to render `0/0` for every property.
+ */
+export function useAdminProperties(filters: AdminPropertyFilters = {}) {
   return useQuery({
-    queryKey: ["admin", "properties"],
-    queryFn: () => api.get<AdminProperty[]>("/v1/admin/properties"),
+    queryKey: ["admin", "properties", "list", filters],
+    queryFn: () => api.getPage<AdminProperty>(`/v1/admin/properties${buildQuery({ ...filters })}`),
+    placeholderData: keepPreviousData,
   });
 }
 

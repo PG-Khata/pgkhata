@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Eye, LogOut, Menu, Shield } from "lucide-react";
 import { AdminMobileNav } from "./admin-mobile-nav";
+import { AdminSearchPalette } from "@/components/admin-search-palette";
 import { useState } from "react";
 import { ROLE_LABELS, useAdminSession } from "@/components/admin-session";
 import { useImpersonationSessions, useEndAllImpersonations } from "@/hooks/use-impersonation";
@@ -47,10 +48,12 @@ export function AdminHeader() {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="hidden items-center gap-2 text-sm text-muted-foreground lg:flex">
             <Shield className="h-4 w-4" />
             <span>{ROLE_LABELS[admin.role]}</span>
           </div>
+          {/* Support agents live in this box; it stays on screen everywhere. */}
+          <AdminSearchPalette />
         </div>
         <div className="flex items-center gap-3">
           {live.length > 0 && (

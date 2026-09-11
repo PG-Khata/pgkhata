@@ -1,11 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db, user, ownerProfile, property, tenant, bill } from "@pgkhata/db";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, asc, desc, inArray } from "drizzle-orm";
 import type { AuthenticatedRequest } from "../../middleware/auth";
 import { requireSuperAdminRole } from "../../middleware/admin";
-import { param } from "../../lib/http";
+import { aggregate, param } from "../../lib/http";
 import { captureBefore } from "../../lib/audit";
+import { pagination, sendPageWithTotal } from "../../lib/pagination";
+import {
+  countAll,
+  dateParam,
+  dateRange,
+  every,
+  parseFilters,
+  searchAcross,
+  searchParam,
+} from "../../lib/admin-list";
 
 /**
  * `DELETE /owners/:ownerId` used to live here and was removed.
@@ -33,14 +43,59 @@ const ownerColumns = {
   email: user.email,
 };
 
-router.get("/owners", async (_req, res) => {
-  const owners = await db
-    .select(ownerColumns)
-    .from(ownerProfile)
-    .leftJoin(user, eq(ownerProfile.userId, user.id))
-    .orderBy(desc(ownerProfile.createdAt));
+const ownerFilterSchema = z.object({
+  q: searchParam.optional(),
+  createdFrom: dateParam.optional(),
+  createdTo: dateParam.optional(),
+  // Only this list has a sort control, so the direction lives here rather than
+  // in the shared vocabulary.
+  order: z.enum(["asc", "desc"]).default("desc"),
+});
 
-  res.json(owners);
+/**
+ * Platform-wide owner list: one page, with the matching total in
+ * `X-Total-Count`.
+ *
+ * This used to select every owner on the platform and let the browser filter
+ * them. That is fine at a dozen owners and indefensible at a few hundred, and
+ * it is the same shape of mistake in all five admin lists.
+ *
+ * Sorting is fixed to `createdAt` (direction is the caller's) rather than an
+ * open `sortBy`: signup order is the only ordering support actually asks for
+ * ("who joined last week"), and an open column parameter is an injection
+ * surface that has to be allow-listed anyway.
+ */
+router.get("/owners", async (req, res) => {
+  const filters = parseFilters(req, res, ownerFilterSchema);
+  if (!filters) return;
+  const page = pagination(req);
+
+  const where = every(
+    filters.q ? searchAcross(filters.q, [user.name, user.email, ownerProfile.phone]) : undefined,
+    dateRange(ownerProfile.createdAt, filters.createdFrom, filters.createdTo),
+  );
+
+  const [owners, totalRows] = await Promise.all([
+    db
+      .select(ownerColumns)
+      .from(ownerProfile)
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .where(where)
+      .orderBy(filters.order === "asc" ? asc(ownerProfile.createdAt) : desc(ownerProfile.createdAt))
+      .limit(page.limit)
+      .offset(page.offset),
+    // The join is repeated here because `q` searches `user.name`/`user.email`,
+    // so the count is only right if it sees the same joined rows. `user.id` is
+    // unique and `owner_profile.user_id` is unique, so the left join can
+    // neither multiply nor drop a row.
+    db
+      .select({ total: countAll })
+      .from(ownerProfile)
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .where(where),
+  ]);
+
+  sendPageWithTotal(res, owners, page, aggregate(totalRows, { total: 0 }).total);
 });
 
 router.get("/owners/:ownerId", async (req: AuthenticatedRequest, res) => {

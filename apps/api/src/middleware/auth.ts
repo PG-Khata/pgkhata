@@ -86,6 +86,13 @@ export async function requireOwner(
     // is why this is the only place impersonation has to change scope.
     // `requireProperty` and every handler downstream keep comparing against
     // req.ownerId and need no knowledge of impersonation at all.
+    //
+    // This also, deliberately, skips the lifecycle check below. A support
+    // admin is sent to impersonate an account precisely *because* it was
+    // suspended — refusing them would leave the one account that needs
+    // investigating as the only one nobody can look at. The grant is already
+    // minted, logged and time-boxed by the impersonation middleware; account
+    // status is a gate on the customer, not on the platform.
     if (req.impersonation) {
       req.ownerId = req.impersonation.targetOwnerId;
       return next();
@@ -99,6 +106,26 @@ export async function requireOwner(
 
     if (!profile) {
       return res.status(403).json({ error: "Owner profile not found" });
+    }
+
+    // The single chokepoint for account lifecycle.
+    //
+    // Every owner route in the app reaches req.ownerId through here and the row
+    // is already loaded, so the check costs nothing extra. Putting it in each
+    // router instead would make a paused account a property of every future
+    // diff. Two surfaces are NOT covered and are handled where they live:
+    // `/public` token routes (see routes/public.ts) and `/v1/admin`, which
+    // bypasses owner scoping entirely and must keep working on a paused account.
+    //
+    // Better Auth sessions are a separate store and are left alone: a suspended
+    // owner can still sign in and simply meets this 403 everywhere. Revoking
+    // their sessions is a reasonable extra step for an *abuse* suspension, but
+    // wrong for an ops pause (billing hold, migration), where the account comes
+    // back in minutes and nobody should be logged out of their own business.
+    if (profile.status !== "active") {
+      return res
+        .status(403)
+        .json({ error: "account_suspended", reason: profile.suspendedReason ?? null });
     }
 
     req.ownerId = profile.id;

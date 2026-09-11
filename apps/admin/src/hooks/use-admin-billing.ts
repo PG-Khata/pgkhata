@@ -1,13 +1,41 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api-client";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, buildQuery } from "@/lib/api-client";
 import type { AdminBill } from "@/types";
 
-export function useAdminBills() {
+export const BILLS_PAGE_SIZE = 25;
+
+export type BillStatus = "pending" | "partial" | "paid" | "overdue";
+
+export interface AdminBillFilters {
+  ownerId?: string;
+  propertyId?: string;
+  tenantId?: string;
+  /** `YYYY-MM`. */
+  billMonth?: string;
+  status?: BillStatus;
+  /**
+   * Tri-state: omitted means "either". `voided` and `hasBalance` are derived
+   * server-side from `voidedAt` and `balance`, not from `status` — a voided
+   * bill keeps whatever status it had.
+   */
+  approved?: boolean;
+  voided?: boolean;
+  hasBalance?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * One page of the platform-wide bill list. There is no free-text search
+ * because a bill has no name; everything here is an exact match.
+ */
+export function useAdminBills(filters: AdminBillFilters = {}) {
   return useQuery({
-    queryKey: ["admin", "bills"],
-    queryFn: () => api.get<AdminBill[]>("/v1/admin/bills"),
+    queryKey: ["admin", "bills", "list", filters],
+    queryFn: () => api.getPage<AdminBill>(`/v1/admin/bills${buildQuery({ ...filters })}`),
+    placeholderData: keepPreviousData,
   });
 }
 
