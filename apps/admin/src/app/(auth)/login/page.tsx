@@ -5,51 +5,112 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Shield } from "lucide-react";
+import { ArrowLeft, Shield } from "lucide-react";
 import { toast } from "sonner";
+
+type Step = "email" | "signin" | "create";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  /** Signing in proves identity, not privilege — a non-admin would otherwise be
+   * bounced straight back by the layout gate, looking like a broken login. */
+  async function finishAdminLogin() {
+    const me = await fetch("/api/backend/v1/admin/me", {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!me.ok) {
+      await signOut();
+      toast.error("This account does not have platform admin access.");
+      return;
+    }
+    const next = searchParams.get("next");
+    router.push(next?.startsWith("/") ? next : "/dashboard");
+  }
+
+  // Step 1: ask the API whether this account still needs its first password.
+  async function handleEmailContinue(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-
     try {
-      const result = await signIn.email({
-        email,
-        password,
+      const res = await fetch("/api/backend/v1/admin-auth/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
+      const body = (await res.json().catch(() => ({}))) as { needsPassword?: boolean };
+      setStep(body.needsPassword ? "create" : "signin");
+    } catch {
+      // If the check itself fails, fall through to the ordinary password form
+      // rather than blocking a real admin from signing in.
+      setStep("signin");
+    } finally {
+      setLoading(false);
+    }
+  }
 
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const result = await signIn.email({ email: email.trim(), password });
       if (result.error) {
         toast.error(result.error.message || "Login failed");
         return;
       }
-
-      // Signing in proves identity, not privilege. Without this check a
-      // non-admin would be bounced straight back here by the layout gate with
-      // no explanation, looking like a broken login.
-      const me = await fetch("/api/backend/v1/admin/me", {
-        credentials: "include",
-        cache: "no-store",
-      });
-      if (!me.ok) {
-        await signOut();
-        toast.error("This account does not have platform admin access.");
-        return;
-      }
-
-      const next = searchParams.get("next");
-      router.push(next?.startsWith("/") ? next : "/dashboard");
+      await finishAdminLogin();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
     }
+  }
+
+  // First-login: set the password, then sign in with it.
+  async function handleCreatePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/backend/v1/admin-auth/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error || "Could not set password");
+        return;
+      }
+      const result = await signIn.email({ email: email.trim(), password });
+      if (result.error) {
+        toast.error(result.error.message || "Password set, but sign-in failed. Try signing in.");
+        setStep("signin");
+        return;
+      }
+      await finishAdminLogin();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not set password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function changeEmail() {
+    setStep("email");
+    setPassword("");
+    setConfirm("");
   }
 
   return (
@@ -60,44 +121,107 @@ function LoginForm() {
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <h1 className="text-xl font-semibold tracking-tight">PGKhata Admin</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Platform administration
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Platform administration</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@pgkhata.com"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
-              Password
-            </label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
+        {step === "email" && (
+          <form onSubmit={handleEmailContinue} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium">
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@pgkhata.com"
+                autoFocus
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
+              {loading ? "Checking..." : "Continue"}
+            </Button>
+          </form>
+        )}
+
+        {step === "signin" && (
+          <form onSubmit={handleSignIn} className="space-y-4">
+            <EmailPill email={email} onChange={changeEmail} />
+            <div>
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoFocus
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+        )}
+
+        {step === "create" && (
+          <form onSubmit={handleCreatePassword} className="space-y-4">
+            <EmailPill email={email} onChange={changeEmail} />
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              First time signing in — set a password for this account.
+            </p>
+            <div>
+              <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium">
+                New password
+              </label>
+              <Input
+                id="new-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                autoFocus
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-medium">
+                Confirm password
+              </label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                placeholder="Re-enter the password"
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading || password.length < 8}>
+              {loading ? "Setting up..." : "Set password & sign in"}
+            </Button>
+          </form>
+        )}
       </div>
     </div>
+  );
+}
+
+function EmailPill({ email, onChange }: { email: string; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className="flex w-full items-center gap-2 rounded-lg border bg-background px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent"
+    >
+      <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{email}</span>
+    </button>
   );
 }
 

@@ -6,6 +6,7 @@ import type { AuthenticatedRequest } from "../../middleware/auth";
 import { requireSuperAdminRole } from "../../middleware/admin";
 import { aggregate, param } from "../../lib/http";
 import { captureBefore } from "../../lib/audit";
+import { createPasswordlessUser, nameFromEmail } from "../../lib/admin-provisioning";
 
 const router = Router();
 
@@ -22,6 +23,9 @@ const router = Router();
 const adminCreateSchema = z.object({
   email: z.string().trim().email(),
   role: z.enum(PLATFORM_ADMIN_ROLES),
+  // Optional: the console only asks for an email, and a display name is derived
+  // from it. Present for when a name is worth setting up front.
+  name: z.string().trim().min(1).max(120).optional(),
   notes: z.string().trim().max(500).optional(),
 });
 
@@ -96,25 +100,30 @@ router.post("/admins", requireSuperAdminRole, async (req: AuthenticatedRequest, 
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
   }
 
-  const [target] = await db
+  const [existingUser] = await db
     .select({ id: user.id })
     .from(user)
     .where(eq(user.email, parsed.data.email))
     .limit(1);
-  // Admins are granted to people who already have an account; this endpoint
-  // deliberately cannot create a login.
-  if (!target) {
-    return res.status(404).json({ error: "No user with that email address" });
+
+  if (existingUser) {
+    const [existing] = await db
+      .select({ id: platformAdmin.id })
+      .from(platformAdmin)
+      .where(eq(platformAdmin.userId, existingUser.id))
+      .limit(1);
+    if (existing) {
+      return res.status(409).json({ error: "That user is already a platform admin" });
+    }
   }
 
-  const [existing] = await db
-    .select({ id: platformAdmin.id })
-    .from(platformAdmin)
-    .where(eq(platformAdmin.userId, target.id))
-    .limit(1);
-  if (existing) {
-    return res.status(409).json({ error: "That user is already a platform admin" });
-  }
+  // No account yet: provision a passwordless login. It is created by raw insert
+  // (see admin-provisioning), so it never gains an owner profile — an admin
+  // added here is a platform user, not an owner. They set their own password
+  // the first time they sign in.
+  const target =
+    existingUser ??
+    (await createPasswordlessUser(parsed.data.email, parsed.data.name?.trim() || nameFromEmail(parsed.data.email)));
 
   const [created] = await db
     .insert(platformAdmin)

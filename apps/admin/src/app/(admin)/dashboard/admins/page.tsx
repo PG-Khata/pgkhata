@@ -81,8 +81,8 @@ function AddAdminDialog({
               required
             />
             <p className="mt-1.5 text-xs text-muted-foreground">
-              They must already have a PGKhata account. This grants access, it does not create a
-              login.
+              Just their email. If they have no account yet, one is created here as a platform
+              user (never an owner); they set their own password the first time they sign in.
             </p>
           </div>
           <div>

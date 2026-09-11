@@ -31,6 +31,7 @@ import remindersRouter from "./routes/reminders";
 import profileRouter from "./routes/profile";
 import publicRouter from "./routes/public";
 import adminRouter from "./routes/admin";
+import adminAuthRouter from "./routes/admin-auth";
 import emergencyContactsRouter from "./routes/emergency-contacts";
 import bedBookingsRouter from "./routes/bed-bookings";
 import staffRouter from "./routes/staff";
@@ -234,6 +235,7 @@ app.use("/v1/dashboard", dashboardRouter);
  * rewrite. See middleware/rate-limit.ts. If the limiter can ever be mounted
  * inside routes/admin/index.ts directly after that gate, drop this `requireAuth`.
  */
+app.use("/v1/admin-auth", adminAuthRouter);
 app.use("/v1/admin", requireAuth, adminRateLimit, adminRouter);
 app.use("/v1/impersonation", impersonationRouter);
 
