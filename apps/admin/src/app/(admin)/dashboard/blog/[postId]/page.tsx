@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAdminBlogPost, useUpdateBlogPost, useCreateBlogPost } from "@/hooks/use-admin-blog";
@@ -9,33 +9,47 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Save, Eye } from "lucide-react";
 import { toast } from "sonner";
+import type { BlogPost } from "@/types";
 
 export default function BlogEditorPage({ params }: { params: Promise<{ postId: string }> }) {
   const { postId } = use(params);
   const isNew = postId === "new";
-  const router = useRouter();
 
   const { data: existingPost, isLoading } = useAdminBlogPost(isNew ? "" : postId);
+
+  if (!isNew && isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  // Keyed on postId so switching posts remounts the form with fresh initial values.
+  return <BlogEditorForm key={postId} postId={postId} isNew={isNew} post={existingPost} />;
+}
+
+function BlogEditorForm({
+  postId,
+  isNew,
+  post,
+}: {
+  postId: string;
+  isNew: boolean;
+  post: BlogPost | undefined;
+}) {
+  const router = useRouter();
   const createPost = useCreateBlogPost();
   const updatePost = useUpdateBlogPost(isNew ? "" : postId);
 
-  const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
-  const [excerpt, setExcerpt] = useState("");
-  const [content, setContent] = useState("");
-  const [tags, setTags] = useState("");
-  const [author, setAuthor] = useState("Mukund Jha");
-
-  useEffect(() => {
-    if (existingPost && !isNew) {
-      setTitle(existingPost.title);
-      setSlug(existingPost.slug);
-      setExcerpt(existingPost.excerpt ?? "");
-      setContent(existingPost.content);
-      setTags((existingPost.tags ?? []).join(", "));
-      setAuthor(existingPost.author);
-    }
-  }, [existingPost, isNew]);
+  const [title, setTitle] = useState(post?.title ?? "");
+  const [slug, setSlug] = useState(post?.slug ?? "");
+  const [excerpt, setExcerpt] = useState(post?.excerpt ?? "");
+  const [content, setContent] = useState(post?.content ?? "");
+  const [tags, setTags] = useState((post?.tags ?? []).join(", "));
+  const [author, setAuthor] = useState(post?.author ?? "Mukund Jha");
 
   function generateSlug() {
     setSlug(
@@ -62,7 +76,7 @@ export default function BlogEditorPage({ params }: { params: Promise<{ postId: s
 
     if (isNew) {
       createPost.mutate(data, {
-        onSuccess: (post) => {
+        onSuccess: () => {
           toast.success(publish ? "Post published" : "Draft saved");
           router.push("/dashboard/blog");
         },
@@ -76,16 +90,6 @@ export default function BlogEditorPage({ params }: { params: Promise<{ postId: s
         onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
       });
     }
-  }
-
-  if (!isNew && isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
   }
 
   return (

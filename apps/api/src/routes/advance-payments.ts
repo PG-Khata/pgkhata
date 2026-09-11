@@ -7,7 +7,7 @@ import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/a
 import { requireProperty } from "../middleware/property";
 import { param, HttpError } from "../lib/http";
 import { applyAdvanceToBill } from "../lib/advance-payment";
-import { syncBillTotals } from "./payments";
+import { syncBillTotals } from "../lib/bill-totals";
 import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });

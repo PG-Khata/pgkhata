@@ -1,24 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminPayments, useDeleteAdminPayment } from "@/hooks/use-admin-payments";
+import Link from "next/link";
+import { useAdminPayments } from "@/hooks/use-admin-payments";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CreditCard, Search, Trash2, Edit2 } from "lucide-react";
-import { toast } from "sonner";
-import { EditPaymentModal } from "@/components/modals/edit-payment-modal";
-import type { AdminPayment } from "@/types";
+import { CreditCard, Search, ArrowRight, LifeBuoy } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 export default function PaymentsPage() {
   const { data: payments, isLoading } = useAdminPayments();
-  const deletePayment = useDeleteAdminPayment();
   const [search, setSearch] = useState("");
-  const [editingPayment, setEditingPayment] = useState<AdminPayment | null>(null);
 
   const filtered = (payments ?? []).filter((p) => {
     const q = search.toLowerCase();
@@ -28,19 +21,32 @@ export default function PaymentsPage() {
     );
   });
 
-  function handleDelete(paymentId: string) {
-    if (!confirm("Delete this payment? This will update the bill balance.")) return;
-    deletePayment.mutate(paymentId, {
-      onSuccess: () => toast.success("Payment deleted"),
-      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
-    });
-  }
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Payments</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">All payments across all properties.</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">All payments across all properties. Read-only.</p>
+      </div>
+
+      <div className="rounded-xl border border-dashed bg-muted/30 p-4">
+        <div className="flex items-start gap-2.5">
+          <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="text-sm">
+            <p className="font-medium">Corrections happen in the owner&apos;s account</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Editing or deleting a payment here left the parent bill&apos;s paid amount and balance
+              untouched, so both controls are gone. Open a support session on the owner and correct
+              the payment there — that recomputes the bill and is audit-logged.
+            </p>
+            <Link
+              href="/dashboard/owners"
+              className="mt-2 inline-flex items-center font-medium text-foreground hover:underline"
+            >
+              Find the owner
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
       </div>
 
       <div className="relative">
@@ -64,7 +70,6 @@ export default function PaymentsPage() {
                 <th className="px-4 py-3 font-medium">AMOUNT</th>
                 <th className="px-4 py-3 font-medium">METHOD</th>
                 <th className="px-4 py-3 font-medium">DATE</th>
-                <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -72,20 +77,10 @@ export default function PaymentsPage() {
                 <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{p.tenantName || "-"}</td>
                   <td className="px-4 py-3 font-mono text-muted-foreground">{p.billMonth || "-"}</td>
-                  <td className="px-4 py-3 font-mono text-green-700">{formatINR(p.amount)}</td>
+                  <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(p.amount)}</td>
                   <td className="px-4 py-3 text-muted-foreground capitalize">{p.method || "-"}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(p.paymentDate).toLocaleDateString("en-IN")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => setEditingPayment(p)}>
-                        <Edit2 className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
                   </td>
                 </tr>
               ))}
@@ -97,14 +92,6 @@ export default function PaymentsPage() {
           <CreditCard className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">No payments found</p>
         </div>
-      )}
-
-      {editingPayment && (
-        <EditPaymentModal
-          open={!!editingPayment}
-          onOpenChange={(open) => !open && setEditingPayment(null)}
-          payment={editingPayment}
-        />
       )}
     </div>
   );

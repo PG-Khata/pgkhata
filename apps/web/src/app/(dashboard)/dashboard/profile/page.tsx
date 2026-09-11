@@ -21,7 +21,11 @@ import {
   KeyRound,
   Pencil,
   Save,
+  Phone,
+  BadgeCheck,
+  AlertCircle,
 } from "lucide-react"
+import { useOwnerProfile, useUpdateOwnerProfile } from "@/hooks/use-profile"
 import {
   Dialog,
   DialogContent,
@@ -30,6 +34,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { SupportAccessLog } from "@/components/layout/support-access-log"
+
+/** Stored as +91XXXXXXXXXX; grouped for readability. */
+function formatPhone(phone: string) {
+  const digits = phone.replace(/D/g, "").slice(-10)
+  return digits.length === 10 ? `+91 ${digits.slice(0, 5)} ${digits.slice(5)}` : phone
+}
 
 function getInitials(name: string) {
   return name
@@ -42,11 +53,20 @@ function getInitials(name: string) {
 
 function ProfileContent() {
   const { data: session, isPending } = useSession()
+  const {
+    data: profile,
+    isLoading: profileLoading,
+    isError: profileError,
+    refetch: refetchProfile,
+  } = useOwnerProfile()
+  const updateProfile = useUpdateOwnerProfile()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [editingName, setEditingName] = useState(false)
   const [name, setName] = useState("")
   const [savingName, setSavingName] = useState(false)
+  const [editingPhone, setEditingPhone] = useState(false)
+  const [phone, setPhone] = useState("")
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" })
   const passwordOpen = searchParams.get("change-password") === "1"
@@ -74,6 +94,21 @@ function ProfileContent() {
 
     toast.success("Profile updated")
     setEditingName(false)
+  }
+
+  function handleSavePhone() {
+    const trimmed = phone.trim()
+    updateProfile.mutate(
+      { phone: trimmed || null },
+      {
+        onSuccess: () => {
+          toast.success(trimmed ? "Phone number updated" : "Phone number removed")
+          setEditingPhone(false)
+        },
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : "Could not update phone number"),
+      },
+    )
   }
 
   async function handleChangePassword() {
@@ -222,6 +257,84 @@ function ProfileContent() {
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">Phone</p>
+                {editingPhone ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <Input
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      className="h-8 w-56"
+                      placeholder="9876543210"
+                      aria-label="Phone number"
+                    />
+                    <Button size="sm" className="h-8" onClick={handleSavePhone} disabled={updateProfile.isPending}>
+                      <Save className="mr-1.5 h-3.5 w-3.5" />
+                      {updateProfile.isPending ? "Saving..." : "Save"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => {
+                        setPhone(profile?.phone ?? "")
+                        setEditingPhone(false)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : profileLoading ? (
+                  <Skeleton className="mt-1 h-4 w-32" />
+                ) : profileError ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium text-destructive">Couldn&apos;t load</p>
+                    <button
+                      onClick={() => refetchProfile()}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium">
+                      {profile?.phone ? formatPhone(profile.phone) : "Not added"}
+                    </p>
+                    <button
+                      onClick={() => {
+                        setPhone(profile?.phone ?? "")
+                        setEditingPhone(true)
+                      }}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      {profile?.phone ? "Edit" : "Add"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              {profile?.emailVerified ? (
+                <BadgeCheck className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+              )}
+              <div>
+                <p className="text-xs text-muted-foreground">Email status</p>
+                {profileLoading ? (
+                  <Skeleton className="mt-1 h-4 w-24" />
+                ) : profileError ? (
+                  <p className="text-sm font-medium text-destructive">Couldn&apos;t load</p>
+                ) : (
+                  <p className="text-sm font-medium">
+                    {profile?.emailVerified ? "Verified" : "Not verified"}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border p-3">
               <Shield className="h-4 w-4 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Role</p>
@@ -242,6 +355,8 @@ function ProfileContent() {
           </div>
         </div>
       </div>
+
+      <SupportAccessLog />
 
       <Dialog open={passwordOpen} onOpenChange={setPasswordDialog}>
         <DialogContent className="sm:max-w-md">

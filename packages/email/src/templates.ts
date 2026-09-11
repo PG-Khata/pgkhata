@@ -88,3 +88,59 @@ export function billReadyEmail({ tenantName, propertyName, roomNumber, month, re
     </div>
   </div>`;
 }
+
+/**
+ * Sent only when PGKhata support is granted *write* access to an owner's
+ * account — never on a read-only support session. Read-only visits are
+ * deliberately silent: owners are usually the ones who asked for help, and an
+ * email every time trains them to ignore the channel, which destroys the signal
+ * for the case that actually matters. Changes to their data always notify.
+ */
+export function supportWriteAccessEmail({
+  ownerName,
+  adminName,
+  reason,
+  grantedAt,
+  expiresAt,
+}: {
+  ownerName: string;
+  adminName: string;
+  reason: string;
+  grantedAt: Date;
+  expiresAt: Date;
+}): string {
+  const time = (d: Date) =>
+    d.toLocaleString("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    });
+
+  return `
+    <div style="font-family: ${FONT_STACK}; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <h2 style="font-size: 18px; font-weight: 600; margin: 0 0 8px;">Support access to your account</h2>
+      <p style="font-size: 14px; color: #52525b; margin: 0 0 20px;">
+        Hi ${escapeHtml(ownerName)}, a PGKhata support team member was granted permission to make
+        changes to your account.
+      </p>
+      <div style="background: #fef3c7; border-radius: 8px; padding: 16px; margin: 0 0 20px;">
+        <p style="font-size: 13px; color: #713f12; margin: 0 0 8px;">
+          <strong>Who:</strong> ${escapeHtml(adminName)}
+        </p>
+        <p style="font-size: 13px; color: #713f12; margin: 0 0 8px;">
+          <strong>When:</strong> ${escapeHtml(time(grantedAt))} &ndash; ${escapeHtml(time(expiresAt))} IST
+        </p>
+        <p style="font-size: 13px; color: #713f12; margin: 0;">
+          <strong>Reason given:</strong> ${escapeHtml(reason)}
+        </p>
+      </div>
+      <p style="font-size: 14px; color: #52525b; margin: 0 0 20px;">
+        Access ends automatically at the time above. You can see every support visit to your
+        account, past and present, under Settings in your PGKhata dashboard.
+      </p>
+      <p style="font-size: 12px; color: #a1a1aa; margin: 0;">
+        If you did not ask for help and this looks wrong, reply to this email straight away.
+      </p>
+    </div>
+  `;
+}

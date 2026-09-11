@@ -26,8 +26,19 @@ interface PromptModalProps {
   loading?: boolean
 }
 
-export function PromptModal({
-  open,
+export function PromptModal({ open, onOpenChange, ...props }: PromptModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        {/* DialogContent unmounts on close, so the form remounts on each open and
+            picks up defaultValue through useState — no state-syncing effect needed. */}
+        <PromptForm onOpenChange={onOpenChange} {...props} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function PromptForm({
   onOpenChange,
   title,
   description,
@@ -38,17 +49,15 @@ export function PromptModal({
   required = false,
   onSubmit,
   loading = false,
-}: PromptModalProps) {
+}: Omit<PromptModalProps, "open">) {
   const [value, setValue] = useState(defaultValue)
   const [isPending, setIsPending] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (open) {
-      setValue(defaultValue)
-      setTimeout(() => inputRef.current?.focus(), 100)
-    }
-  }, [open, defaultValue])
+    const timer = setTimeout(() => inputRef.current?.focus(), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -64,43 +73,39 @@ export function PromptModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            {description && <DialogDescription>{description}</DialogDescription>}
-          </DialogHeader>
-          <div className="my-4">
-            <Input
-              ref={inputRef}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
-              disabled={isPending || loading}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onOpenChange(false)}
-              disabled={isPending || loading}
-            >
-              {cancelLabel}
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isPending || loading || (required && !value.trim())}
-            >
-              {isPending || loading ? "Processing..." : confirmLabel}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form onSubmit={handleSubmit}>
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+        {description && <DialogDescription>{description}</DialogDescription>}
+      </DialogHeader>
+      <div className="my-4">
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder}
+          disabled={isPending || loading}
+        />
+      </div>
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onOpenChange(false)}
+          disabled={isPending || loading}
+        >
+          {cancelLabel}
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isPending || loading || (required && !value.trim())}
+        >
+          {isPending || loading ? "Processing..." : confirmLabel}
+        </Button>
+      </DialogFooter>
+    </form>
   )
 }
 

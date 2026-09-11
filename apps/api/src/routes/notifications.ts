@@ -1,49 +1,43 @@
 import { Router } from "express";
-import { db, notification, property } from "@pgkhata/db";
+import { db, notification } from "@pgkhata/db";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param } from "../lib/http";
 import { pagination, sendPage } from "../lib/pagination";
+import { ownerPropertyIds } from "../lib/owner-scope";
 
 const router = Router({ mergeParams: true });
 
 router.use(requireAuth, requireOwner);
 
-/** Get property IDs owned by the authenticated owner. */
-async function getOwnerPropertyIds(ownerId: string): Promise<string[]> {
-  const props = await db
-    .select({ id: property.id })
-    .from(property)
-    .where(eq(property.ownerId, ownerId));
-  return props.map((p) => p.id);
-}
-
 /** Build a WHERE clause scoped to the owner's properties, optionally filtered to one. */
 function buildOwnerScopedWhere(
-  ownerPropertyIds: string[],
+  propertyIds: string[],
   filterPropertyId?: string,
 ) {
-  if (ownerPropertyIds.length === 0) return undefined;
+  // No properties means no rows; returning undefined keeps the caller from
+  // reaching an `inArray(..., [])`, which Postgres rejects outright.
+  if (propertyIds.length === 0) return undefined;
 
   if (filterPropertyId) {
     // Verify the requested propertyId belongs to this owner
-    if (!ownerPropertyIds.includes(filterPropertyId)) {
+    if (!propertyIds.includes(filterPropertyId)) {
       return undefined; // Will result in empty results
     }
     return eq(notification.propertyId, filterPropertyId);
   }
 
-  return inArray(notification.propertyId, ownerPropertyIds);
+  return inArray(notification.propertyId, propertyIds);
 }
 
 // List notifications for a property
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const page = pagination(req);
-    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
+    const propertyIds = await ownerPropertyIds(req.ownerId!);
     const propertyId = req.query.propertyId as string | undefined;
 
-    const where = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    const where = buildOwnerScopedWhere(propertyIds, propertyId);
     if (!where) return sendPage(res, [], page);
 
     const rows = await db
@@ -63,10 +57,10 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
 // Get unread count
 router.get("/unread-count", async (req: AuthenticatedRequest, res) => {
   try {
-    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
+    const propertyIds = await ownerPropertyIds(req.ownerId!);
     const propertyId = req.query.propertyId as string | undefined;
 
-    const scopedWhere = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    const scopedWhere = buildOwnerScopedWhere(propertyIds, propertyId);
     if (!scopedWhere) return res.json({ count: 0 });
 
     const where = and(scopedWhere, eq(notification.read, false));
@@ -86,9 +80,9 @@ router.get("/unread-count", async (req: AuthenticatedRequest, res) => {
 router.put("/:notificationId/read", async (req: AuthenticatedRequest, res) => {
   try {
     const notificationId = param(req, "notificationId");
-    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
+    const propertyIds = await ownerPropertyIds(req.ownerId!);
 
-    if (ownerPropertyIds.length === 0) {
+    if (propertyIds.length === 0) {
       return res.status(404).json({ error: "Notification not found" });
     }
 
@@ -98,7 +92,7 @@ router.put("/:notificationId/read", async (req: AuthenticatedRequest, res) => {
       .where(
         and(
           eq(notification.id, notificationId),
-          inArray(notification.propertyId, ownerPropertyIds),
+          inArray(notification.propertyId, propertyIds),
         )
       )
       .returning();
@@ -113,10 +107,10 @@ router.put("/:notificationId/read", async (req: AuthenticatedRequest, res) => {
 // Mark all as read — scoped to owner's properties
 router.post("/mark-all-read", async (req: AuthenticatedRequest, res) => {
   try {
-    const ownerPropertyIds = await getOwnerPropertyIds(req.ownerId!);
+    const propertyIds = await ownerPropertyIds(req.ownerId!);
     const propertyId = req.body.propertyId as string | undefined;
 
-    const scopedWhere = buildOwnerScopedWhere(ownerPropertyIds, propertyId);
+    const scopedWhere = buildOwnerScopedWhere(propertyIds, propertyId);
     if (!scopedWhere) return res.json({ updated: 0 });
 
     const where = and(scopedWhere, eq(notification.read, false));

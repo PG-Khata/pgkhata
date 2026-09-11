@@ -4,7 +4,7 @@ services:
     name: pgkhata-api
     runtime: node
     region: singapore
-    branch: staging
+    branch: main
     plan: free
     buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter @pgkhata/api build
     preDeployCommand: npx pnpm@10.15.1 --filter @pgkhata/db migrate:deploy
@@ -26,6 +26,10 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      # Where "Exit support session" returns an admin to. Without it the API
+      # falls back to http://localhost:3002 and the exit link is dead in prod.
+      - key: ADMIN_URL
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL
@@ -36,7 +40,7 @@ services:
     name: pgkhata-web
     runtime: node
     region: singapore
-    branch: staging
+    branch: main
     plan: free
     buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter web build
     startCommand: cd apps/web && npx next start

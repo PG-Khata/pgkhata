@@ -10,9 +10,14 @@ import {
   FileText,
   LayoutDashboard,
   Receipt,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  UserCog,
   Users,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useAdminSession } from "@/components/admin-session";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -23,6 +28,10 @@ const NAV_ITEMS = [
   { label: "Billing", href: "/dashboard/billing", icon: Receipt },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Blog", href: "/dashboard/blog", icon: FileText },
+  { label: "Support Sessions", href: "/dashboard/support-sessions", icon: UserCog },
+  { label: "Audit Log", href: "/dashboard/audit", icon: ScrollText, superAdminOnly: true },
+  { label: "Admins", href: "/dashboard/admins", icon: ShieldCheck, superAdminOnly: true },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -38,6 +47,8 @@ interface Props {
 
 export function AdminMobileNav({ open, onOpenChange }: Props) {
   const pathname = usePathname();
+  const admin = useAdminSession();
+  const items = NAV_ITEMS.filter((item) => !item.superAdminOnly || admin.role === "super_admin");
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -49,7 +60,7 @@ export function AdminMobileNav({ open, onOpenChange }: Props) {
         </SheetHeader>
         <nav className="px-3 py-4">
           <div className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {items.map((item) => {
               const active = isActive(pathname, item.href);
               return (
                 <Link

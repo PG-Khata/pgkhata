@@ -8,6 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Search, Users, ExternalLink } from "lucide-react";
+import type { AdminTenant } from "@/types";
+
+/**
+ * The list endpoint returns bedId/roomId, not their numbers, so the old
+ * `bedNumber ? ... : "Unassigned"` marked every assigned tenant as unassigned.
+ * Show the numbers when a payload carries them, otherwise say only what the ids
+ * prove: assigned, or genuinely not assigned.
+ */
+function bedLabel(t: AdminTenant): string {
+  if (t.bedNumber) return `${t.roomNumber || ""}-${t.bedNumber}`;
+  if (t.bedId) return "Assigned";
+  return "Unassigned";
+}
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -80,9 +93,7 @@ export default function TenantsPage() {
                     <p className="text-xs text-muted-foreground font-mono">{t.phone}</p>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{t.propertyName || "-"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {t.bedNumber ? `${t.roomNumber || ""}-${t.bedNumber}` : "Unassigned"}
-                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{bedLabel(t)}</td>
                   <td className="px-4 py-3">
                     <Badge className={STATUS_COLORS[t.status] ?? "bg-gray-100 text-gray-800"} variant="secondary">
                       {t.status}

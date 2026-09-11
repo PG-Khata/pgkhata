@@ -1,12 +1,15 @@
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
-import pino from "pino";
 import { randomUUID } from "crypto";
 import { auth } from "@pgkhata/auth";
 import { pool } from "@pgkhata/db";
 import { HttpError } from "./lib/http";
 import { validatePaginationQuery } from "./lib/pagination";
+import { logger } from "./lib/logger";
+import { resolveImpersonation, enforceImpersonationReadOnly } from "./middleware/impersonation";
+import { auditPrivilegedWrites } from "./middleware/audit";
+import impersonationRouter from "./routes/impersonation";
 import propertiesRouter from "./routes/properties";
 import floorsRouter from "./routes/floors";
 import rentPlansRouter from "./routes/rent-plans";
@@ -23,6 +26,7 @@ import securityDepositsRouter from "./routes/security-deposits";
 import expensesRouter from "./routes/expenses";
 import dashboardRouter from "./routes/dashboard";
 import remindersRouter from "./routes/reminders";
+import profileRouter from "./routes/profile";
 import publicRouter from "./routes/public";
 import adminRouter from "./routes/admin";
 import emergencyContactsRouter from "./routes/emergency-contacts";
@@ -41,10 +45,6 @@ import whatsappRouter from "./routes/whatsapp";
 import policeVerificationRouter from "./routes/police-verification";
 
 const app = express();
-const logger = pino({
-  level: process.env.NODE_ENV === "production" ? "info" : "debug",
-  redact: ["req.headers.authorization", "req.headers.cookie"],
-});
 
 // Request ID middleware
 app.use((req, res, next) => {
@@ -135,6 +135,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// Impersonation, mounted globally and before every router.
+//
+// Owner routers are mounted individually below, so anything scoped per-router
+// is one forgotten `router.use` away from a tenancy bypass or a write slipping
+// through a read-only session. Position matters: this sits AFTER the /api/auth
+// block above, which returns without calling next() — that is what keeps
+// better-auth unreachable to an impersonated browser, so an admin cannot change
+// the owner's password. Preserve that ordering.
+app.use(resolveImpersonation);
+app.use(enforceImpersonationReadOnly);
+app.use(auditPrivilegedWrites);
+
 // Health endpoints
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -199,8 +211,10 @@ app.use("/v1/properties/:propertyId/permissions", permissionsRouter);
 app.use("/v1/properties/:propertyId/structure", structureRouter);
 app.use("/v1/properties/:propertyId/whatsapp", whatsappRouter);
 app.use("/v1/properties/:propertyId/police-verification", policeVerificationRouter);
+app.use("/v1/profile", profileRouter);
 app.use("/v1/dashboard", dashboardRouter);
 app.use("/v1/admin", adminRouter);
+app.use("/v1/impersonation", impersonationRouter);
 
 // Public routes (no auth required)
 app.use("/public", publicRouter);

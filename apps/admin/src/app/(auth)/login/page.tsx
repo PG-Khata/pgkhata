@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth-client";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,7 +30,21 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/dashboard");
+      // Signing in proves identity, not privilege. Without this check a
+      // non-admin would be bounced straight back here by the layout gate with
+      // no explanation, looking like a broken login.
+      const me = await fetch("/api/backend/v1/admin/me", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!me.ok) {
+        await signOut();
+        toast.error("This account does not have platform admin access.");
+        return;
+      }
+
+      const next = searchParams.get("next");
+      router.push(next?.startsWith("/") ? next : "/dashboard");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -83,5 +98,14 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams() requires a Suspense boundary during prerendering.
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

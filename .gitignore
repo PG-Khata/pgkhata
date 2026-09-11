@@ -42,3 +42,11 @@ README.md
 temp_tenant_page.txt
 temp_tenant_page.tsx
 whatsapp-bill-header.png
+
+# Local DB dumps taken before destructive cleanup — contains PII and password hashes
+.db-backup/
+
+# Local artifacts, not source
+testing-report.html
+pgkhata-explainer.html
+*.code-workspace

@@ -1,20 +1,27 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
-import { useAdminProperty } from "@/hooks/use-admin-properties";
+import {
+  useAdminProperty,
+  useReconcilePropertyBeds,
+  useReconcilePropertyOverdue,
+} from "@/hooks/use-admin-properties";
 import { useAdminPropertyDetails } from "@/hooks/use-admin-details";
+import { useAdminSession } from "@/components/admin-session";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, Edit2, Bed, Users, Layers } from "lucide-react";
-import { EditPropertyModal } from "@/components/modals/edit-property-modal";
+import { ArrowLeft, ArrowRight, Users, Layers, LifeBuoy, RefreshCw, BedDouble } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PropertyDetailPage({ params }: { params: Promise<{ propertyId: string }> }) {
   const { propertyId } = use(params);
+  const { role } = useAdminSession();
   const { data: property, isLoading } = useAdminProperty(propertyId);
   const { data: details, isLoading: detailsLoading } = useAdminPropertyDetails(propertyId);
-  const [editOpen, setEditOpen] = useState(false);
+  const reconcileBeds = useReconcilePropertyBeds();
+  const reconcileOverdue = useReconcilePropertyOverdue();
 
   if (isLoading || detailsLoading) {
     return (
@@ -36,6 +43,22 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ prope
     );
   }
 
+  function handleReconcileBeds() {
+    reconcileBeds.mutate(propertyId, {
+      onSuccess: () => toast.success("Bed statuses reconciled with current tenancies"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+    });
+  }
+
+  function handleReconcileOverdue() {
+    reconcileOverdue.mutate(propertyId, {
+      onSuccess: () => toast.success("Overdue statuses reconciled"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+    });
+  }
+
+  const bedRows = details?.beds ?? [];
+
   return (
     <div className="space-y-6">
       <Link href="/dashboard/properties" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
@@ -47,10 +70,46 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ prope
           <h1 className="text-lg font-semibold tracking-tight">{property.name}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{property.address || property.city || "-"}</p>
         </div>
-        <Button variant="outline" onClick={() => setEditOpen(true)}>
-          <Edit2 className="mr-1.5 h-4 w-4" />
-          Edit
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/dashboard/properties/${propertyId}/structure`}>
+            <Button variant="outline">
+              <Layers className="mr-1.5 h-4 w-4" /> Structure
+            </Button>
+          </Link>
+          {role === "super_admin" && (
+            <>
+              <Button variant="outline" onClick={handleReconcileBeds} disabled={reconcileBeds.isPending}>
+                <BedDouble className="mr-1.5 h-4 w-4" /> Reconcile beds
+              </Button>
+              <Button variant="outline" onClick={handleReconcileOverdue} disabled={reconcileOverdue.isPending}>
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${reconcileOverdue.isPending ? "animate-spin" : ""}`} />
+                Reconcile overdue
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-dashed bg-muted/30 p-4">
+        <div className="flex items-start gap-2.5">
+          <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="text-sm">
+            <p className="font-medium">Edits happen in the owner&apos;s account</p>
+            <p className="mt-0.5 text-muted-foreground">
+              Editing a property here changed settings like electricity mode and rate, silently
+              rewriting future bill maths for every tenant. Open a support session on the owner and
+              edit in their account — it is audit-logged. The reconcile actions above only re-derive
+              state that already exists.
+            </p>
+            <Link
+              href={`/dashboard/owners/${property.ownerId}`}
+              className="mt-2 inline-flex items-center font-medium text-foreground hover:underline"
+            >
+              {property.ownerName ? `Open ${property.ownerName}` : "Open owner"}
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border bg-card p-5 shadow-xs">
@@ -97,9 +156,17 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ prope
       {/* Structure Tree */}
       {details && details.floors.length > 0 && (
         <div className="rounded-xl border bg-card p-5 shadow-xs">
-          <div className="flex items-center gap-2 mb-4">
-            <Layers className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Structure</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Structure</h2>
+            </div>
+            <Link
+              href={`/dashboard/properties/${propertyId}/structure`}
+              className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+            >
+              Full view <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
           </div>
           <div className="space-y-4">
             {details.floors.map((f) => {
@@ -109,20 +176,23 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ prope
                   <p className="text-sm font-medium mb-2">{f.name}</p>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {floorRooms.map((r) => {
-                      const roomBeds = details.beds.filter((b) => b.roomNumber === r.number);
+                      const roomBeds = bedRows.filter((b) => b.roomId === r.id);
                       return (
                         <div key={r.id} className="rounded-md bg-muted/30 p-2">
                           <p className="text-xs font-medium">Room {r.number}</p>
-                          <div className="flex gap-1 mt-1">
+                          <div className="flex gap-1 mt-1 flex-wrap">
                             {roomBeds.map((b) => (
                               <Badge
-                                key={b.bed.id}
-                                variant={b.bed.status === "occupied" ? "default" : "outline"}
+                                key={b.id}
+                                variant={b.status === "occupied" ? "default" : "outline"}
                                 className="text-xs"
                               >
-                                {b.bed.number}
+                                {b.number}
                               </Badge>
                             ))}
+                            {roomBeds.length === 0 && (
+                              <p className="text-xs text-muted-foreground">No beds</p>
+                            )}
                           </div>
                         </div>
                       );
@@ -172,12 +242,6 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ prope
           </div>
         </div>
       )}
-
-      <EditPropertyModal
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        property={property}
-      />
     </div>
   );
 }

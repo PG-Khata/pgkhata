@@ -1,0 +1,5 @@
+# Drizzle records a content hash for every applied migration. With core.autocrlf
+# enabled, a CRLF checkout changes that hash and `migrate:deploy` refuses to run
+# ("Migration history mismatch"). Pin SQL to LF so hashes stay stable across
+# platforms and checkouts.
+*.sql text eol=lf

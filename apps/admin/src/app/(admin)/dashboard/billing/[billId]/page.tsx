@@ -1,20 +1,20 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
-import { useAdminBill, useVoidAdminBill } from "@/hooks/use-admin-billing";
+import { useAdminBill, useRecomputeAdminBill } from "@/hooks/use-admin-billing";
+import { useAdminTenant } from "@/hooks/use-admin-tenants";
+import { useAdminProperty } from "@/hooks/use-admin-properties";
+import { useAdminSession } from "@/components/admin-session";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Ban, Edit2, CreditCard, List } from "lucide-react";
+import { ArrowLeft, ArrowRight, RefreshCw, CreditCard, List, LifeBuoy } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { EditBillModal } from "@/components/modals/edit-bill-modal";
+import { formatCurrency } from "@/lib/utils";
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 interface BillDetailWithRelations {
   id: string;
@@ -38,9 +38,14 @@ interface BillDetailWithRelations {
 
 export default function BillDetailPage({ params }: { params: Promise<{ billId: string }> }) {
   const { billId } = use(params);
+  const { role } = useAdminSession();
   const { data: bill, isLoading } = useAdminBill(billId);
-  const voidBill = useVoidAdminBill();
-  const [editOpen, setEditOpen] = useState(false);
+  const recompute = useRecomputeAdminBill();
+
+  // The bill payload carries no ownerId, so walk tenant -> property to find the
+  // owner whose account the support session has to be opened on.
+  const { data: billTenant } = useAdminTenant(bill?.tenantId ?? "");
+  const { data: billProperty } = useAdminProperty(billTenant?.propertyId ?? "");
 
   const { data: details, isLoading: detailsLoading } = useQuery({
     queryKey: ["admin", "bills", billId, "details"],
@@ -68,16 +73,18 @@ export default function BillDetailPage({ params }: { params: Promise<{ billId: s
     );
   }
 
-  function handleVoid() {
-    if (!confirm("Void this bill? This cannot be undone.")) return;
-    voidBill.mutate(billId, {
-      onSuccess: () => toast.success("Bill voided"),
+  function handleRecompute() {
+    recompute.mutate(billId, {
+      onSuccess: () => toast.success("Totals recomputed from line items and payments"),
       onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
     });
   }
 
   const lineItems = details?.lineItems ?? bill.lineItems ?? [];
   const payments = details?.payments ?? [];
+  const ownerHref = billProperty?.ownerId
+    ? `/dashboard/owners/${billProperty.ownerId}`
+    : "/dashboard/owners";
 
   return (
     <div className="space-y-6">
@@ -90,30 +97,47 @@ export default function BillDetailPage({ params }: { params: Promise<{ billId: s
           <h1 className="text-lg font-semibold tracking-tight">Bill — {bill.billMonth}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">{bill.tenantName || "Unknown Tenant"}</p>
         </div>
-        {!bill.voidedAt && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Edit2 className="mr-1.5 h-4 w-4" /> Edit
-            </Button>
-            <Button variant="destructive" onClick={handleVoid} disabled={voidBill.isPending}>
-              <Ban className="mr-1.5 h-4 w-4" /> Void
-            </Button>
-          </div>
+        {role === "super_admin" && (
+          <Button variant="outline" onClick={handleRecompute} disabled={recompute.isPending}>
+            <RefreshCw className={`mr-1.5 h-4 w-4 ${recompute.isPending ? "animate-spin" : ""}`} />
+            Recompute totals
+          </Button>
         )}
+      </div>
+
+      <div className="rounded-xl border border-dashed bg-muted/30 p-4">
+        <div className="flex items-start gap-2.5">
+          <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="text-sm">
+            <p className="font-medium">Edits and voids happen in the owner&apos;s account</p>
+            <p className="mt-0.5 text-muted-foreground">
+              The admin-side edit and void wrote amounts and status directly without recomputing the
+              bill. Open a support session on the owner instead — that runs the owner&apos;s own
+              billing routes and is audit-logged.
+            </p>
+            <Link
+              href={ownerHref}
+              className="mt-2 inline-flex items-center font-medium text-foreground hover:underline"
+            >
+              {billProperty?.ownerName ? `Open ${billProperty.ownerName}` : "Open owner"}
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Total</p>
-          <p className="text-xl font-semibold font-mono">{formatINR(bill.totalAmount)}</p>
+          <p className="text-xl font-semibold font-mono">{formatCurrency(bill.totalAmount)}</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Paid</p>
-          <p className="text-xl font-semibold font-mono text-green-700">{formatINR(bill.paidAmount)}</p>
+          <p className="text-xl font-semibold font-mono text-green-700">{formatCurrency(bill.paidAmount)}</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Balance</p>
-          <p className="text-xl font-semibold font-mono">{formatINR(bill.balance)}</p>
+          <p className="text-xl font-semibold font-mono">{formatCurrency(bill.balance)}</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Status</p>
@@ -142,14 +166,14 @@ export default function BillDetailPage({ params }: { params: Promise<{ billId: s
                   <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">{item.name}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{item.code}</td>
-                    <td className="px-4 py-3 font-mono text-right">{formatINR(item.amount)}</td>
+                    <td className="px-4 py-3 font-mono text-right">{formatCurrency(item.amount)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t bg-muted/30 font-medium">
                   <td className="px-4 py-3" colSpan={2}>Total</td>
-                  <td className="px-4 py-3 font-mono text-right">{formatINR(bill.totalAmount)}</td>
+                  <td className="px-4 py-3 font-mono text-right">{formatCurrency(bill.totalAmount)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -178,7 +202,7 @@ export default function BillDetailPage({ params }: { params: Promise<{ billId: s
                 {payments.map((p) => (
                   <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">{new Date(p.paymentDate).toLocaleDateString("en-IN")}</td>
-                    <td className="px-4 py-3 font-mono text-green-700">{formatINR(p.amount)}</td>
+                    <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(p.amount)}</td>
                     <td className="px-4 py-3 capitalize text-muted-foreground">{p.method || "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.notes || "-"}</td>
                   </tr>
@@ -188,12 +212,6 @@ export default function BillDetailPage({ params }: { params: Promise<{ billId: s
           </div>
         </div>
       )}
-
-      <EditBillModal
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        bill={bill}
-      />
     </div>
   );
 }

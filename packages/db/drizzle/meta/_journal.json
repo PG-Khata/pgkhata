@@ -190,6 +190,20 @@
       "when": 1789073355885,
       "tag": "0026_add_blog_post",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789133637607,
+      "tag": "0027_add_platform_admin_rbac",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789134356465,
+      "tag": "0028_add_impersonation_and_audit",
+      "breakpoints": true
     }
   ]
 }

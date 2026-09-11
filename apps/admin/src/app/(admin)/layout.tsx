@@ -1,69 +1,37 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { AdminShell } from "@/components/admin-shell";
+import type { AdminSession } from "@/components/admin-session";
 
-import { useSession } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { AdminSidebar } from "@/components/admin-sidebar";
-import { AdminHeader } from "@/components/admin-header";
-import { ImpersonationBanner } from "@/components/impersonation-banner";
-import { useImpersonationStatus, useExitImpersonation } from "@/hooks/use-impersonation";
-import { Skeleton } from "@/components/ui/skeleton";
+const API_URL =
+  process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { data: session, isPending } = useSession();
-  const router = useRouter();
-  const { data: impersonation } = useImpersonationStatus();
-  const exitImpersonation = useExitImpersonation();
+/**
+ * The real gate. This runs on the server before any admin markup is produced,
+ * so a non-admin never receives the shell, the nav, or the page bundles — the
+ * previous client-side `useSession()` check only proved *a* session existed and
+ * let any registered owner render the whole console.
+ *
+ * better-auth validates sessions inside the Express API, not here, so the only
+ * honest check Next can make is to forward the cookie and ask.
+ */
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const cookieHeader = (await cookies()).toString();
+  if (!cookieHeader) redirect("/login");
 
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push("/login");
-    }
-  }, [isPending, session, router]);
-
-  function handleExitImpersonation() {
-    exitImpersonation.mutate(undefined, {
-      onSuccess: () => {
-        router.refresh();
-      },
+  let admin: AdminSession | null = null;
+  try {
+    const res = await fetch(new URL("/v1/admin/me", API_URL), {
+      headers: { cookie: cookieHeader },
+      cache: "no-store",
     });
+    if (res.ok) admin = (await res.json()) as AdminSession;
+  } catch {
+    // API unreachable — fail closed rather than rendering an unguarded console.
+    admin = null;
   }
 
-  if (isPending) {
-    return (
-      <div className="flex min-h-screen">
-        <div className="hidden w-56 border-r bg-sidebar md:block">
-          <Skeleton className="h-14 w-full" />
-        </div>
-        <div className="flex-1">
-          <Skeleton className="h-14 w-full" />
-          <div className="p-6">
-            <Skeleton className="h-8 w-48" />
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-xl" />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!admin) redirect("/login");
 
-  if (!session) return null;
-
-  return (
-    <div className="flex min-h-screen overflow-x-hidden">
-      <AdminSidebar />
-      <div className="flex flex-1 flex-col min-w-0">
-        <AdminHeader />
-        {impersonation?.impersonating && impersonation.ownerName && (
-          <ImpersonationBanner ownerName={impersonation.ownerName} onExit={handleExitImpersonation} />
-        )}
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6">
-          <div className="mx-auto max-w-6xl">{children}</div>
-        </main>
-      </div>
-    </div>
-  );
+  return <AdminShell admin={admin}>{children}</AdminShell>;
 }

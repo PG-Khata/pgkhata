@@ -3,62 +3,59 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 
-interface ImpersonationStatus {
-  impersonating: boolean;
-  ownerId?: string;
-  ownerName?: string;
+export interface ImpersonationSessionRow {
+  id: string;
+  adminUserId: string;
+  adminName: string | null;
+  targetOwnerId: string;
+  reason: string;
+  mode: "read_only" | "read_write";
+  startedAt: string;
+  expiresAt: string;
+  endedAt: string | null;
+  endedReason: string | null;
 }
 
-export function useImpersonationStatus() {
-  return useQuery({
-    queryKey: ["admin", "impersonation"],
-    queryFn: () => api.get<ImpersonationStatus>("/v1/admin/impersonate/status"),
-    refetchInterval: 30_000,
-    retry: false,
-  });
-}
+const SESSIONS_KEY = ["admin", "impersonation", "sessions"];
 
-export function useImpersonate() {
-  const qc = useQueryClient();
+/**
+ * Starts a read-only support session and hands off to the owner app.
+ *
+ * There is no client-side token any more: the server returns a one-time URL and
+ * the browser simply follows it. Nothing is stored in localStorage, and the
+ * admin origin holds no impersonation state at all.
+ */
+export function useStartImpersonation() {
   return useMutation({
-    mutationFn: async (ownerId: string) => {
-      const result = await api.post<{ token: string; ownerName: string }>(
+    mutationFn: ({ ownerId, reason }: { ownerId: string; reason: string }) =>
+      api.post<{ sessionId: string; ownerName: string; redirectUrl: string }>(
         `/v1/admin/owners/${ownerId}/impersonate`,
-      );
-      if (result.token) {
-        localStorage.setItem("impersonate_token", result.token);
-        localStorage.setItem("impersonate_owner_id", ownerId);
-      }
-      return result;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "impersonation"] });
-    },
+        { reason },
+      ),
   });
 }
 
-export function useExitImpersonation() {
+export function useImpersonationSessions() {
+  return useQuery({
+    queryKey: SESSIONS_KEY,
+    queryFn: () => api.get<ImpersonationSessionRow[]>("/v1/admin/impersonation/sessions"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useEndImpersonationSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      await api.post("/v1/admin/impersonate/exit");
-      localStorage.removeItem("impersonate_token");
-      localStorage.removeItem("impersonate_owner_id");
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "impersonation"] });
-    },
+    mutationFn: (sessionId: string) =>
+      api.post(`/v1/admin/impersonation/sessions/${sessionId}/end`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SESSIONS_KEY }),
   });
 }
 
-export function getImpersonationHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("impersonate_token") : null;
-  const ownerId = typeof window !== "undefined" ? localStorage.getItem("impersonate_owner_id") : null;
-  if (token && ownerId) {
-    return {
-      "x-impersonate-token": token,
-      "x-impersonate-owner": ownerId,
-    };
-  }
-  return {};
+export function useEndAllImpersonations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<{ ended: number }>("/v1/admin/impersonation/end-all"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SESSIONS_KEY }),
+  });
 }

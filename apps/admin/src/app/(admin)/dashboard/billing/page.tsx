@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/utils";
 import { Receipt, ExternalLink, Search } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -16,9 +17,6 @@ const STATUS_COLORS: Record<string, string> = {
   overdue: "bg-red-100 text-red-800",
 };
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 export default function BillingPage() {
   const { data: bills, isLoading } = useAdminBills();
@@ -73,9 +71,9 @@ export default function BillingPage() {
                     <p className="text-xs text-muted-foreground">{b.propertyName || ""}</p>
                   </td>
                   <td className="px-4 py-3 font-mono text-muted-foreground">{b.billMonth}</td>
-                  <td className="px-4 py-3 font-mono">{formatINR(b.totalAmount)}</td>
-                  <td className="px-4 py-3 font-mono text-green-700">{formatINR(b.paidAmount)}</td>
-                  <td className="px-4 py-3 font-mono">{formatINR(b.balance)}</td>
+                  <td className="px-4 py-3 font-mono">{formatCurrency(b.totalAmount)}</td>
+                  <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(b.paidAmount)}</td>
+                  <td className="px-4 py-3 font-mono">{formatCurrency(b.balance)}</td>
                   <td className="px-4 py-3">
                     <Badge className={STATUS_COLORS[b.status] ?? "bg-gray-100 text-gray-800"} variant="secondary">
                       {b.voidedAt ? "voided" : b.status}

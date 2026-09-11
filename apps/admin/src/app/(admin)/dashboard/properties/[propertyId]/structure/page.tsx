@@ -1,13 +1,15 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api-client";
+import { useReconcilePropertyBeds } from "@/hooks/use-admin-properties";
+import { useAdminSession } from "@/components/admin-session";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Bed, Users, Layers, DoorOpen, Edit2 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Layers, DoorOpen, BedDouble } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface Floor {
@@ -26,13 +28,14 @@ interface Room {
   monthlyRent: number;
 }
 
-interface Bed {
+interface BedRow {
   id: string;
   roomId: string;
   number: string;
   status: "vacant" | "occupied" | "maintenance";
   monthlyRent: number | null;
   roomNumber: string;
+  floorId: string | null;
 }
 
 interface StructureData {
@@ -40,26 +43,24 @@ interface StructureData {
   propertyName: string;
   floors: Floor[];
   rooms: Room[];
-  beds: Bed[];
+  beds: BedRow[];
 }
+
+const BED_STATUS_COLORS: Record<string, string> = {
+  vacant: "bg-green-100 text-green-800",
+  occupied: "bg-blue-100 text-blue-800",
+  maintenance: "bg-orange-100 text-orange-800",
+};
 
 export default function StructurePage({ params }: { params: Promise<{ propertyId: string }> }) {
   const { propertyId } = use(params);
-  const qc = useQueryClient();
+  const { role } = useAdminSession();
+  const reconcileBeds = useReconcilePropertyBeds();
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "structure", propertyId],
     queryFn: () => api.get<StructureData>(`/v1/admin/properties/${propertyId}/structure`),
     enabled: !!propertyId,
-  });
-
-  const updateBed = useMutation({
-    mutationFn: ({ bedId, status }: { bedId: string; status: string }) =>
-      api.patch(`/v1/admin/beds/${bedId}`, { status }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "structure", propertyId] });
-      toast.success("Bed updated");
-    },
   });
 
   if (isLoading) {
@@ -82,15 +83,16 @@ export default function StructurePage({ params }: { params: Promise<{ propertyId
     );
   }
 
+  function handleReconcileBeds() {
+    reconcileBeds.mutate(propertyId, {
+      onSuccess: () => toast.success("Bed statuses reconciled with current tenancies"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+    });
+  }
+
   const vacantBeds = data.beds.filter((b) => b.status === "vacant").length;
   const occupiedBeds = data.beds.filter((b) => b.status === "occupied").length;
   const maintenanceBeds = data.beds.filter((b) => b.status === "maintenance").length;
-
-  function handleBedStatusChange(bedId: string, currentStatus: string) {
-    const nextStatus =
-      currentStatus === "vacant" ? "occupied" : currentStatus === "occupied" ? "vacant" : "vacant";
-    updateBed.mutate({ bedId, status: nextStatus });
-  }
 
   return (
     <div className="space-y-6">
@@ -98,11 +100,19 @@ export default function StructurePage({ params }: { params: Promise<{ propertyId
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to Property
       </Link>
 
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">{data.propertyName} — Structure</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Manage floors, rooms, and beds.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">{data.propertyName} — Structure</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Floors, rooms, and beds. Read-only — bed status follows the tenancy, so it is changed by
+            moving a tenant in the owner&apos;s account, not set by hand.
+          </p>
+        </div>
+        {role === "super_admin" && (
+          <Button variant="outline" onClick={handleReconcileBeds} disabled={reconcileBeds.isPending}>
+            <BedDouble className="mr-1.5 h-4 w-4" /> Reconcile beds
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -149,22 +159,15 @@ export default function StructurePage({ params }: { params: Promise<{ propertyId
                             </Badge>
                           </div>
                           <div className="flex gap-1 flex-wrap">
-                            {roomBeds.map((bed) => (
-                              <Button
-                                key={bed.id}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleBedStatusChange(bed.id, bed.status)}
-                                className={`h-6 px-2 text-xs ${
-                                  bed.status === "vacant"
-                                    ? "bg-green-100 text-green-800 hover:bg-green-200"
-                                    : bed.status === "occupied"
-                                      ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
-                                      : "bg-orange-100 text-orange-800 hover:bg-orange-200"
-                                }`}
+                            {roomBeds.map((b) => (
+                              <Badge
+                                key={b.id}
+                                variant="secondary"
+                                className={`text-xs ${BED_STATUS_COLORS[b.status] ?? "bg-gray-100 text-gray-800"}`}
+                                title={b.status}
                               >
-                                {bed.number}
-                              </Button>
+                                {b.number}
+                              </Badge>
                             ))}
                             {roomBeds.length === 0 && (
                               <p className="text-xs text-muted-foreground">No beds</p>
@@ -186,7 +189,7 @@ export default function StructurePage({ params }: { params: Promise<{ propertyId
           <Layers className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">No floors defined</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Add floors from the property detail page.
+            Floors are added by the owner, or by an admin in a support session.
           </p>
         </div>
       )}

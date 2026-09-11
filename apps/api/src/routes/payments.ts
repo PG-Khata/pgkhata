@@ -4,9 +4,10 @@ import { db, payment, bill, tenant } from "@pgkhata/db";
 import { eq, and, sql, asc, or, like } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
-import { param, aggregate, HttpError } from "../lib/http";
+import { param, HttpError } from "../lib/http";
 import { autoAllocatePayment } from "../lib/auto-allocate";
-import { formatDateOnly, isOverdue } from "../lib/due-date";
+import { syncBillTotals } from "../lib/bill-totals";
+import { formatDateOnly } from "../lib/due-date";
 import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router({ mergeParams: true });
@@ -21,49 +22,6 @@ const recordPaymentSchema = z.object({
 });
 
 router.use(requireAuth, requireOwner, requireProperty);
-
-/** Recomputes bill totals from the payment ledger, the source of truth. */
-export async function syncBillTotals(billId: string, totalAmount: number, tx?: any) {
-  const dbConn = tx || db;
-  const { totalPaid } = aggregate(
-    await dbConn
-      .select({ totalPaid: sql<number>`coalesce(sum(${payment.amount}), 0)::int` })
-      .from(payment)
-      .where(eq(payment.billId, billId)),
-    { totalPaid: 0 },
-  );
-
-  const [currentBill] = await dbConn
-    .select({ dueDate: bill.dueDate, voidedAt: bill.voidedAt })
-    .from(bill)
-    .where(eq(bill.id, billId))
-    .limit(1);
-  if (!currentBill) throw new HttpError(404, "Bill not found");
-  if (totalPaid > totalAmount) throw new HttpError(409, "Payments exceed bill total");
-
-  const newBalance = currentBill.voidedAt ? 0 : totalAmount - totalPaid;
-  const newStatus = currentBill.voidedAt
-    ? "voided"
-    : newBalance === 0
-      ? "paid"
-      : isOverdue(currentBill.dueDate)
-        ? "overdue"
-        : totalPaid > 0
-          ? "partial"
-          : "pending";
-
-  await dbConn
-    .update(bill)
-    .set({
-      paidAmount: totalPaid,
-      balance: newBalance,
-      status: newStatus,
-      updatedAt: new Date(),
-    })
-    .where(eq(bill.id, billId));
-
-  return { totalPaid, balance: newBalance, status: newStatus };
-}
 
 // Get payments for property
 router.get("/", async (req: AuthenticatedRequest, res) => {

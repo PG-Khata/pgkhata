@@ -861,14 +861,152 @@ export const complaint = pgTable("complaint", {
   }),
 ]);
 
-export const platformAdmin = pgTable("platform_admin", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" })
-    .unique(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const PLATFORM_ADMIN_ROLES = ["super_admin", "support"] as const;
+export type PlatformAdminRole = (typeof PLATFORM_ADMIN_ROLES)[number];
+
+export const platformAdmin = pgTable(
+  "platform_admin",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" })
+      .unique(),
+    // 'support' is the least-privileged default so a mis-typed insert cannot
+    // hand out destructive access. Rows predating roles are backfilled to
+    // 'super_admin' by the migration - they were unconstrained before.
+    role: text("role").notNull().default("support"),
+    // Revocation without deletion: a departed teammate's audit rows keep their
+    // foreign key, and re-granting is a one-column flip.
+    isActive: boolean("is_active").notNull().default(true),
+    notes: text("notes"),
+    createdBy: uuid("created_by").references((): AnyPgColumn => platformAdmin.id, {
+      onDelete: "set null",
+    }),
+    lastLoginAt: timestamp("last_login_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "platform_admin_role_check",
+      sql`${table.role} in ('super_admin', 'support')`,
+    ),
+  ],
+);
+
+export const IMPERSONATION_MODES = ["read_only", "read_write"] as const;
+export type ImpersonationMode = (typeof IMPERSONATION_MODES)[number];
+
+/**
+ * One support session: a platform admin acting inside one owner's account.
+ *
+ * The grant is the credential. Both token columns hold sha256 hex of a 32-byte
+ * random value, so a database dump is not a bag of live sessions, and revoking
+ * a session is an UPDATE that takes effect on the very next request rather than
+ * a key rotation.
+ */
+export const impersonationSession = pgTable(
+  "impersonation_session",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    adminId: uuid("admin_id")
+      .notNull()
+      .references(() => platformAdmin.id, { onDelete: "cascade" }),
+    // Denormalised so the trail still names a human after the admin row goes.
+    adminUserId: text("admin_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    targetOwnerId: uuid("target_owner_id")
+      .notNull()
+      .references(() => ownerProfile.id, { onDelete: "cascade" }),
+
+    // Why this session was opened. Required: an unexplained support session is
+    // the thing the audit trail exists to prevent.
+    reason: text("reason").notNull(),
+    mode: text("mode").notNull().default("read_only"),
+    writeReason: text("write_reason"),
+    writeGrantedAt: timestamp("write_granted_at"),
+    // Write access lapses by timestamp comparison on every request, so a
+    // crashed scheduler can never leave a session writable.
+    writeExpiresAt: timestamp("write_expires_at"),
+
+    // Single-use, 60s, exchanged once on the owner origin for the real cookie.
+    handoffTokenHash: text("handoff_token_hash").unique(),
+    handoffExpiresAt: timestamp("handoff_expires_at"),
+    handoffClaimedAt: timestamp("handoff_claimed_at"),
+    sessionTokenHash: text("session_token_hash").unique(),
+
+    startedAt: timestamp("started_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at").notNull(),
+    // Hard ceiling on renewals, so "extend" cannot become "forever".
+    absoluteExpiresAt: timestamp("absolute_expires_at").notNull(),
+    endedAt: timestamp("ended_at"),
+    // admin_exit | expired | superseded | revoked | admin_deactivated
+    endedReason: text("ended_reason"),
+
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+  },
+  (table) => [
+    check(
+      "impersonation_session_mode_check",
+      sql`${table.mode} in ('read_only', 'read_write')`,
+    ),
+    check(
+      "impersonation_session_write_window_check",
+      sql`${table.mode} = 'read_only' or (${table.writeReason} is not null and ${table.writeExpiresAt} is not null)`,
+    ),
+    index("idx_impersonation_session_admin").on(table.adminId, table.startedAt),
+    index("idx_impersonation_session_owner").on(table.targetOwnerId, table.startedAt),
+  ],
+);
+
+/**
+ * Append-only record of every privileged write. Because an escalated
+ * impersonated write is attributed to the owner inside domain tables, this is
+ * the only place the real human actor exists — see the append-only trigger in
+ * the accompanying migration.
+ */
+export const adminAuditLog = pgTable(
+  "admin_audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // set null, not cascade: revoking an admin must not erase what they did.
+    adminId: uuid("admin_id").references(() => platformAdmin.id, { onDelete: "set null" }),
+    adminUserId: text("admin_user_id").notNull(),
+    adminEmail: text("admin_email").notNull(),
+    impersonationSessionId: uuid("impersonation_session_id").references(
+      () => impersonationSession.id,
+      { onDelete: "set null" },
+    ),
+
+    action: text("action").notNull(),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    // Intentionally NOT a foreign key: the most important row to keep is the
+    // one recording that this owner was deleted.
+    ownerId: uuid("owner_id"),
+
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    statusCode: integer("status_code"),
+    before: jsonb("before"),
+    after: jsonb("after"),
+    reason: text("reason"),
+
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    requestId: text("request_id"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("idx_admin_audit_log_created").on(table.createdAt),
+    index("idx_admin_audit_log_owner").on(table.ownerId, table.createdAt),
+    index("idx_admin_audit_log_admin").on(table.adminUserId, table.createdAt),
+    index("idx_admin_audit_log_session").on(table.impersonationSessionId),
+  ],
+);
 
 export const blogPost = pgTable("blog_post", {
   id: uuid("id").primaryKey().defaultRandom(),

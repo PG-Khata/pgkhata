@@ -3,23 +3,12 @@ import { db, tenant, bill, expense, securityDeposit, room, bed } from "@pgkhata/
 import { eq } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
+import { toCsv } from "../lib/csv";
 
 const router = Router({ mergeParams: true });
 const MAX_EXPORT_ROWS = 10_000;
 
 router.use(requireAuth, requireOwner, requireProperty);
-
-function toCsv(headers: string[], rows: (string | number | null | undefined)[][]): string {
-  const escape = (v: string | number | null | undefined) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-      return `"${s.replace(/"/g, '""')}"`;
-    }
-    return s;
-  };
-  return [headers.join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
-}
 
 // Export tenants as CSV
 router.get("/tenants", async (req: AuthenticatedRequest, res) => {

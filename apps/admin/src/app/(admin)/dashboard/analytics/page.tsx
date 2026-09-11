@@ -3,8 +3,9 @@
 import { useAdminAnalytics } from "@/hooks/use-admin-analytics";
 import { AdminStatCard } from "@/components/admin-stat-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Building2, Users, UserCheck, IndianRupee, TrendingUp, TrendingDown } from "lucide-react";
+import { Building2, Users, UserCheck, IndianRupee } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 
 interface AnalyticsTrend {
@@ -16,14 +17,11 @@ interface AnalyticsTrend {
   collected: number;
 }
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 export default function AnalyticsPage() {
   const { data: analytics, isLoading } = useAdminAnalytics();
 
-  const { data: trends, isLoading: trendsLoading } = useQuery({
+  const { data: trends } = useQuery({
     queryKey: ["admin", "analytics", "trends"],
     queryFn: () => api.get<AnalyticsTrend[]>("/v1/admin/analytics/trends"),
   });
@@ -103,8 +101,8 @@ export default function AnalyticsPage() {
                     <td className="px-4 py-3">{t.owners}</td>
                     <td className="px-4 py-3">{t.properties}</td>
                     <td className="px-4 py-3">{t.tenants}</td>
-                    <td className="px-4 py-3 font-mono">{formatINR(t.billed)}</td>
-                    <td className="px-4 py-3 font-mono text-green-700">{formatINR(t.collected)}</td>
+                    <td className="px-4 py-3 font-mono">{formatCurrency(t.billed)}</td>
+                    <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(t.collected)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -112,28 +110,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
-
-      {/* Placeholder for future charts */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border bg-card p-5 shadow-xs">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-green-600" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Growth</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Owner and property growth over time will be visualized here.
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5 shadow-xs">
-          <div className="flex items-center gap-2 mb-4">
-            <IndianRupee className="h-4 w-4 text-blue-600" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Revenue</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Billing and collection trends will be visualized here.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

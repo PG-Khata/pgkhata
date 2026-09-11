@@ -5,6 +5,7 @@ import { MobileNavProvider } from "@/components/layout/mobile-nav-context"
 import { PropertyProvider } from "@/components/layout/property-context"
 import { PropertyPageContent } from "@/components/layout/property-page-content"
 import { PropertySelector } from "@/components/layout/property-selector"
+import { ImpersonationBanner } from "@/components/layout/impersonation-banner"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -13,6 +14,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex min-h-screen overflow-x-hidden">
           <AppSidebar />
           <div className="flex flex-1 flex-col min-w-0">
+            {/* Above the header, so a support agent can never lose track of
+                whose account they are looking at. Renders null for owners. */}
+            <ImpersonationBanner />
             <Header />
             <main className="flex-1 overflow-y-auto bg-muted/30 p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6">
               <div className="mx-auto max-w-5xl">

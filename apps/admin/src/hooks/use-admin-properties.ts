@@ -19,13 +19,32 @@ export function useAdminProperty(propertyId: string) {
   });
 }
 
-export function useUpdateAdminProperty(propertyId: string) {
+/**
+ * Re-derives every bed's status from the tenants actually occupying it. Safe
+ * because it reads the tenancy rows rather than accepting a status from the
+ * caller — the removed bed PATCH could mark an occupied bed vacant.
+ */
+export function useReconcilePropertyBeds() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) =>
-      api.put(`/v1/admin/properties/${propertyId}`, data),
+    mutationFn: (propertyId: string) =>
+      api.post(`/v1/admin/properties/${propertyId}/reconcile-beds`),
+    onSuccess: (_data, propertyId) => {
+      qc.invalidateQueries({ queryKey: ["admin", "properties"] });
+      qc.invalidateQueries({ queryKey: ["admin", "structure", propertyId] });
+    },
+  });
+}
+
+/** Re-derives overdue status on the property's bills from their due dates and ledger. */
+export function useReconcilePropertyOverdue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (propertyId: string) =>
+      api.post(`/v1/admin/properties/${propertyId}/reconcile-overdue`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "properties"] });
+      qc.invalidateQueries({ queryKey: ["admin", "bills"] });
     },
   });
 }

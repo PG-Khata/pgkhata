@@ -3,11 +3,11 @@
   "private": true,
   "packageManager": "pnpm@10.15.1",
   "scripts": {
-    "build": "turbo run build --filter=@pgkhata/api... --filter=web...",
+    "build": "turbo run build --filter=@pgkhata/api... --filter=web... --filter=admin...",
     "dev": "turbo run dev",
-    "lint": "turbo run lint --filter=@pgkhata/api... --filter=web...",
+    "lint": "turbo run lint --filter=@pgkhata/api... --filter=web... --filter=admin...",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "typecheck": "turbo run typecheck --filter=@pgkhata/api... --filter=web...",
+    "typecheck": "turbo run typecheck --filter=@pgkhata/api... --filter=web... --filter=admin...",
     "check-types": "pnpm typecheck",
     "test": "turbo run test --filter=@pgkhata/api --filter=web"
   },

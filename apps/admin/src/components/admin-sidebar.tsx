@@ -10,15 +10,21 @@ import {
   FileText,
   LayoutDashboard,
   Receipt,
+  ScrollText,
   Settings,
+  ShieldCheck,
+  UserCog,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { useAdminSession } from "@/components/admin-session";
 
 interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** Omitted means every active admin sees it. */
+  superAdminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -30,6 +36,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Billing", href: "/dashboard/billing", icon: Receipt },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Blog", href: "/dashboard/blog", icon: FileText },
+  { label: "Support Sessions", href: "/dashboard/support-sessions", icon: UserCog },
+  { label: "Audit Log", href: "/dashboard/audit", icon: ScrollText, superAdminOnly: true },
+  { label: "Admins", href: "/dashboard/admins", icon: ShieldCheck, superAdminOnly: true },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
@@ -41,6 +50,8 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const admin = useAdminSession();
+  const items = NAV_ITEMS.filter((item) => !item.superAdminOnly || admin.role === "super_admin");
 
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r bg-sidebar md:flex">
@@ -55,7 +66,7 @@ export function AdminSidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-0.5">
-          {NAV_ITEMS.map((item) => {
+          {items.map((item) => {
             const active = isActive(pathname, item.href);
             return (
               <Link

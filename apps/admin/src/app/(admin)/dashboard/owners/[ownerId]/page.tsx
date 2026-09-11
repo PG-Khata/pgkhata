@@ -4,38 +4,21 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useAdminOwner } from "@/hooks/use-admin-owners";
 import { useAdminOwnerDetails } from "@/hooks/use-admin-details";
-import { useImpersonate } from "@/hooks/use-impersonation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Eye, Building2, Edit2, Users, IndianRupee } from "lucide-react";
-import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { ArrowLeft, Building2, Edit2, Eye, IndianRupee } from "lucide-react";
 import { EditOwnerModal } from "@/components/modals/edit-owner-modal";
+import { StartImpersonationModal } from "@/components/modals/start-impersonation-modal";
+import { formatCurrency } from "@/lib/utils";
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId: string }> }) {
   const { ownerId } = use(params);
   const { data: owner, isLoading } = useAdminOwner(ownerId);
   const { data: details, isLoading: detailsLoading } = useAdminOwnerDetails(ownerId);
-  const impersonate = useImpersonate();
-  const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
-
-  function handleImpersonate() {
-    impersonate.mutate(ownerId, {
-      onSuccess: () => {
-        toast.success("Now impersonating owner");
-        router.push("/dashboard");
-      },
-      onError: (err) => {
-        toast.error(err instanceof Error ? err.message : "Failed to impersonate");
-      },
-    });
-  }
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
 
   if (isLoading || detailsLoading) {
     return (
@@ -75,9 +58,9 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
             <Edit2 className="mr-1.5 h-4 w-4" />
             Edit
           </Button>
-          <Button onClick={handleImpersonate} disabled={impersonate.isPending}>
+          <Button onClick={() => setImpersonateOpen(true)}>
             <Eye className="mr-1.5 h-4 w-4" />
-            {impersonate.isPending ? "Impersonating..." : "Impersonate"}
+            Impersonate
           </Button>
         </div>
       </div>
@@ -90,7 +73,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
               <IndianRupee className="h-4 w-4" />
               <p className="text-xs uppercase tracking-wider">Total Billed</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold font-mono">{formatINR(summary.totalBilled)}</p>
+            <p className="mt-2 text-2xl font-semibold font-mono">{formatCurrency(summary.totalBilled)}</p>
             <p className="text-xs text-muted-foreground mt-1">{summary.totalBills} bills</p>
           </div>
           <div className="rounded-xl border bg-card p-5 shadow-xs">
@@ -98,7 +81,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
               <IndianRupee className="h-4 w-4" />
               <p className="text-xs uppercase tracking-wider">Collected</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold font-mono text-green-700">{formatINR(summary.totalCollected)}</p>
+            <p className="mt-2 text-2xl font-semibold font-mono text-green-700">{formatCurrency(summary.totalCollected)}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {summary.totalBilled > 0 ? Math.round((summary.totalCollected / summary.totalBilled) * 100) : 0}% collected
             </p>
@@ -108,7 +91,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
               <IndianRupee className="h-4 w-4" />
               <p className="text-xs uppercase tracking-wider">Pending</p>
             </div>
-            <p className="mt-2 text-2xl font-semibold font-mono text-orange-600">{formatINR(summary.totalPending)}</p>
+            <p className="mt-2 text-2xl font-semibold font-mono text-orange-600">{formatCurrency(summary.totalPending)}</p>
             <p className="text-xs text-muted-foreground mt-1">Outstanding amount</p>
           </div>
         </div>
@@ -196,6 +179,13 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
         onOpenChange={setEditOpen}
         ownerId={owner.id}
         currentPhone={owner.phone}
+      />
+
+      <StartImpersonationModal
+        open={impersonateOpen}
+        onOpenChange={setImpersonateOpen}
+        ownerId={owner.id}
+        ownerName={owner.name}
       />
     </div>
   );

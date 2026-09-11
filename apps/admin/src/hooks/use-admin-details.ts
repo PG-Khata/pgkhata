@@ -35,8 +35,13 @@ export function useAdminPropertyDetails(propertyId: string) {
         floors: Array<{ id: string; name: string; position: number }>;
         rooms: Array<{ id: string; number: string; floorId: string | null; capacity: number }>;
         beds: Array<{
-          bed: { id: string; number: string; status: string; monthlyRent: number | null };
+          id: string;
+          roomId: string;
+          number: string;
+          status: string;
+          monthlyRent: number | null;
           roomNumber: string;
+          floorId: string | null;
         }>;
         tenants: Array<{
           id: string;

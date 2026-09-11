@@ -1,25 +1,24 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 import { useAdminTenant } from "@/hooks/use-admin-tenants";
+import { useAdminProperty } from "@/hooks/use-admin-properties";
 import { useAdminTenantDetails } from "@/hooks/use-admin-details";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle, XCircle, Edit2, Receipt, CreditCard } from "lucide-react";
-import { toast } from "sonner";
-import { EditTenantModal } from "@/components/modals/edit-tenant-modal";
+import { ArrowLeft, ArrowRight, Receipt, CreditCard, LifeBuoy } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
 
 export default function TenantDetailPage({ params }: { params: Promise<{ tenantId: string }> }) {
   const { tenantId } = use(params);
   const { data: tenant, isLoading } = useAdminTenant(tenantId);
   const { data: details, isLoading: detailsLoading } = useAdminTenantDetails(tenantId);
-  const [editOpen, setEditOpen] = useState(false);
+
+  // Tenants carry a propertyId but no ownerId — the property lookup is what
+  // resolves the owner to open a support session on.
+  const { data: tenantProperty } = useAdminProperty(tenant?.propertyId ?? "");
 
   if (isLoading || detailsLoading) {
     return (
@@ -41,19 +40,14 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
     );
   }
 
-  function handleApprove() {
-    // Use the approve mutation from the hook
-    toast.success("Use the approve button on the list page");
-  }
-
-  function handleReject() {
-    toast.success("Use the reject button on the list page");
-  }
-
   const bills = details?.bills ?? [];
   const payments = details?.payments ?? [];
   const totalBilled = bills.reduce((sum, b) => sum + b.totalAmount, 0);
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const ownerHref = tenantProperty?.ownerId
+    ? `/dashboard/owners/${tenantProperty.ownerId}`
+    : "/dashboard/owners";
+  const isPending = tenant.status === "pending";
 
   return (
     <div className="space-y-6">
@@ -61,27 +55,31 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
         <ArrowLeft className="mr-1 h-4 w-4" /> Back to Tenants
       </Link>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">{tenant.name}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground font-mono">{tenant.phone}</p>
-        </div>
-        <div className="flex gap-2">
-          {tenant.status !== "pending" && (
-            <Button variant="outline" onClick={() => setEditOpen(true)}>
-              <Edit2 className="mr-1.5 h-4 w-4" /> Edit
-            </Button>
-          )}
-          {tenant.status === "pending" && (
-            <>
-              <Button onClick={handleApprove}>
-                <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
-              </Button>
-              <Button variant="outline" onClick={handleReject} className="text-destructive hover:text-destructive">
-                <XCircle className="mr-1.5 h-4 w-4" /> Reject
-              </Button>
-            </>
-          )}
+      <div>
+        <h1 className="text-lg font-semibold tracking-tight">{tenant.name}</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground font-mono">{tenant.phone}</p>
+      </div>
+
+      <div className="rounded-xl border border-dashed bg-muted/30 p-4">
+        <div className="flex items-start gap-2.5">
+          <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <div className="text-sm">
+            <p className="font-medium">
+              {isPending ? "Approve this tenant in the owner's account" : "Edits happen in the owner's account"}
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              {isPending
+                ? "Approving from here only flipped the status — it never assigned a bed or issued an onboarding link. Open a support session on the owner and approve in their account."
+                : "Editing from here could change future bill maths without the owner's guards. Open a support session on the owner and edit in their account — it is audit-logged."}
+            </p>
+            <Link
+              href={ownerHref}
+              className="mt-2 inline-flex items-center font-medium text-foreground hover:underline"
+            >
+              {tenantProperty?.ownerName ? `Open ${tenantProperty.ownerName}` : "Open owner"}
+              <ArrowRight className="ml-1 h-3.5 w-3.5" />
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -89,17 +87,17 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Total Billed</p>
-          <p className="text-xl font-semibold font-mono mt-1">{formatINR(totalBilled)}</p>
+          <p className="text-xl font-semibold font-mono mt-1">{formatCurrency(totalBilled)}</p>
           <p className="text-xs text-muted-foreground mt-1">{bills.length} bills</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Total Paid</p>
-          <p className="text-xl font-semibold font-mono text-green-700 mt-1">{formatINR(totalPaid)}</p>
+          <p className="text-xl font-semibold font-mono text-green-700 mt-1">{formatCurrency(totalPaid)}</p>
           <p className="text-xs text-muted-foreground mt-1">{payments.length} payments</p>
         </div>
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <p className="text-xs text-muted-foreground">Balance</p>
-          <p className="text-xl font-semibold font-mono text-orange-600 mt-1">{formatINR(totalBilled - totalPaid)}</p>
+          <p className="text-xl font-semibold font-mono text-orange-600 mt-1">{formatCurrency(totalBilled - totalPaid)}</p>
           <p className="text-xs text-muted-foreground mt-1">Outstanding</p>
         </div>
       </div>
@@ -154,9 +152,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
                 {bills.map((b) => (
                   <tr key={b.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3 font-mono">{b.billMonth}</td>
-                    <td className="px-4 py-3 font-mono">{formatINR(b.totalAmount)}</td>
-                    <td className="px-4 py-3 font-mono text-green-700">{formatINR(b.paidAmount)}</td>
-                    <td className="px-4 py-3 font-mono">{formatINR(b.balance)}</td>
+                    <td className="px-4 py-3 font-mono">{formatCurrency(b.totalAmount)}</td>
+                    <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(b.paidAmount)}</td>
+                    <td className="px-4 py-3 font-mono">{formatCurrency(b.balance)}</td>
                     <td className="px-4 py-3">
                       <Badge variant="secondary">{b.voidedAt ? "Voided" : b.status}</Badge>
                     </td>
@@ -189,7 +187,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
                 {payments.map((p) => (
                   <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">{new Date(p.paymentDate).toLocaleDateString("en-IN")}</td>
-                    <td className="px-4 py-3 font-mono text-green-700">{formatINR(p.amount)}</td>
+                    <td className="px-4 py-3 font-mono text-green-700">{formatCurrency(p.amount)}</td>
                     <td className="px-4 py-3 capitalize text-muted-foreground">{p.method || "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.notes || "-"}</td>
                   </tr>
@@ -199,12 +197,6 @@ export default function TenantDetailPage({ params }: { params: Promise<{ tenantI
           </div>
         </div>
       )}
-
-      <EditTenantModal
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        tenant={tenant}
-      />
     </div>
   );
 }

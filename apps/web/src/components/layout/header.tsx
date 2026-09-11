@@ -14,6 +14,8 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { signOut, useSession } from "@/lib/auth-client"
+import { useOwnerProfile } from "@/hooks/use-profile"
+import { useImpersonationStatus } from "@/hooks/use-impersonation"
 import { useRouter } from "next/navigation"
 import {
   DropdownMenu,
@@ -33,6 +35,13 @@ export function Header() {
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const { data: session } = useSession()
+  const { data: impersonation } = useImpersonationStatus()
+  // During a support session there is no better-auth session on this origin, so
+  // useSession() is null. /v1/profile resolves through the grant, so it is the
+  // only source that names the account being operated on.
+  const { data: ownerProfile } = useOwnerProfile()
+  const isImpersonating = impersonation?.active === true
+  const displayName = session?.user?.name ?? ownerProfile?.name ?? "Owner"
   const { selectedProperty, setSelectedProperty, properties } = useSelectedProperty()
   const { data: unreadData } = useUnreadCount(selectedProperty?.id)
   const { data: notifications } = useNotifications(selectedProperty?.id)
@@ -200,29 +209,38 @@ export function Header() {
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="bg-primary text-xs text-primary-foreground">
-                {session?.user?.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "O"}
+                {displayName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "O"}
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{session?.user?.name || "Owner"}</p>
+              <p className="text-sm font-medium">{displayName}</p>
               <p className="text-xs text-muted-foreground">Owner</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/dashboard/profile?change-password=1")}>
-              <KeyRound className="mr-2 h-4 w-4" />
-              Change password
-            </DropdownMenuItem>
+            {/* Credential and session actions go through better-auth, which is
+                unreachable during a support session. They would fail closed
+                anyway; a hidden control beats a mystery error. */}
+            {!isImpersonating && (
+              <DropdownMenuItem onClick={() => router.push("/dashboard/profile?change-password=1")}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                Change password
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
+            {!isImpersonating && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
