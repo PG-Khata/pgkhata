@@ -14,6 +14,8 @@ export interface PlatformAdminRow {
   createdAt: string;
   name: string | null;
   email: string | null;
+  /** A protected root admin: the API refuses any change to this row. */
+  isRoot: boolean;
 }
 
 const KEY = ["admin", "admins"];

@@ -7,6 +7,7 @@ import { requireSuperAdminRole } from "../../middleware/admin";
 import { aggregate, param } from "../../lib/http";
 import { captureBefore } from "../../lib/audit";
 import { createPasswordlessUser, nameFromEmail } from "../../lib/admin-provisioning";
+import { isRootAdminEmail } from "../../lib/root-admin";
 
 const router = Router();
 
@@ -91,7 +92,9 @@ router.get("/admins", requireSuperAdminRole, async (_req, res) => {
     .from(platformAdmin)
     .leftJoin(user, eq(platformAdmin.userId, user.id))
     .orderBy(desc(platformAdmin.createdAt));
-  res.json(rows);
+  // A root admin is protected end to end; the flag lets the UI disable its
+  // controls, but the PATCH/DELETE handlers enforce it regardless.
+  res.json(rows.map((row) => ({ ...row, isRoot: isRootAdminEmail(row.email) })));
 });
 
 router.post("/admins", requireSuperAdminRole, async (req: AuthenticatedRequest, res) => {
@@ -146,11 +149,24 @@ router.patch("/admins/:adminId", requireSuperAdminRole, async (req: Authenticate
 
   const updated = await db.transaction(async (tx) => {
     const [before] = await tx
-      .select()
+      .select({
+        id: platformAdmin.id,
+        userId: platformAdmin.userId,
+        role: platformAdmin.role,
+        isActive: platformAdmin.isActive,
+        notes: platformAdmin.notes,
+        email: user.email,
+      })
       .from(platformAdmin)
+      .leftJoin(user, eq(platformAdmin.userId, user.id))
       .where(eq(platformAdmin.id, adminId))
       .limit(1);
     if (!before) return {};
+    // A protected root admin cannot be changed by anyone, including another
+    // super_admin. Checked before anything else and inside the transaction.
+    if (isRootAdminEmail(before.email)) {
+      return { forbidden: "This is a protected root admin and cannot be changed." };
+    }
     // A privilege change is the audit entry someone will actually go looking
     // for, and it is worthless without the role it replaced.
     captureBefore(req, before);
@@ -172,6 +188,7 @@ router.patch("/admins/:adminId", requireSuperAdminRole, async (req: Authenticate
     return { row };
   });
 
+  if (updated.forbidden) return res.status(403).json({ error: updated.forbidden });
   if (updated.blocked) return res.status(409).json({ error: updated.blocked });
   if (!updated.row) return res.status(404).json({ error: "Admin not found" });
   res.json(updated.row);
@@ -182,11 +199,22 @@ router.delete("/admins/:adminId", requireSuperAdminRole, async (req: Authenticat
 
   const result = await db.transaction(async (tx) => {
     const [before] = await tx
-      .select()
+      .select({
+        id: platformAdmin.id,
+        userId: platformAdmin.userId,
+        role: platformAdmin.role,
+        isActive: platformAdmin.isActive,
+        notes: platformAdmin.notes,
+        email: user.email,
+      })
       .from(platformAdmin)
+      .leftJoin(user, eq(platformAdmin.userId, user.id))
       .where(eq(platformAdmin.id, adminId))
       .limit(1);
     if (!before) return {};
+    if (isRootAdminEmail(before.email)) {
+      return { forbidden: "This is a protected root admin and cannot be removed." };
+    }
     captureBefore(req, before);
 
     const blocked = await assertPrivilegeChangeIsSafe(
@@ -205,6 +233,7 @@ router.delete("/admins/:adminId", requireSuperAdminRole, async (req: Authenticat
     return { row };
   });
 
+  if (result.forbidden) return res.status(403).json({ error: result.forbidden });
   if (result.blocked) return res.status(409).json({ error: result.blocked });
   if (!result.row) return res.status(404).json({ error: "Admin not found" });
   res.status(204).end();

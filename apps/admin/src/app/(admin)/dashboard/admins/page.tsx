@@ -206,6 +206,9 @@ export default function AdminsPage() {
           <TableBody>
             {admins?.map((row) => {
               const isMe = row.id === me.id;
+              // Root admins are untouchable by anyone; self is untouchable by
+              // you. Either way the controls lock, and the API enforces it too.
+              const locked = isMe || row.isRoot;
               return (
                 <TableRow key={row.id}>
                   <TableCell>
@@ -216,13 +219,14 @@ export default function AdminsPage() {
                         <p className="truncate text-xs text-muted-foreground">{row.email}</p>
                       </div>
                       {isMe && <Badge variant="secondary">You</Badge>}
+                      {row.isRoot && <Badge variant="secondary">Protected</Badge>}
                     </div>
                   </TableCell>
                   <TableCell>
                     <select
                       aria-label={`Role for ${row.email}`}
                       value={row.role}
-                      disabled={isMe || updateAdmin.isPending}
+                      disabled={locked || updateAdmin.isPending}
                       onChange={(e) => handleRoleChange(row, e.target.value as PlatformAdminRole)}
                       className="h-8 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
                     >
@@ -243,7 +247,7 @@ export default function AdminsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={isMe || updateAdmin.isPending}
+                        disabled={locked || updateAdmin.isPending}
                         onClick={() => handleToggleActive(row)}
                       >
                         {row.isActive ? "Deactivate" : "Reactivate"}
@@ -251,7 +255,7 @@ export default function AdminsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={isMe}
+                        disabled={locked}
                         onClick={() => setPendingRemoval(row)}
                       >
                         Remove
@@ -266,8 +270,9 @@ export default function AdminsPage() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        You cannot change your own role or deactivate yourself, and the last active super admin
-        cannot be removed. Both are enforced by the API, not just hidden here.
+        You cannot change your own role or deactivate yourself, the last active super admin cannot
+        be removed, and a protected root admin cannot be changed at all. All enforced by the API,
+        not just hidden here.
       </p>
 
       <AddAdminDialog open={addOpen} onOpenChange={setAddOpen} />
