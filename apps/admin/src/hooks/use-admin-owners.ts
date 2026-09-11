@@ -14,7 +14,7 @@ export function useAdminOwners() {
 export function useAdminOwner(ownerId: string) {
   return useQuery({
     queryKey: ["admin", "owners", ownerId],
-    queryFn: () => api.get<AdminOwner & { properties: Record<string, unknown>[] }>(`/v1/admin/owners/${ownerId}`),
+    queryFn: () => api.get<AdminOwner>(`/v1/admin/owners/${ownerId}`),
     enabled: !!ownerId,
   });
 }

@@ -5,17 +5,29 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AdminSidebar } from "@/components/admin-sidebar";
 import { AdminHeader } from "@/components/admin-header";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { useImpersonationStatus, useExitImpersonation } from "@/hooks/use-impersonation";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, isPending } = useSession();
   const router = useRouter();
+  const { data: impersonation } = useImpersonationStatus();
+  const exitImpersonation = useExitImpersonation();
 
   useEffect(() => {
     if (!isPending && !session) {
       router.push("/login");
     }
   }, [isPending, session, router]);
+
+  function handleExitImpersonation() {
+    exitImpersonation.mutate(undefined, {
+      onSuccess: () => {
+        router.refresh();
+      },
+    });
+  }
 
   if (isPending) {
     return (
@@ -45,6 +57,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <AdminSidebar />
       <div className="flex flex-1 flex-col min-w-0">
         <AdminHeader />
+        {impersonation?.impersonating && impersonation.ownerName && (
+          <ImpersonationBanner ownerName={impersonation.ownerName} onExit={handleExitImpersonation} />
+        )}
         <main className="flex-1 overflow-y-auto bg-muted/30 p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:p-6 md:pb-6">
           <div className="mx-auto max-w-6xl">{children}</div>
         </main>

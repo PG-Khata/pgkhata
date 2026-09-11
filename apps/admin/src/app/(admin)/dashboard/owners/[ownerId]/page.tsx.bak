@@ -3,24 +3,17 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { useAdminOwner } from "@/hooks/use-admin-owners";
-import { useAdminOwnerDetails } from "@/hooks/use-admin-details";
 import { useImpersonate } from "@/hooks/use-impersonation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Eye, Building2, Edit2, Users, IndianRupee } from "lucide-react";
+import { ArrowLeft, Eye, Building2, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { EditOwnerModal } from "@/components/modals/edit-owner-modal";
 
-function formatINR(amount: number) {
-  return `₹${(amount / 100).toLocaleString("en-IN")}`;
-}
-
 export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId: string }> }) {
   const { ownerId } = use(params);
   const { data: owner, isLoading } = useAdminOwner(ownerId);
-  const { data: details, isLoading: detailsLoading } = useAdminOwnerDetails(ownerId);
   const impersonate = useImpersonate();
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -37,7 +30,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
     });
   }
 
-  if (isLoading || detailsLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-32" />
@@ -56,8 +49,6 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
       </div>
     );
   }
-
-  const summary = details?.billingSummary;
 
   return (
     <div className="space-y-6">
@@ -82,38 +73,6 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
         </div>
       </div>
 
-      {/* Billing Summary Cards */}
-      {summary && (
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border bg-card p-5 shadow-xs">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <IndianRupee className="h-4 w-4" />
-              <p className="text-xs uppercase tracking-wider">Total Billed</p>
-            </div>
-            <p className="mt-2 text-2xl font-semibold font-mono">{formatINR(summary.totalBilled)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{summary.totalBills} bills</p>
-          </div>
-          <div className="rounded-xl border bg-card p-5 shadow-xs">
-            <div className="flex items-center gap-2 text-green-600">
-              <IndianRupee className="h-4 w-4" />
-              <p className="text-xs uppercase tracking-wider">Collected</p>
-            </div>
-            <p className="mt-2 text-2xl font-semibold font-mono text-green-700">{formatINR(summary.totalCollected)}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {summary.totalBilled > 0 ? Math.round((summary.totalCollected / summary.totalBilled) * 100) : 0}% collected
-            </p>
-          </div>
-          <div className="rounded-xl border bg-card p-5 shadow-xs">
-            <div className="flex items-center gap-2 text-orange-600">
-              <IndianRupee className="h-4 w-4" />
-              <p className="text-xs uppercase tracking-wider">Pending</p>
-            </div>
-            <p className="mt-2 text-2xl font-semibold font-mono text-orange-600">{formatINR(summary.totalPending)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Outstanding amount</p>
-          </div>
-        </div>
-      )}
-
       <div className="rounded-xl border bg-card p-5 shadow-xs">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Owner Info</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -125,10 +84,17 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
             <p className="text-xs text-muted-foreground">Joined</p>
             <p className="text-sm">{new Date(owner.createdAt).toLocaleDateString("en-IN")}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Owner ID</p>
+            <p className="text-xs font-mono text-muted-foreground">{owner.id}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">User ID</p>
+            <p className="text-xs font-mono text-muted-foreground">{owner.userId}</p>
+          </div>
         </div>
       </div>
 
-      {/* Properties */}
       {owner.properties && owner.properties.length > 0 && (
         <div className="rounded-xl border bg-card p-5 shadow-xs">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Properties</h2>
@@ -148,46 +114,6 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Tenants */}
-      {details?.tenants && details.tenants.length > 0 && (
-        <div className="rounded-xl border bg-card p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Tenants</h2>
-            <Badge variant="outline">{details.tenants.length} total</Badge>
-          </div>
-          <div className="rounded-lg border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">NAME</th>
-                  <th className="px-4 py-3 font-medium">PROPERTY</th>
-                  <th className="px-4 py-3 font-medium">STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.tenants.slice(0, 10).map((t) => (
-                  <tr key={t.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{t.name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{t.phone}</p>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{t.propertyName || "-"}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="secondary">{t.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {details.tenants.length > 10 && (
-            <p className="mt-3 text-xs text-muted-foreground text-center">
-              Showing 10 of {details.tenants.length} tenants
-            </p>
-          )}
         </div>
       )}
 

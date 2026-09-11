@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   Receipt,
+  Settings,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -22,12 +23,14 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Owners", href: "/dashboard/owners", icon: Users },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Users },
   { label: "Billing", href: "/dashboard/billing", icon: Receipt },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard },
   { label: "Blog", href: "/dashboard/blog", icon: FileText },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string): boolean {

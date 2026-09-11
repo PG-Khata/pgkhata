@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
+  BarChart3,
   Building2,
   CreditCard,
   FileText,
@@ -15,6 +16,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Owners", href: "/dashboard/owners", icon: Users },
   { label: "Properties", href: "/dashboard/properties", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Users },

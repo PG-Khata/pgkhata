@@ -15,9 +15,9 @@ export default function OwnersPage() {
   const filtered = (owners ?? []).filter((o) => {
     const q = search.toLowerCase();
     return (
-      o.user.name.toLowerCase().includes(q) ||
-      o.user.email.toLowerCase().includes(q) ||
-      (o.owner.phone ?? "").includes(q)
+      (o.name ?? "").toLowerCase().includes(q) ||
+      (o.email ?? "").toLowerCase().includes(q) ||
+      (o.phone ?? "").includes(q)
     );
   });
 
@@ -61,15 +61,15 @@ export default function OwnersPage() {
               </thead>
               <tbody>
                 {filtered.map((o) => (
-                  <tr key={o.owner.id} className="border-b last:border-0 hover:bg-muted/30">
-                    <td className="px-4 py-3 font-medium">{o.user.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{o.user.email}</td>
-                    <td className="px-4 py-3 text-muted-foreground font-mono">{o.owner.phone || "-"}</td>
+                  <tr key={o.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{o.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{o.email}</td>
+                    <td className="px-4 py-3 text-muted-foreground font-mono">{o.phone || "-"}</td>
                     <td className="px-4 py-3 text-muted-foreground">
-                      {new Date(o.owner.createdAt).toLocaleDateString("en-IN")}
+                      {new Date(o.createdAt).toLocaleDateString("en-IN")}
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/dashboard/owners/${o.owner.id}`}>
+                      <Link href={`/dashboard/owners/${o.id}`}>
                         <Button variant="outline" size="sm">
                           View
                           <ExternalLink className="ml-1.5 h-3 w-3" />
@@ -84,15 +84,15 @@ export default function OwnersPage() {
           {/* Mobile cards */}
           <div className="sm:hidden divide-y">
             {filtered.map((o) => (
-              <div key={o.owner.id} className="p-4 space-y-2">
+              <div key={o.id} className="p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium">{o.user.name}</p>
-                  <Link href={`/dashboard/owners/${o.owner.id}`}>
+                  <p className="font-medium">{o.name}</p>
+                  <Link href={`/dashboard/owners/${o.id}`}>
                     <Button variant="outline" size="sm">View</Button>
                   </Link>
                 </div>
-                <p className="text-sm text-muted-foreground">{o.user.email}</p>
-                <p className="text-sm text-muted-foreground font-mono">{o.owner.phone || "-"}</p>
+                <p className="text-sm text-muted-foreground">{o.email}</p>
+                <p className="text-sm text-muted-foreground font-mono">{o.phone || "-"}</p>
               </div>
             ))}
           </div>

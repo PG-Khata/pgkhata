@@ -1,0 +1,121 @@
+"use client";
+
+import { use, useState } from "react";
+import Link from "next/link";
+import { useAdminTenant, useApproveAdminTenant, useRejectAdminTenant } from "@/hooks/use-admin-tenants";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, CheckCircle, XCircle, Edit2 } from "lucide-react";
+import { toast } from "sonner";
+import { EditTenantModal } from "@/components/modals/edit-tenant-modal";
+
+export default function TenantDetailPage({ params }: { params: Promise<{ tenantId: string }> }) {
+  const { tenantId } = use(params);
+  const { data: tenant, isLoading } = useAdminTenant(tenantId);
+  const approve = useApproveAdminTenant();
+  const reject = useRejectAdminTenant();
+  const [editOpen, setEditOpen] = useState(false);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-40 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <div className="space-y-6">
+        <Link href="/dashboard/tenants" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-1 h-4 w-4" /> Back to Tenants
+        </Link>
+        <p className="text-sm text-muted-foreground">Tenant not found.</p>
+      </div>
+    );
+  }
+
+  function handleApprove() {
+    approve.mutate(tenantId, {
+      onSuccess: () => toast.success("Tenant approved"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+    });
+  }
+
+  function handleReject() {
+    reject.mutate(tenantId, {
+      onSuccess: () => toast.success("Tenant rejected"),
+      onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Link href="/dashboard/tenants" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="mr-1 h-4 w-4" /> Back to Tenants
+      </Link>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">{tenant.name}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground font-mono">{tenant.phone}</p>
+        </div>
+        <div className="flex gap-2">
+          {tenant.status !== "pending" && (
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Edit2 className="mr-1.5 h-4 w-4" /> Edit
+            </Button>
+          )}
+          {tenant.status === "pending" && (
+            <>
+              <Button onClick={handleApprove} disabled={approve.isPending}>
+                <CheckCircle className="mr-1.5 h-4 w-4" /> Approve
+              </Button>
+              <Button variant="outline" onClick={handleReject} disabled={reject.isPending} className="text-destructive hover:text-destructive">
+                <XCircle className="mr-1.5 h-4 w-4" /> Reject
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border bg-card p-5 shadow-xs">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">Tenant Info</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            <Badge variant="secondary">{tenant.status}</Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Property</p>
+            <p className="text-sm">{tenant.propertyName || "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Bed</p>
+            <p className="text-sm">{tenant.bedNumber ? `${tenant.roomNumber || ""}-${tenant.bedNumber}` : "Unassigned"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Email</p>
+            <p className="text-sm">{tenant.email || "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Joined</p>
+            <p className="text-sm">{new Date(tenant.joiningDate).toLocaleDateString("en-IN")}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Tenant ID</p>
+            <p className="text-xs font-mono text-muted-foreground">{tenant.id}</p>
+          </div>
+        </div>
+      </div>
+
+      <EditTenantModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        tenant={tenant}
+      />
+    </div>
+  );
+}

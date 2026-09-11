@@ -1,3 +1,5 @@
+import { getImpersonationHeaders } from "@/hooks/use-impersonation";
+
 const API_URL = "/api/backend";
 
 export class ApiError extends Error {
@@ -13,11 +15,14 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${path}`;
+  const impersonationHeaders = getImpersonationHeaders();
+
   const res = await fetch(url, {
     ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...impersonationHeaders,
       ...options.headers,
     },
   });

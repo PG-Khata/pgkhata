@@ -5,8 +5,10 @@ import { useAdminPayments, useDeleteAdminPayment } from "@/hooks/use-admin-payme
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CreditCard, Search, Trash2 } from "lucide-react";
+import { CreditCard, Search, Trash2, Edit2 } from "lucide-react";
 import { toast } from "sonner";
+import { EditPaymentModal } from "@/components/modals/edit-payment-modal";
+import type { AdminPayment } from "@/types";
 
 function formatINR(amount: number) {
   return `₹${(amount / 100).toLocaleString("en-IN")}`;
@@ -16,6 +18,7 @@ export default function PaymentsPage() {
   const { data: payments, isLoading } = useAdminPayments();
   const deletePayment = useDeleteAdminPayment();
   const [search, setSearch] = useState("");
+  const [editingPayment, setEditingPayment] = useState<AdminPayment | null>(null);
 
   const filtered = (payments ?? []).filter((p) => {
     const q = search.toLowerCase();
@@ -75,9 +78,14 @@ export default function PaymentsPage() {
                     {new Date(p.paymentDate).toLocaleDateString("en-IN")}
                   </td>
                   <td className="px-4 py-3">
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setEditingPayment(p)}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(p.id)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -89,6 +97,14 @@ export default function PaymentsPage() {
           <CreditCard className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">No payments found</p>
         </div>
+      )}
+
+      {editingPayment && (
+        <EditPaymentModal
+          open={!!editingPayment}
+          onOpenChange={(open) => !open && setEditingPayment(null)}
+          payment={editingPayment}
+        />
       )}
     </div>
   );

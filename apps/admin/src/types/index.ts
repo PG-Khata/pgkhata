@@ -5,20 +5,14 @@ export interface AdminUser {
 }
 
 export interface AdminOwner {
-  owner: {
-    id: string;
-    userId: string;
-    phone: string | null;
-    createdAt: string;
-    updatedAt: string;
-  };
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  };
-  propertyCount?: number;
-  tenantCount?: number;
+  id: string;
+  userId: string;
+  phone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  name: string;
+  email: string;
+  properties?: AdminProperty[];
 }
 
 export interface AdminProperty {
@@ -31,6 +25,8 @@ export interface AdminProperty {
   state: string | null;
   pincode: string | null;
   electricityMode: string;
+  electricityRatePerUnit?: number | null;
+  upiVpa?: string | null;
   createdAt: string;
   updatedAt: string;
   ownerName?: string;
@@ -47,10 +43,23 @@ export interface AdminTenant {
   email: string | null;
   status: string;
   joiningDate: string;
-  bedNumber: string | null;
-  roomNumber: string | null;
+  bedId: string | null;
+  roomId: string | null;
+  createdAt: string;
+  occupation?: string | null;
+  notes?: string | null;
   propertyName?: string;
   ownerName?: string;
+  bedNumber?: string | null;
+  roomNumber?: string | null;
+}
+
+export interface BillLineItem {
+  code: string;
+  name: string;
+  amount: number;
+  units?: number;
+  ratePerUnit?: number;
 }
 
 export interface AdminBill {
@@ -64,6 +73,7 @@ export interface AdminBill {
   approved: boolean;
   voidedAt: string | null;
   createdAt: string;
+  lineItems?: BillLineItem[];
   tenantName?: string;
   propertyName?: string;
 }

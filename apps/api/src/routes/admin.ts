@@ -11,6 +11,7 @@ import {
   room,
   bed,
   blogPost,
+  platformAdmin,
 } from "@pgkhata/db";
 import { eq, sql, desc, ilike, and } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth } from "../middleware/auth";
@@ -42,6 +43,52 @@ router.get("/analytics", requireAuth, requireSuperAdmin, async (_req, res) => {
   }
 });
 
+// Monthly trends for analytics page
+router.get("/analytics/trends", requireAuth, requireSuperAdmin, async (_req, res) => {
+  try {
+    // Get last 6 months of data
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - (5 - i));
+      return d.toISOString().slice(0, 7); // YYYY-MM
+    });
+
+    const trends = await Promise.all(
+      months.map(async (month) => {
+        const [[{ ownerCount }], [{ propertyCount }], [{ tenantCount }], [{ billed }], [{ collected }]] =
+          await Promise.all([
+            db
+              .select({ ownerCount: sql<number>`count(*)::int` })
+              .from(ownerProfile)
+              .where(sql`to_char(${ownerProfile.createdAt}, 'YYYY-MM') <= ${month}`),
+            db
+              .select({ propertyCount: sql<number>`count(*)::int` })
+              .from(property)
+              .where(sql`to_char(${property.createdAt}, 'YYYY-MM') <= ${month}`),
+            db
+              .select({ tenantCount: sql<number>`count(*)::int` })
+              .from(tenant)
+              .where(and(eq(tenant.status, "active"), sql`to_char(${tenant.joiningDate}, 'YYYY-MM') <= ${month}`)),
+            db
+              .select({ billed: sql<number>`coalesce(sum(total_amount), 0)::int` })
+              .from(bill)
+              .where(sql`to_char(${bill.createdAt}, 'YYYY-MM') <= ${month}`),
+            db
+              .select({ collected: sql<number>`coalesce(sum(paid_amount), 0)::int` })
+              .from(bill)
+              .where(sql`to_char(${bill.createdAt}, 'YYYY-MM') <= ${month}`),
+          ]);
+
+        return { month, owners: ownerCount, properties: propertyCount, tenants: tenantCount, billed, collected };
+      }),
+    );
+
+    res.json(trends);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch analytics trends" });
+  }
+});
+
 // ──────────────────────────────────────────────
 // Owners
 // ──────────────────────────────────────────────
@@ -50,8 +97,13 @@ router.get("/owners", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const owners = await db
       .select({
-        owner: ownerProfile,
-        user: { id: user.id, name: user.name, email: user.email },
+        id: ownerProfile.id,
+        userId: ownerProfile.userId,
+        phone: ownerProfile.phone,
+        createdAt: ownerProfile.createdAt,
+        updatedAt: ownerProfile.updatedAt,
+        name: user.name,
+        email: user.email,
       })
       .from(ownerProfile)
       .leftJoin(user, eq(ownerProfile.userId, user.id))
@@ -69,8 +121,13 @@ router.get("/owners/:ownerId", requireAuth, requireSuperAdmin, async (req: Authe
 
     const [owner] = await db
       .select({
-        owner: ownerProfile,
-        user: { id: user.id, name: user.name, email: user.email },
+        id: ownerProfile.id,
+        userId: ownerProfile.userId,
+        phone: ownerProfile.phone,
+        createdAt: ownerProfile.createdAt,
+        updatedAt: ownerProfile.updatedAt,
+        name: user.name,
+        email: user.email,
       })
       .from(ownerProfile)
       .leftJoin(user, eq(ownerProfile.userId, user.id))
@@ -124,7 +181,17 @@ router.get("/properties", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const properties = await db
       .select({
-        property: property,
+        id: property.id,
+        ownerId: property.ownerId,
+        name: property.name,
+        code: property.code,
+        address: property.address,
+        city: property.city,
+        state: property.state,
+        pincode: property.pincode,
+        electricityMode: property.electricityMode,
+        createdAt: property.createdAt,
+        updatedAt: property.updatedAt,
         ownerName: user.name,
       })
       .from(property)
@@ -144,7 +211,17 @@ router.get("/properties/:propertyId", requireAuth, requireSuperAdmin, async (req
 
     const [prop] = await db
       .select({
-        property: property,
+        id: property.id,
+        ownerId: property.ownerId,
+        name: property.name,
+        code: property.code,
+        address: property.address,
+        city: property.city,
+        state: property.state,
+        pincode: property.pincode,
+        electricityMode: property.electricityMode,
+        createdAt: property.createdAt,
+        updatedAt: property.updatedAt,
         ownerName: user.name,
       })
       .from(property)
@@ -161,7 +238,7 @@ router.get("/properties/:propertyId", requireAuth, requireSuperAdmin, async (req
       db.select({ activeTenants: sql<number>`count(*)::int` }).from(tenant).where(and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active"))),
     ]);
 
-    res.json({ ...prop.property, ownerName: prop.ownerName, totalBeds, occupiedBeds, activeTenants });
+    res.json({ ...prop, totalBeds, occupiedBeds, activeTenants });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch property" });
   }
@@ -204,7 +281,16 @@ router.get("/tenants", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const tenants = await db
       .select({
-        tenant: tenant,
+        id: tenant.id,
+        propertyId: tenant.propertyId,
+        name: tenant.name,
+        phone: tenant.phone,
+        email: tenant.email,
+        status: tenant.status,
+        joiningDate: tenant.joiningDate,
+        bedId: tenant.bedId,
+        roomId: tenant.roomId,
+        createdAt: tenant.createdAt,
         propertyName: property.name,
         ownerName: user.name,
       })
@@ -226,7 +312,16 @@ router.get("/tenants/:tenantId", requireAuth, requireSuperAdmin, async (req: Aut
 
     const [t] = await db
       .select({
-        tenant: tenant,
+        id: tenant.id,
+        propertyId: tenant.propertyId,
+        name: tenant.name,
+        phone: tenant.phone,
+        email: tenant.email,
+        status: tenant.status,
+        joiningDate: tenant.joiningDate,
+        bedId: tenant.bedId,
+        roomId: tenant.roomId,
+        createdAt: tenant.createdAt,
         propertyName: property.name,
         ownerName: user.name,
       })
@@ -313,7 +408,16 @@ router.get("/bills", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const bills = await db
       .select({
-        bill: bill,
+        id: bill.id,
+        tenantId: bill.tenantId,
+        billMonth: bill.billMonth,
+        totalAmount: bill.totalAmount,
+        paidAmount: bill.paidAmount,
+        balance: bill.balance,
+        status: bill.status,
+        approved: bill.approved,
+        voidedAt: bill.voidedAt,
+        createdAt: bill.createdAt,
         tenantName: tenant.name,
         propertyName: property.name,
       })
@@ -334,7 +438,16 @@ router.get("/bills/:billId", requireAuth, requireSuperAdmin, async (req: Authent
 
     const [b] = await db
       .select({
-        bill: bill,
+        id: bill.id,
+        tenantId: bill.tenantId,
+        billMonth: bill.billMonth,
+        totalAmount: bill.totalAmount,
+        paidAmount: bill.paidAmount,
+        balance: bill.balance,
+        status: bill.status,
+        approved: bill.approved,
+        voidedAt: bill.voidedAt,
+        createdAt: bill.createdAt,
         tenantName: tenant.name,
         propertyName: property.name,
       })
@@ -393,7 +506,13 @@ router.get("/payments", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
     const payments = await db
       .select({
-        payment: payment,
+        id: payment.id,
+        billId: payment.billId,
+        amount: payment.amount,
+        paymentDate: payment.paymentDate,
+        method: payment.method,
+        notes: payment.notes,
+        createdAt: payment.createdAt,
         tenantName: tenant.name,
         billMonth: bill.billMonth,
       })
@@ -440,6 +559,32 @@ router.delete("/payments/:paymentId", requireAuth, requireSuperAdmin, async (req
 // ──────────────────────────────────────────────
 // Structure (read-only)
 // ──────────────────────────────────────────────
+
+router.get("/properties/:propertyId/structure", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "propertyId");
+
+    const [prop] = await db
+      .select({ id: property.id, name: property.name })
+      .from(property)
+      .where(eq(property.id, propertyId))
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    const floors = await db.select().from(floor).where(eq(floor.propertyId, propertyId)).orderBy(floor.position);
+    const rooms = await db.select().from(room).where(eq(room.propertyId, propertyId));
+    const beds = await db
+      .select({ bed: bed, roomNumber: room.number })
+      .from(bed)
+      .innerJoin(room, eq(bed.roomId, room.id))
+      .where(eq(room.propertyId, propertyId));
+
+    res.json({ propertyId: prop.id, propertyName: prop.name, floors, rooms, beds });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch structure" });
+  }
+});
 
 router.get("/properties/:propertyId/floors", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
   try {
@@ -546,8 +691,209 @@ router.get("/impersonate/status", requireAuth, requireSuperAdmin, async (req: Au
 });
 
 // ──────────────────────────────────────────────
-// Blog (CRUD)
+// Enhanced Detail Endpoints (for admin dashboard)
 // ──────────────────────────────────────────────
+
+// Owner detail with tenant list and billing summary
+router.get("/owners/:ownerId/details", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const ownerId = param(req, "ownerId");
+
+    const [owner] = await db
+      .select({
+        id: ownerProfile.id,
+        userId: ownerProfile.userId,
+        phone: ownerProfile.phone,
+        createdAt: ownerProfile.createdAt,
+        name: user.name,
+        email: user.email,
+      })
+      .from(ownerProfile)
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .where(eq(ownerProfile.id, ownerId))
+      .limit(1);
+
+    if (!owner) return res.status(404).json({ error: "Owner not found" });
+
+    const properties = await db.select().from(property).where(eq(property.ownerId, ownerId));
+
+    // Get all tenants across owner's properties
+    const propertyIds = properties.map((p) => p.id);
+    const tenants = propertyIds.length > 0
+      ? await db
+          .select({
+            id: tenant.id,
+            name: tenant.name,
+            phone: tenant.phone,
+            status: tenant.status,
+            propertyName: property.name,
+          })
+          .from(tenant)
+          .leftJoin(property, eq(tenant.propertyId, property.id))
+          .where(sql`${tenant.propertyId} in (${sql.join(propertyIds, sql`, `)})`)
+      : [];
+
+    // Get billing summary
+    const bills = propertyIds.length > 0
+      ? await db
+          .select({
+            totalAmount: bill.totalAmount,
+            paidAmount: bill.paidAmount,
+            status: bill.status,
+          })
+          .from(bill)
+          .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+          .where(sql`${tenant.propertyId} in (${sql.join(propertyIds, sql`, `)})`)
+      : [];
+
+    const totalBilled = bills.reduce((sum, b) => sum + b.totalAmount, 0);
+    const totalCollected = bills.reduce((sum, b) => sum + b.paidAmount, 0);
+    const totalPending = totalBilled - totalCollected;
+
+    res.json({
+      ...owner,
+      properties,
+      tenants,
+      billingSummary: {
+        totalBilled,
+        totalCollected,
+        totalPending,
+        totalBills: bills.length,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch owner details" });
+  }
+});
+
+// Property detail with structure (floors, rooms, beds)
+router.get("/properties/:propertyId/details", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const propertyId = param(req, "propertyId");
+
+    const [prop] = await db
+      .select({
+        id: property.id,
+        name: property.name,
+        address: property.address,
+        city: property.city,
+        ownerName: user.name,
+      })
+      .from(property)
+      .leftJoin(ownerProfile, eq(property.ownerId, ownerProfile.id))
+      .leftJoin(user, eq(ownerProfile.userId, user.id))
+      .where(eq(property.id, propertyId))
+      .limit(1);
+
+    if (!prop) return res.status(404).json({ error: "Property not found" });
+
+    const floors = await db.select().from(floor).where(eq(floor.propertyId, propertyId)).orderBy(floor.position);
+    const rooms = await db.select().from(room).where(eq(room.propertyId, propertyId));
+    const beds = await db.select().from(bed).innerJoin(room, eq(bed.roomId, room.id)).where(eq(room.propertyId, propertyId));
+
+    const tenants = await db
+      .select({
+        id: tenant.id,
+        name: tenant.name,
+        phone: tenant.phone,
+        status: tenant.status,
+        roomNumber: room.number,
+        bedNumber: bed.number,
+      })
+      .from(tenant)
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .leftJoin(bed, eq(tenant.bedId, bed.id))
+      .where(and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active")));
+
+    res.json({ ...prop, floors, rooms, beds, tenants });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch property details" });
+  }
+});
+
+// Tenant detail with bill and payment history
+router.get("/tenants/:tenantId/details", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const tenantId = param(req, "tenantId");
+
+    const [t] = await db
+      .select({
+        id: tenant.id,
+        name: tenant.name,
+        phone: tenant.phone,
+        email: tenant.email,
+        status: tenant.status,
+        joiningDate: tenant.joiningDate,
+        propertyName: property.name,
+        roomNumber: room.number,
+        bedNumber: bed.number,
+      })
+      .from(tenant)
+      .leftJoin(property, eq(tenant.propertyId, property.id))
+      .leftJoin(room, eq(tenant.roomId, room.id))
+      .leftJoin(bed, eq(tenant.bedId, bed.id))
+      .where(eq(tenant.id, tenantId))
+      .limit(1);
+
+    if (!t) return res.status(404).json({ error: "Tenant not found" });
+
+    const bills = await db
+      .select()
+      .from(bill)
+      .where(eq(bill.tenantId, tenantId))
+      .orderBy(desc(bill.billMonth));
+
+    const payments = await db
+      .select()
+      .from(payment)
+      .where(
+        sql`${payment.billId} in (select id from bill where tenant_id = ${tenantId})`,
+      )
+      .orderBy(desc(payment.paymentDate));
+
+    res.json({ ...t, bills, payments });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch tenant details" });
+  }
+});
+
+// Bill detail with line items and payment history
+router.get("/bills/:billId/details", requireAuth, requireSuperAdmin, async (req: AuthenticatedRequest, res) => {
+  try {
+    const billId = param(req, "billId");
+
+    const [b] = await db
+      .select({
+        id: bill.id,
+        billMonth: bill.billMonth,
+        totalAmount: bill.totalAmount,
+        paidAmount: bill.paidAmount,
+        balance: bill.balance,
+        status: bill.status,
+        approved: bill.approved,
+        voidedAt: bill.voidedAt,
+        lineItems: bill.lineItems,
+        createdAt: bill.createdAt,
+      })
+      .from(bill)
+      .where(eq(bill.id, billId))
+      .limit(1);
+
+    if (!b) return res.status(404).json({ error: "Bill not found" });
+
+    const payments = await db
+      .select()
+      .from(payment)
+      .where(eq(payment.billId, billId))
+      .orderBy(desc(payment.paymentDate));
+
+    res.json({ ...b, payments });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch bill details" });
+  }
+});
+
+// Blog (CRUD)
 
 router.get("/blog/posts", requireAuth, requireSuperAdmin, async (_req, res) => {
   try {
