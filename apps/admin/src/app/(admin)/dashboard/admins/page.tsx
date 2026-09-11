@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, ShieldCheck } from "lucide-react";
+import { ADMIN_EMAIL_DOMAIN, isValidAlias, toAdminEmail } from "@/lib/admin-email";
 import { toast } from "sonner";
 
 function formatDate(value: string | null) {
@@ -42,17 +43,22 @@ function AddAdminDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const createAdmin = useCreateAdmin();
-  const [email, setEmail] = useState("");
+  const [alias, setAlias] = useState("");
   const [role, setRole] = useState<PlatformAdminRole>("support");
+  const email = toAdminEmail(alias);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isValidAlias(alias)) {
+      toast.error("Enter an alias without the domain, e.g. teammate");
+      return;
+    }
     createAdmin.mutate(
       { email, role },
       {
         onSuccess: () => {
           toast.success(`${email} added as ${ROLE_LABELS[role]}`);
-          setEmail("");
+          setAlias("");
           setRole("support");
           onOpenChange(false);
         },
@@ -69,20 +75,28 @@ function AddAdminDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div>
-            <label htmlFor="admin-email" className="mb-1.5 block text-sm font-medium">
-              Email
+            <label htmlFor="admin-alias" className="mb-1.5 block text-sm font-medium">
+              Alias
             </label>
-            <Input
-              id="admin-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="teammate@pgkhata.com"
-              required
-            />
+            <div className="flex items-stretch rounded-lg border border-input focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+              <Input
+                id="admin-alias"
+                value={alias}
+                onChange={(e) => setAlias(e.target.value)}
+                placeholder="teammate"
+                autoComplete="off"
+                autoCapitalize="none"
+                className="border-0 focus-visible:ring-0 rounded-r-none"
+                required
+              />
+              <span className="flex items-center rounded-r-lg bg-muted px-2.5 text-sm text-muted-foreground">
+                @{ADMIN_EMAIL_DOMAIN}
+              </span>
+            </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              Just their email. If they have no account yet, one is created here as a platform
-              user (never an owner); they set their own password the first time they sign in.
+              Just the alias — every admin is on <code>@{ADMIN_EMAIL_DOMAIN}</code>. If they have no
+              account yet, one is created as a platform user (never an owner); they set their own
+              password the first time they sign in.
             </p>
           </div>
           <div>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { ADMIN_EMAIL_DOMAIN, toAdminEmail } from "@/lib/admin-email";
 
 type Step = "email" | "signin" | "create";
 
@@ -44,7 +45,7 @@ function LoginForm() {
       const res = await fetch("/api/backend/v1/admin-auth/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: toAdminEmail(email) }),
       });
       const body = (await res.json().catch(() => ({}))) as { needsPassword?: boolean };
       setStep(body.needsPassword ? "create" : "signin");
@@ -61,7 +62,7 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await signIn.email({ email: email.trim(), password });
+      const result = await signIn.email({ email: toAdminEmail(email), password });
       if (result.error) {
         toast.error(result.error.message || "Login failed");
         return;
@@ -86,14 +87,14 @@ function LoginForm() {
       const res = await fetch("/api/backend/v1/admin-auth/set-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ email: toAdminEmail(email), password }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(body.error || "Could not set password");
         return;
       }
-      const result = await signIn.email({ email: email.trim(), password });
+      const result = await signIn.email({ email: toAdminEmail(email), password });
       if (result.error) {
         toast.error(result.error.message || "Password set, but sign-in failed. Try signing in.");
         setStep("signin");
@@ -132,13 +133,18 @@ function LoginForm() {
               </label>
               <Input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@pgkhata.com"
+                placeholder={`you or you@${ADMIN_EMAIL_DOMAIN}`}
+                autoComplete="username"
+                autoCapitalize="none"
                 autoFocus
                 required
               />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Just your alias is fine — <code>@{ADMIN_EMAIL_DOMAIN}</code> is added for you.
+              </p>
             </div>
             <Button type="submit" className="w-full" disabled={loading || !email.trim()}>
               {loading ? "Checking..." : "Continue"}
@@ -148,7 +154,7 @@ function LoginForm() {
 
         {step === "signin" && (
           <form onSubmit={handleSignIn} className="space-y-4">
-            <EmailPill email={email} onChange={changeEmail} />
+            <EmailPill email={toAdminEmail(email)} onChange={changeEmail} />
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
                 Password
@@ -171,7 +177,7 @@ function LoginForm() {
 
         {step === "create" && (
           <form onSubmit={handleCreatePassword} className="space-y-4">
-            <EmailPill email={email} onChange={changeEmail} />
+            <EmailPill email={toAdminEmail(email)} onChange={changeEmail} />
             <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
               First time signing in — set a password for this account.
             </p>
