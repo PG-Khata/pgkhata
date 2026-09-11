@@ -32,7 +32,11 @@ next-env.d.ts
 .commandcode/
 
 # Local scripts (not for production)
-scripts/
+# Root-anchored on purpose: a bare `scripts/` also matches packages/db/scripts,
+# which holds migrate-deploy.ts and validate-migrations.ts — both referenced by
+# packages/db/package.json and required by the Render build. Ignoring those
+# silently broke deploys. Only the top-level operator helpers stay out.
+/scripts/
 
 # Internal documentation and business files
 data-points/
