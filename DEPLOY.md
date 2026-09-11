@@ -8,10 +8,21 @@ Three deployables from one repo, all building from `main`:
 | `apps/web` (owner app) | Render — `pgkhata-web` | `render.yaml` |
 | `apps/admin` (platform console) | Vercel | `apps/admin/vercel.json` |
 
-Database migrations run automatically via the API's `preDeployCommand`
-(`pnpm --filter @pgkhata/db migrate:deploy`), which rehearses every pending
-migration inside a rolled-back transaction and verifies the applied history
-hashes before committing anything.
+Database migrations run inside the API's **build command**, not as a
+`preDeployCommand` — pre-deploy is a paid-plan Render feature and this service
+is on free. `migrate:deploy` rehearses every pending migration in a rolled-back
+transaction and verifies applied history hashes before committing, and running
+it before the build means a failed migration aborts the deploy with the previous
+version still serving.
+
+> `render.yaml` is a Blueprint: it only governs services **created from it**. If
+> a service was set up through the dashboard, editing this file changes nothing —
+> the Build Command must be updated in Render → Settings → Build & Deploy to
+> match. This bit us once: migrations silently never ran in production.
+
+Because the schema lands seconds before the code that uses it, migrations must
+stay backward-compatible with the running version — add columns and tables, and
+never drop or rename in the same deploy that starts relying on the change.
 
 ---
 

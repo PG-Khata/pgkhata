@@ -6,8 +6,17 @@ services:
     region: singapore
     branch: main
     plan: free
-    buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter @pgkhata/api build
-    preDeployCommand: npx pnpm@10.15.1 --filter @pgkhata/db migrate:deploy
+    # Migrations run inside the build, not as a preDeployCommand, because
+    # pre-deploy is a paid-plan feature and this service is on free. Ordered
+    # before the build so a failed migration aborts the deploy and leaves the
+    # previous version serving. migrate:deploy rehearses every pending migration
+    # in a rolled-back transaction and verifies applied history hashes first.
+    #
+    # Caveat this ordering accepts: the new schema goes live a few seconds
+    # before the new code does, so migrations must stay backward-compatible with
+    # the running version (add columns/tables; never drop or rename in the same
+    # deploy that starts using the change).
+    buildCommand: npx pnpm@10.15.1 install --frozen-lockfile && npx pnpm@10.15.1 --filter @pgkhata/db migrate:deploy && npx pnpm@10.15.1 --filter @pgkhata/api build
     startCommand: node apps/api/dist/server.js
     envVars:
       - key: NODE_ENV
