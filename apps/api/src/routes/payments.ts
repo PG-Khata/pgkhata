@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, payment, bill, tenant } from "@pgkhata/db";
+import { db, payment, bill, tenant, advancePayment, advanceApplication } from "@pgkhata/db";
 import { eq, and, sql, asc, or, like } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
@@ -14,7 +14,7 @@ const router = Router({ mergeParams: true });
 
 const recordPaymentSchema = z.object({
   billId: z.string().uuid(),
-  amount: z.number().min(1),
+  amount: z.number().int().min(1),
   paymentDate: z.string().transform((str) => new Date(str)),
   method: z.enum(["cash", "upi", "bank_transfer", "advance", "other"]).optional(),
   notes: z.string().optional(),
@@ -133,17 +133,56 @@ router.delete("/:paymentId", async (req: AuthenticatedRequest, res) => {
 
     if (!owned) return res.status(404).json({ error: "Payment not found" });
 
-    await db.delete(payment).where(eq(payment.id, paymentId));
+    await db.transaction(async (tx) => {
+      // If this payment was funded from an advance, deleting it cascades the
+      // advance_application row away. Restore the advance's applied balance
+      // first — otherwise the money stays marked as consumed and the tenant
+      // permanently loses that advance.
+      const [application] = await tx
+        .select()
+        .from(advanceApplication)
+        .where(eq(advanceApplication.paymentId, paymentId))
+        .limit(1);
 
-    const [b] = await db
-      .select()
-      .from(bill)
-      .where(eq(bill.id, owned.billId))
-      .limit(1);
+      if (application) {
+        const [lockedAdvance] = await tx
+          .select()
+          .from(advancePayment)
+          .where(eq(advancePayment.id, application.advanceId))
+          .for("update")
+          .limit(1);
+        if (lockedAdvance) {
+          const newAppliedAmount = Math.max(0, lockedAdvance.appliedAmount - application.amount);
+          await tx
+            .update(advancePayment)
+            .set({
+              appliedAmount: newAppliedAmount,
+              // Forfeited is terminal; only recompute status for a live advance.
+              status:
+                lockedAdvance.status === "forfeited"
+                  ? "forfeited"
+                  : newAppliedAmount >= lockedAdvance.amount
+                    ? "applied"
+                    : "available",
+              updatedAt: new Date(),
+            })
+            .where(eq(advancePayment.id, lockedAdvance.id));
+        }
+      }
 
-    if (b) {
-      await syncBillTotals(b.id, b.totalAmount);
-    }
+      const [lockedBill] = await tx
+        .select()
+        .from(bill)
+        .where(eq(bill.id, owned.billId))
+        .for("update")
+        .limit(1);
+
+      await tx.delete(payment).where(eq(payment.id, paymentId));
+
+      if (lockedBill) {
+        await syncBillTotals(lockedBill.id, lockedBill.totalAmount, tx);
+      }
+    });
 
     res.json({ message: "Payment deleted" });
   } catch (error) {
@@ -157,7 +196,7 @@ router.post("/auto-allocate", async (req: AuthenticatedRequest, res, next) => {
     const { tenantId, amount, paymentDate, method, notes, idempotencyKey } = z
       .object({
         tenantId: z.string().uuid(),
-        amount: z.number().min(1),
+        amount: z.number().int().min(1),
         paymentDate: z.string().transform((str) => new Date(str)),
         method: z.enum(["cash", "upi", "bank_transfer", "other"]).optional(),
         notes: z.string().optional(),

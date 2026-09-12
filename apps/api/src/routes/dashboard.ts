@@ -6,12 +6,17 @@ import { requireProperty } from "../middleware/property";
 import { aggregate } from "../lib/http";
 import { daysOverdue, summarizeAging, buildMonthlyTrend } from "../lib/dashboard-analytics";
 import { reconcileOverdueStatuses } from "../lib/bill-status";
+import { businessDate } from "../lib/due-date";
 
 const router = Router();
 
-/** Current month as YYYY-MM. */
+/**
+ * Current month as YYYY-MM, in the Asia/Kolkata business calendar. Using UTC
+ * here reported the previous month for the first 5.5 hours of each IST month,
+ * disagreeing with the IST-based billing engine (dueDate, isOverdue, bill_status).
+ */
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  return businessDate().toISOString().slice(0, 7);
 }
 
 interface Occupancy {

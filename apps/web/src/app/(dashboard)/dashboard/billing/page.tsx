@@ -172,7 +172,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
     if (!reminderOpen || !reminderChannels.length) return
     setSendingReminder(true)
     try {
-      const results = await Promise.all(reminderChannels.map(async (channel) => {
+      await Promise.all(reminderChannels.map(async (channel) => {
         if (channel === "email") return api.post(`/v1/properties/${propertyId}/reminders/send`, { billIds: [reminderOpen.billId], channel: "email" })
         return api.post(`/v1/properties/${propertyId}/whatsapp/send-reminder/${reminderOpen.tenantId}`)
       }))

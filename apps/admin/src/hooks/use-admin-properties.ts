@@ -11,7 +11,7 @@ export interface AdminPropertyFilters {
   q?: string;
   ownerId?: string;
   city?: string;
-  electricityMode?: "flat" | "metered";
+  electricityMode?: "flat" | "meter";
   /** "Has at least one active tenant" — the same predicate as `activeTenants > 0`. */
   hasTenants?: boolean;
   page?: number;

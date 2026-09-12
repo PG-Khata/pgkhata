@@ -9,6 +9,8 @@
  * Pure — no database access, no side effects, no idempotency concern here:
  * the caller decides how to apply and whether a fee already exists.
  */
+import { businessDate } from "./due-date";
+
 export interface LateFeeInputs {
   dueDate: Date | string | null;
   lateFeePerDay: number | null | undefined;
@@ -34,12 +36,12 @@ export function calculateLateFee(inputs: LateFeeInputs): LateFeeResult {
     return { amount: 0, daysOverdue: 0 };
   }
 
-  const due = startOfDay(inputs.dueDate);
-  const asOf = startOfDay(inputs.asOf);
+  const due = businessDate(new Date(inputs.dueDate));
+  const asOf = businessDate(new Date(inputs.asOf));
 
   // If a promised date is set and we're before it, suspend late fees.
   if (inputs.promisedDate) {
-    const promised = startOfDay(inputs.promisedDate);
+    const promised = businessDate(new Date(inputs.promisedDate));
     if (asOf.getTime() < promised.getTime()) {
       return { amount: 0, daysOverdue: 0 };
     }
@@ -53,9 +55,4 @@ export function calculateLateFee(inputs: LateFeeInputs): LateFeeResult {
   }
 
   return { amount: daysOverdue * inputs.lateFeePerDay, daysOverdue };
-}
-
-function startOfDay(date: Date | string): Date {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }

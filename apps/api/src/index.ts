@@ -49,6 +49,13 @@ import policeVerificationRouter from "./routes/police-verification";
 
 const app = express();
 
+// Behind Render/Vercel/Cloudflare the socket peer is the platform proxy, not the
+// client. Trust the proxy so `req.ip` resolves to the real client address for
+// the IP-keyed limiters below (public routes) rather than a single shared proxy
+// IP. Auth brute-force limiting additionally prefers the un-spoofable
+// `cf-connecting-ip` header (see packages/auth/src/auth.ts).
+app.set("trust proxy", true);
+
 // Request ID middleware
 app.use((req, res, next) => {
   const requestId = (req.headers["x-request-id"] as string) || randomUUID();
@@ -153,8 +160,14 @@ app.use((req, res, next) => {
 // better-auth unreachable to an impersonated browser, so an admin cannot change
 // the owner's password. Preserve that ordering.
 app.use(resolveImpersonation);
-app.use(enforceImpersonationReadOnly);
+// Audit BEFORE the read-only guard, not after. The guard answers a blocked
+// write with 403 and does NOT call next(), so anything mounted after it never
+// runs for that request. auditPrivilegedWrites registers a res.on("finish")
+// handler and calls next() immediately, so placing it first means the finish
+// handler still fires for the 403 — a support agent probing write endpoints in
+// read-only mode now leaves an audit row (statusCode 403) instead of vanishing.
 app.use(auditPrivilegedWrites);
+app.use(enforceImpersonationReadOnly);
 
 // Health endpoints
 app.get("/health", (req, res) => {

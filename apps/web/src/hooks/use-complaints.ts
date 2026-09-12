@@ -9,8 +9,8 @@ export function useComplaints(propertyId: string) {
     queryKey: ["complaints", propertyId],
     queryFn: () => api.get<Complaint[]>(`/v1/properties/${propertyId}/complaints`),
     enabled: !!propertyId,
-    refetchInterval: 5000, // Refetch every 5 seconds for real-time updates
-    refetchIntervalInBackground: true,
+    refetchInterval: 30000, // Refresh periodically; 30s balances freshness and load.
+    refetchIntervalInBackground: false,
   })
 }
 

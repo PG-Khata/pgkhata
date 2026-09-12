@@ -48,6 +48,20 @@ export function PropertyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, properties, selectedId])
 
+  // Self-heal a stale stored id (e.g. a deleted PG): the derivation below already
+  // falls back to the first property, so rewrite storage to match it and the
+  // fallback persists across reloads.
+  useEffect(() => {
+    if (
+      !isLoading &&
+      selectedId &&
+      properties.length > 0 &&
+      !properties.some((p) => p.id === selectedId)
+    ) {
+      storeSelection(properties[0].id)
+    }
+  }, [isLoading, properties, selectedId])
+
   // Exactly one PG is selected whenever the owner has any. A stored id that no
   // longer exists (deleted PG) falls back to the first property.
   const selectedProperty = useMemo(() => {

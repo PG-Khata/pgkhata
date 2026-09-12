@@ -134,7 +134,7 @@ export default function PropertiesPage() {
           >
             <option value="">Any mode</option>
             <option value="flat">Flat</option>
-            <option value="metered">Metered</option>
+            <option value="meter">Metered</option>
           </select>
         </div>
 

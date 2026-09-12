@@ -5,8 +5,10 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Camera, Upload, X, FileText, Plus } from "lucide-react"
+import { Upload, X, FileText, Plus } from "lucide-react"
 import { useCreateTenant } from "@/hooks/use-tenants"
+import { useCreateSecurityDeposit } from "@/hooks/use-security-deposits"
+import { useCreateAdvancePayment } from "@/hooks/use-advance-payments"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -83,13 +85,18 @@ export function OnboardTenantModal({
   rooms = [],
 }: OnboardTenantModalProps) {
   const createTenant = useCreateTenant(propertyId)
-  const profileInputRef = useRef<HTMLInputElement>(null)
+  const createSecurityDeposit = useCreateSecurityDeposit(propertyId)
+  const createAdvancePayment = useCreateAdvancePayment(propertyId)
   const idProofInputRef = useRef<HTMLInputElement>(null)
-  const [profilePreview, setProfilePreview] = useState<string | null>(null)
-  const [profileFile, setProfileFile] = useState<File | null>(null)
   const [idProofFiles, setIdProofFiles] = useState<File[]>([])
   const [idProofError, setIdProofError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // Remembers what already succeeded so a retry after a partial failure does not
+  // create a second tenant (or duplicate its documents / billing rows).
+  const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
+  const [docsUploaded, setDocsUploaded] = useState(false)
+  const [depositDone, setDepositDone] = useState(false)
+  const [advanceDone, setAdvanceDone] = useState(false)
 
   const {
     register,
@@ -100,15 +107,6 @@ export function OnboardTenantModal({
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
-
-  function handleProfileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setProfileFile(file)
-    const reader = new FileReader()
-    reader.onloadend = () => setProfilePreview(reader.result as string)
-    reader.readAsDataURL(file)
-  }
 
   function handleIdProofChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
@@ -176,54 +174,65 @@ export function OnboardTenantModal({
           onPublicSubmit()
         }
       } else {
-        // Private mode - use the authenticated API
-        const tenant = await createTenant.mutateAsync({
-          name: data.name,
-          phone: data.phone,
-          alternatePhone: data.alternatePhone,
-          email: data.email,
-          dateOfBirth: data.dateOfBirth,
-          gender: data.gender as "male" | "female" | "other",
-          occupation: data.occupation,
-          aadhaarNumber: data.aadhaarNumber,
-          panNumber: data.panNumber || undefined,
-          permanentAddress: data.permanentAddress,
-          permanentAddressCity: data.permanentAddressCity,
-          permanentAddressState: data.permanentAddressState,
-          permanentAddressPincode: data.permanentAddressPincode,
-          joiningDate: new Date().toISOString(),
-        })
+        // Private mode - use the authenticated API. Each step is guarded so a
+        // retry after a partial failure resumes rather than re-creating rows.
+        let tenantId = createdTenantId
+        if (!tenantId) {
+          const tenant = await createTenant.mutateAsync({
+            name: data.name,
+            phone: data.phone,
+            alternatePhone: data.alternatePhone,
+            email: data.email,
+            dateOfBirth: data.dateOfBirth,
+            gender: data.gender as "male" | "female" | "other",
+            occupation: data.occupation,
+            aadhaarNumber: data.aadhaarNumber,
+            panNumber: data.panNumber || undefined,
+            permanentAddress: data.permanentAddress,
+            permanentAddressCity: data.permanentAddressCity,
+            permanentAddressState: data.permanentAddressState,
+            permanentAddressPincode: data.permanentAddressPincode,
+            joiningDate: new Date().toISOString(),
+          })
+          tenantId = tenant?.id ?? null
+          setCreatedTenantId(tenantId)
+        }
 
-        // Upload all ID proof files
-        if (tenant?.id) {
-          for (const file of idProofFiles) {
-            const base64 = await fileToBase64(file)
-            await api.post(
-              `/v1/properties/${propertyId}/tenant-documents/tenant/${tenant.id}`,
-              {
-                type: guessDocType(file.name),
-                fileName: file.name,
-                fileBase64: base64,
-                contentType: file.type,
-              },
-            )
+        if (tenantId) {
+          // Upload all ID proof files
+          if (!docsUploaded) {
+            for (const file of idProofFiles) {
+              const base64 = await fileToBase64(file)
+              await api.post(
+                `/v1/properties/${propertyId}/tenant-documents/tenant/${tenantId}`,
+                {
+                  type: guessDocType(file.name),
+                  fileName: file.name,
+                  fileBase64: base64,
+                  contentType: file.type,
+                },
+              )
+            }
+            setDocsUploaded(true)
           }
 
           // Collect security deposit if provided
-          if (data.securityDeposit && Number(data.securityDeposit) > 0) {
-            await api.post(`/v1/properties/${propertyId}/security-deposits`, {
-              tenantId: tenant.id,
+          if (!depositDone && data.securityDeposit && Number(data.securityDeposit) > 0) {
+            await createSecurityDeposit.mutateAsync({
+              tenantId,
               amount: Number(data.securityDeposit),
             })
           }
+          setDepositDone(true)
 
           // Collect advance payment if provided
-          if (data.advancePayment && Number(data.advancePayment) > 0) {
-            await api.post(`/v1/properties/${propertyId}/advance-payments`, {
-              tenantId: tenant.id,
+          if (!advanceDone && data.advancePayment && Number(data.advancePayment) > 0) {
+            await createAdvancePayment.mutateAsync({
+              tenantId,
               amount: Number(data.advancePayment),
             })
           }
+          setAdvanceDone(true)
         }
 
         toast.success("Tenant onboarded")
@@ -241,11 +250,12 @@ export function OnboardTenantModal({
 
   function resetForm() {
     reset()
-    setProfilePreview(null)
-    setProfileFile(null)
     setIdProofFiles([])
     setIdProofError(false)
-    if (profileInputRef.current) profileInputRef.current.value = ""
+    setCreatedTenantId(null)
+    setDocsUploaded(false)
+    setDepositDone(false)
+    setAdvanceDone(false)
     if (idProofInputRef.current) idProofInputRef.current.value = ""
   }
 
@@ -265,40 +275,6 @@ export function OnboardTenantModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Profile image */}
-          <div className="flex justify-center">
-            <div className="relative">
-              <div
-                className="h-20 w-20 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-muted-foreground/30 bg-muted/50 flex items-center justify-center"
-                onClick={() => profileInputRef.current?.click()}
-              >
-                {profilePreview ? (
-                  <img
-                    src={profilePreview}
-                    alt="Profile"
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <Camera className="h-6 w-6 text-muted-foreground/40" />
-                )}
-              </div>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border bg-background shadow-sm"
-                onClick={() => profileInputRef.current?.click()}
-              >
-                <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-              <input
-                ref={profileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleProfileChange}
-              />
-            </div>
-          </div>
-
           {/* Contact details */}
           <div>
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -423,7 +399,20 @@ export function OnboardTenantModal({
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">PAN (optional)</label>
-                  <Input {...register("panNumber")} />
+                  {(() => {
+                    const pan = register("panNumber")
+                    return (
+                      <Input
+                        {...pan}
+                        onChange={(e) => {
+                          // Uppercase before RHF reads the value so a lowercase
+                          // entry still satisfies the PAN regex.
+                          e.target.value = e.target.value.toUpperCase()
+                          pan.onChange(e)
+                        }}
+                      />
+                    )
+                  })()}
                   {errors.panNumber && errors.panNumber.message && (
                     <p className="text-xs text-destructive">
                       {errors.panNumber.message}

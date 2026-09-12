@@ -38,13 +38,17 @@ export function useBillingPreflight(propertyId: string) {
 }
 
 export function useSaveReadingBatch(propertyId: string) {
+  const qc = useQueryClient()
   return useMutation({ mutationFn: (readings: Array<{ roomId: string; reading: number; readingDate: string }>) =>
-    api.post(`/v1/properties/${propertyId}/readings/batch`, { readings }) })
+    api.post(`/v1/properties/${propertyId}/readings/batch`, { readings }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["readings", propertyId] }) })
 }
 
 export function useDeliverBill(propertyId: string) {
+  const qc = useQueryClient()
   return useMutation({ mutationFn: ({ billId, channels }: { billId: string; channels: Array<"email" | "whatsapp"> }) =>
-    api.post<{ results: Array<{ channel: string; status: string; reason?: string }> }>(`/v1/properties/${propertyId}/bills/${billId}/deliver`, { channels }) })
+    api.post<{ results: Array<{ channel: string; status: string; reason?: string }> }>(`/v1/properties/${propertyId}/bills/${billId}/deliver`, { channels }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }) })
 }
 
 export function useShareBill(propertyId: string) {

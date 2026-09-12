@@ -449,11 +449,10 @@ router.get("/:tenantId/checkout-preview", async (req: AuthenticatedRequest, res)
       .from(bill)
       .where(eq(bill.tenantId, tenantId));
 
-    const [deposit] = await db
+    const deposits = await db
       .select()
       .from(securityDeposit)
-      .where(eq(securityDeposit.tenantId, tenantId))
-      .limit(1);
+      .where(eq(securityDeposit.tenantId, tenantId));
 
     const advances = await db
       .select()
@@ -462,7 +461,7 @@ router.get("/:tenantId/checkout-preview", async (req: AuthenticatedRequest, res)
 
     const preview = calculateCheckoutPreview({
       outstandingBills: bills,
-      securityDeposit: deposit ?? null,
+      securityDeposits: deposits,
       advancePayments: advances,
     });
 

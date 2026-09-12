@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useTenant, useUpdateTenant, useApproveTenant, useRejectTenant } from "@/hooks/use-tenants"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { EditTenantModal } from "@/components/dashboard/edit-tenant-modal"
 import { Button } from "@/components/ui/button"
@@ -29,7 +30,13 @@ export default function TenantProfilePage() {
   const router = useRouter()
   const propertyId = params.propertyId as string
   const tenantId = params.tenantId as string
+  const { selectPropertyById } = useSelectedProperty()
   const { data: tenant, isLoading } = useTenant(propertyId, tenantId)
+
+  // Keep the header PG dropdown in sync with the tenant's property.
+  useEffect(() => {
+    if (propertyId) selectPropertyById(propertyId)
+  }, [propertyId, selectPropertyById])
   const updateTenant = useUpdateTenant(propertyId, tenantId)
   const approveTenant = useApproveTenant(propertyId)
   const rejectTenant = useRejectTenant(propertyId)

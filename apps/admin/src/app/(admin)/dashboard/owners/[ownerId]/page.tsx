@@ -185,6 +185,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ ownerId:
       </Tabs>
 
       <EditOwnerModal
+        key={phone ?? ownerId}
         open={editOpen}
         onOpenChange={setEditOpen}
         ownerId={ownerId}

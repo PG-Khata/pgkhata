@@ -1,6 +1,7 @@
 export interface CheckoutPreviewInput {
   outstandingBills: { totalAmount: number; paidAmount: number; balance: number }[];
-  securityDeposit: { amount: number; refundAmount: number; status: string } | null;
+  /** All deposits held for the tenant; a tenant may have more than one. */
+  securityDeposits: { amount: number; refundAmount: number; status: string }[];
   advancePayments: { amount: number; appliedAmount: number; status: string }[];
 }
 
@@ -15,9 +16,13 @@ export interface CheckoutPreviewResult {
 export function calculateCheckoutPreview(input: CheckoutPreviewInput): CheckoutPreviewResult {
   const totalOutstanding = input.outstandingBills.reduce((sum, b) => sum + b.balance, 0);
 
-  const depositHeld = input.securityDeposit?.status !== "refunded"
-    ? (input.securityDeposit?.amount ?? 0) - (input.securityDeposit?.refundAmount ?? 0)
-    : 0;
+  // Sum the outstanding liability across every deposit. A fully-refunded
+  // deposit contributes 0 (amount - refundAmount === 0), so no status branch is
+  // needed and multiple deposits are all counted.
+  const depositHeld = input.securityDeposits.reduce(
+    (sum, d) => sum + (d.amount - d.refundAmount),
+    0,
+  );
 
   const advanceBalance = input.advancePayments
     .filter((a) => a.status === "available")

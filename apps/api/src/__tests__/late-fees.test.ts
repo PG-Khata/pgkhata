@@ -37,11 +37,30 @@ describe("calculateLateFee", () => {
     expect(result).toEqual({ amount: 250, daysOverdue: 5 });
   });
 
-  it("ignores the time of day, only the calendar date", () => {
+  it("ignores the time of day, counting only the IST calendar date", () => {
+    // 05:00 IST and 20:00 IST on 2026-06-06 are the same business day, so both
+    // are exactly one day past a 2026-06-05 due date. Day count uses the
+    // Asia/Kolkata calendar to agree with isOverdue / the billing engine.
+    const morning = calculateLateFee({
+      ...base(),
+      asOf: new Date("2026-06-05T23:30:00.000Z"), // 2026-06-06 05:00 IST
+    });
+    const evening = calculateLateFee({
+      ...base(),
+      asOf: new Date("2026-06-06T14:30:00.000Z"), // 2026-06-06 20:00 IST
+    });
+
+    expect(morning).toEqual({ amount: 50, daysOverdue: 1 });
+    expect(evening).toEqual({ amount: 50, daysOverdue: 1 });
+  });
+
+  it("attributes an early-IST-morning instant to the correct IST day", () => {
+    // 2026-06-06T02:00Z is 07:30 IST on the 6th — one day overdue. Under the
+    // old UTC day boundary this same instant during the first 5.5h of the IST
+    // day could be mis-dated; the IST calendar keeps it on the 6th.
     const result = calculateLateFee({
       ...base(),
-      dueDate: "2026-06-05T23:00:00.000Z",
-      asOf: new Date("2026-06-06T01:00:00.000Z"),
+      asOf: new Date("2026-06-06T02:00:00.000Z"),
     });
 
     expect(result).toEqual({ amount: 50, daysOverdue: 1 });

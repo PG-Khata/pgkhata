@@ -1,9 +1,10 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useProperty } from "@/hooks/use-properties"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import {
   usePropertyDashboard,
   useMonthlyTrend,
@@ -22,7 +23,13 @@ export default function PropertyDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const params = useParams()
   const propertyId = params.propertyId as string
+  const { selectPropertyById } = useSelectedProperty()
   const { data: property, isLoading: propLoading } = useProperty(propertyId)
+
+  // Keep the header PG dropdown in sync with the property this page shows.
+  useEffect(() => {
+    if (propertyId) selectPropertyById(propertyId)
+  }, [propertyId, selectPropertyById])
   const { data: dashboard, isLoading: dashLoading } = usePropertyDashboard(propertyId)
   const { data: trend, isLoading: trendLoading } = useMonthlyTrend(propertyId)
   const { data: dueRent, isLoading: dueRentLoading } = useDueRent(propertyId)

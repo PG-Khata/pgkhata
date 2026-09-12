@@ -327,7 +327,21 @@ export function EditTenantModal({
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">PAN number</label>
-                <Input {...register("panNumber")} maxLength={10} />
+                {(() => {
+                  const pan = register("panNumber")
+                  return (
+                    <Input
+                      {...pan}
+                      maxLength={10}
+                      onChange={(e) => {
+                        // Uppercase before RHF reads the value so a lowercase
+                        // entry still satisfies the PAN regex.
+                        e.target.value = e.target.value.toUpperCase()
+                        pan.onChange(e)
+                      }}
+                    />
+                  )
+                })()}
                 {errors.panNumber && <p className="text-xs text-destructive">{errors.panNumber.message}</p>}
               </div>
             </div>

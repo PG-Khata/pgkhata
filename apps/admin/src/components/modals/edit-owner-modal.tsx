@@ -16,6 +16,8 @@ interface Props {
 
 export function EditOwnerModal({ open, onOpenChange, ownerId, currentPhone }: Props) {
   const updateOwner = useUpdateAdminOwner(ownerId);
+  // Seeded once per mount; the parent remounts this modal (via `key`) when
+  // `currentPhone` changes so the field never shows a stale value.
   const [phone, setPhone] = useState(currentPhone ?? "");
 
   function handleSave() {

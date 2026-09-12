@@ -72,12 +72,18 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
 
   const electricityAmount = calculateElectricity(inputs.electricity);
   if (electricityAmount > 0 || inputs.electricity.ratePerUnit) {
+    const ratePerUnit = Math.max(0, inputs.electricity.ratePerUnit ?? 0);
+    // Show this tenant's share of units, derived from their share of the
+    // charge, so the line stays internally consistent (units × ratePerUnit ==
+    // amount) even when a room's meter is split across roommates. For a single
+    // occupant this equals the full meter reading.
+    const units = ratePerUnit > 0 ? Math.round(electricityAmount / ratePerUnit) : 0;
     lineItems.push({
       code: "ELEC",
       name: "Electricity",
       amount: electricityAmount,
-      units: Math.max(0, inputs.electricity.unitsForMonth ?? 0),
-      ratePerUnit: Math.max(0, inputs.electricity.ratePerUnit ?? 0),
+      units,
+      ratePerUnit,
     });
   }
 

@@ -4,8 +4,9 @@ import { db, property, room, tenant, tenantDocument, complaint, bill, blogPost, 
 import { eq, and, desc } from "drizzle-orm";
 import { validateDocumentUpload } from "../lib/document-upload";
 import { deleteFromR2, uploadToR2, isR2Configured } from "../lib/r2-storage";
-import { HttpError } from "../lib/http";
+import { HttpError, param } from "../lib/http";
 import { randomUUID } from "node:crypto";
+import { publicSignupLimiter, publicComplaintLimiter } from "../middleware/public-rate-limit";
 
 const router = Router();
 
@@ -125,14 +126,14 @@ router.get("/invoice/:token", async (req, res) => {
 });
 
 // Submit signup (public)
-router.post("/signup/:token", async (req, res) => {
+router.post("/signup/:token", publicSignupLimiter, async (req, res) => {
   try {
     const body = signupSchema.parse(req.body);
 
     const [prop] = await db
       .select()
       .from(property)
-      .where(eq(property.signupToken, req.params.token))
+      .where(eq(property.signupToken, param(req, "token")))
       .limit(1);
 
     if (!prop) return res.status(404).json({ error: "Invalid signup link" });
@@ -296,14 +297,14 @@ router.get("/complaint/:token", async (req, res) => {
 });
 
 // Submit complaint (public)
-router.post("/complaint/:token", async (req, res) => {
+router.post("/complaint/:token", publicComplaintLimiter, async (req, res) => {
   try {
     const body = complaintSchema.parse(req.body);
 
     const [prop] = await db
       .select()
       .from(property)
-      .where(eq(property.complaintToken, req.params.token))
+      .where(eq(property.complaintToken, param(req, "token")))
       .limit(1);
 
     if (!prop) return res.status(404).json({ error: "Invalid complaint link" });

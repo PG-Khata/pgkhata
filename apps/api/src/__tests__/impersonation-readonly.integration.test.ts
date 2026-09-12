@@ -1,8 +1,8 @@
 import "dotenv/config";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import { eq } from "drizzle-orm";
-import { db, ownerProfile, property } from "@pgkhata/db";
+import { and, eq } from "drizzle-orm";
+import { db, adminAuditLog, ownerProfile, property } from "@pgkhata/db";
 import { app } from "../index";
 import {
   createPlatformAdmin,
@@ -105,6 +105,34 @@ describeDb("impersonation read-only enforcement (database)", () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ code: "IMPERSONATION_READ_ONLY" });
+  });
+
+  it("records a blocked read-only write attempt in the audit log", async () => {
+    await lapseWriteWindow(grant.sessionId);
+    const res = await patchProfile("9998887776");
+    expect(res.status).toBe(403);
+
+    // The audit write is fire-and-forget (an audit outage must not become a
+    // customer-facing one), so poll briefly for the row rather than assuming it
+    // has committed by the time the 403 returns.
+    let rows: (typeof adminAuditLog.$inferSelect)[] = [];
+    for (let attempt = 0; attempt < 20 && rows.length === 0; attempt += 1) {
+      rows = await db
+        .select()
+        .from(adminAuditLog)
+        .where(
+          and(
+            eq(adminAuditLog.impersonationSessionId, grant.sessionId),
+            eq(adminAuditLog.statusCode, 403),
+          ),
+        );
+      if (rows.length === 0) await new Promise((r) => setTimeout(r, 150));
+    }
+
+    // Previously the read-only guard answered 403 before the audit middleware
+    // ran, so a support agent probing write endpoints left no trace at all.
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows[0]!.method).toBe("PATCH");
   });
 
   it("leaves the owner's data untouched after those refusals", async () => {

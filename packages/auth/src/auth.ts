@@ -152,7 +152,12 @@ export const auth = betterAuth({
     window: 60,
     max: isTest ? 10_000 : 100,
     customRules: {
-      "/sign-in/email": { window: 15 * 60, max: isTest ? 10_000 : 50 },
+      // Deliberately strict: 5 sign-in attempts per IP per 15 minutes. This is
+      // the documented brute-force limit that auth-security.integration.test.ts
+      // guards (6th attempt must 429). NOT relaxed under isTest — the suite
+      // isolates a unique x-forwarded-for per test user (see db-auth-helper.ts),
+      // so a real limit here does not throttle unrelated tests.
+      "/sign-in/email": { window: 15 * 60, max: 5 },
       "/request-password-reset": { window: 15 * 60, max: 3 },
     },
   },

@@ -10,12 +10,13 @@ import {
   chargeType,
   electricityReading,
   billAdjustment,
+  occupancyHistory,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
-import { calculateBill } from "../lib/billing-calculator";
+import { calculateBill, type BillLineItem } from "../lib/billing-calculator";
 import {
   occupiedDaysInReadingPeriod,
   allocateExactAmount,
@@ -231,23 +232,69 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
       else tenantsByRoom.set(row.room.id, [row]);
     }
 
+    // Occupancy history retains roommates who have since vacated. The
+    // electricity split denominator must include them: only active tenants get
+    // a bill, but splitting a room's charge across *only* the survivors makes
+    // them absorb a departed roommate's usage. The departed roommate's share is
+    // computed and simply not billed (it was settled at their checkout).
+    const occupancyByRoom = new Map<
+      string,
+      Array<{ tenantId: string; startedOn: Date; endedOn: Date | null }>
+    >();
+    if (roomIds.length > 0) {
+      const periods = await db
+        .select({
+          tenantId: occupancyHistory.tenantId,
+          roomId: occupancyHistory.roomId,
+          startedOn: occupancyHistory.startedOn,
+          endedOn: occupancyHistory.endedOn,
+        })
+        .from(occupancyHistory)
+        .where(inArray(occupancyHistory.roomId, roomIds));
+      for (const p of periods) {
+        const bucket = occupancyByRoom.get(p.roomId);
+        if (bucket) bucket.push(p);
+        else occupancyByRoom.set(p.roomId, [p]);
+      }
+    }
+
     const electricityByTenant = new Map<string, number>();
-    for (const [roomId, occupants] of tenantsByRoom) {
+    for (const roomId of roomIds) {
       const readingPair = readingPairForMonth(readingsByRoom.get(roomId) ?? [], month);
       const totalCharge = Math.round(
         Math.max(0, readingPair?.units ?? 0) * Math.max(0, prop.electricityRatePerUnit ?? 0),
       );
-      const shares = occupants.map((occupant) => ({
-        key: occupant.tenant.id,
-        weight: readingPair
-          ? occupiedDaysInReadingPeriod(
-              occupant.tenant.joiningDate,
-              readingPair.first.readingDate,
-              readingPair.second.readingDate,
-              occupant.tenant.vacatingDate,
-            )
-          : 0,
-      }));
+
+      const weightByTenant = new Map<string, number>();
+      if (readingPair) {
+        // Primary source: occupancy history (includes vacated roommates).
+        for (const period of occupancyByRoom.get(roomId) ?? []) {
+          const days = occupiedDaysInReadingPeriod(
+            period.startedOn,
+            readingPair.first.readingDate,
+            readingPair.second.readingDate,
+            period.endedOn,
+          );
+          if (days > 0) {
+            weightByTenant.set(period.tenantId, (weightByTenant.get(period.tenantId) ?? 0) + days);
+          }
+        }
+        // Fallback: any active occupant with no history row (e.g. legacy data
+        // predating occupancy tracking) is still weighted from their tenant
+        // dates, so they are never dropped from the split.
+        for (const occupant of tenantsByRoom.get(roomId) ?? []) {
+          if (weightByTenant.has(occupant.tenant.id)) continue;
+          const days = occupiedDaysInReadingPeriod(
+            occupant.tenant.joiningDate,
+            readingPair.first.readingDate,
+            readingPair.second.readingDate,
+            occupant.tenant.vacatingDate,
+          );
+          if (days > 0) weightByTenant.set(occupant.tenant.id, days);
+        }
+      }
+
+      const shares = [...weightByTenant].map(([key, weight]) => ({ key, weight }));
       for (const [tenantKey, amount] of allocateExactAmount(totalCharge, shares)) {
         electricityByTenant.set(tenantKey, amount);
       }
@@ -328,30 +375,47 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
         const existingBill = existingBills[0]?.bill;
 
         if (existingBill && !existingBill.voidedAt) {
-          const changed = existingBill.totalAmount !== calculated.totalAmount
+          // Preserve line items the generator does not compute — the LATE fee
+          // added by /apply-late-fees and any manually added charge. Rebuilding
+          // the bill purely from `calculated` (rent + electricity + recurring)
+          // would silently drop them and refund a late fee the tenant still owes.
+          const existingLines = (existingBill.lineItems as BillLineItem[]) ?? [];
+          const preservedLines = existingLines.filter(
+            (line) => !calculated.lineItems.some((c) => c.code === line.code),
+          );
+          const mergedLineItems = [...calculated.lineItems, ...preservedLines];
+          const mergedTotal = mergedLineItems.reduce((sum, line) => sum + line.amount, 0);
+
+          const changed = existingBill.totalAmount !== mergedTotal
             || existingBill.electricityAmount !== calculated.electricityAmount;
-          if (changed) {
-            const delta = calculated.totalAmount - existingBill.totalAmount;
-            await tx.insert(billAdjustment).values({
-              billId: existingBill.id,
-              kind: delta >= 0 ? "debit" : "credit",
-              amount: Math.abs(delta),
-              reason: "Room electricity allocation reconciled after occupancy changed",
-              previousTotal: existingBill.totalAmount,
-              adjustedTotal: calculated.totalAmount,
-            });
-            if (existingBill.paidAmount <= calculated.totalAmount) {
-              const balance = calculated.totalAmount - existingBill.paidAmount;
-              await tx.update(bill).set({
-                rentAmount: calculated.rentAmount,
-                electricityAmount: calculated.electricityAmount,
-                lineItems: calculated.lineItems,
-                totalAmount: calculated.totalAmount,
-                balance,
-                status: balance === 0 ? "paid" : isOverdue(existingBill.dueDate) ? "overdue" : existingBill.paidAmount > 0 ? "partial" : "pending",
-                updatedAt: new Date(),
-              }).where(eq(bill.id, existingBill.id));
+          // Only reconcile when the new total still covers what the tenant has
+          // already paid. Lowering a bill below its paidAmount would strand an
+          // overpayment and violate the bill_balance_consistent CHECK, so such a
+          // bill is left untouched (the owner settles the credit manually) and,
+          // crucially, no billAdjustment is written — the ledger and the bill
+          // can never disagree.
+          if (changed && existingBill.paidAmount <= mergedTotal) {
+            const delta = mergedTotal - existingBill.totalAmount;
+            if (delta !== 0) {
+              await tx.insert(billAdjustment).values({
+                billId: existingBill.id,
+                kind: delta > 0 ? "debit" : "credit",
+                amount: Math.abs(delta),
+                reason: "Room electricity allocation reconciled after occupancy changed",
+                previousTotal: existingBill.totalAmount,
+                adjustedTotal: mergedTotal,
+              });
             }
+            const balance = mergedTotal - existingBill.paidAmount;
+            await tx.update(bill).set({
+              rentAmount: calculated.rentAmount,
+              electricityAmount: calculated.electricityAmount,
+              lineItems: mergedLineItems,
+              totalAmount: mergedTotal,
+              balance,
+              status: balance === 0 ? "paid" : isOverdue(existingBill.dueDate) ? "overdue" : existingBill.paidAmount > 0 ? "partial" : "pending",
+              updatedAt: new Date(),
+            }).where(eq(bill.id, existingBill.id));
           }
           if (!isRequestedTenant || existingBill) {
             skipped += 1;
@@ -455,14 +519,21 @@ router.post("/apply-late-fees", async (req: AuthenticatedRequest, res) => {
         if (amount <= 0) {
           // No longer overdue (paid, voided, or the date rolled back): if a
           // stale LATE line exists from a previous run, remove it too.
-          if (withoutLateFee.length !== (b.lineItems as unknown[]).length) {
-            const totalAmount = withoutLateFee.reduce((sum, line) => sum + line.amount, 0);
+          const totalAmount = withoutLateFee.reduce((sum, line) => sum + line.amount, 0);
+          // Removing the LATE line lowers the total. Skip if that would drop the
+          // total below what the tenant has already paid — writing
+          // balance = total - paid negative (or clamping it) violates the
+          // bill_balance_consistent CHECK and would abort the whole batch.
+          if (
+            withoutLateFee.length !== (b.lineItems as unknown[]).length &&
+            totalAmount >= b.paidAmount
+          ) {
             const [row] = await tx
               .update(bill)
               .set({
                 lineItems: withoutLateFee,
                 totalAmount,
-                balance: Math.max(0, totalAmount - b.paidAmount),
+                balance: totalAmount - b.paidAmount,
                 updatedAt: new Date(),
               })
               .where(eq(bill.id, b.id))

@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -46,6 +47,15 @@ const schema = z
 type FormData = z.infer<typeof schema>
 type FormInput = z.input<typeof schema>
 
+// Default bed count per room type. Selecting a type pre-fills capacity; the user
+// can still override it afterwards.
+const capacityMap: Record<string, number> = {
+  single: 1,
+  double: 2,
+  triple: 3,
+  dormitory: 6,
+}
+
 export default function NewRoomPage() {
   const router = useRouter()
   const { selectedProperty } = useSelectedProperty()
@@ -58,6 +68,7 @@ export default function NewRoomPage() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
@@ -68,13 +79,12 @@ export default function NewRoomPage() {
   const selectedPlanId = watch("rentPlanId")
   const selectedPlan = plans?.find(({ plan }) => plan.id === selectedPlanId)?.plan
 
-  // Auto-set capacity based on type
-  const capacityMap: Record<string, number> = {
-    single: 1,
-    double: 2,
-    triple: 3,
-    dormitory: 6,
-  }
+  // Pre-fill capacity when the room type changes. `defaultValue` on a registered
+  // input is ignored after mount, so drive the value through setValue instead.
+  // Only fires on a type change, leaving any manual override intact until then.
+  useEffect(() => {
+    setValue("capacity", capacityMap[roomType] ?? 1)
+  }, [roomType, setValue])
 
   function onSubmit(data: FormData) {
     // The API always stores a room rent as the last-resort fallback. When a plan
@@ -141,7 +151,6 @@ export default function NewRoomPage() {
           <Input
             type="number"
             {...register("capacity")}
-            defaultValue={capacityMap[roomType] || 1}
           />
           {errors.capacity && <p className="text-xs text-destructive">{errors.capacity.message}</p>}
         </div>

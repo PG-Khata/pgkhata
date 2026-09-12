@@ -1,14 +1,20 @@
-/** Whole days between an overdue bill's due date and "today", floor at 0. */
+import { businessDate } from "./due-date";
+
+/**
+ * Whole days between an overdue bill's due date and "today", floor at 0.
+ *
+ * Both dates are reduced to the Asia/Kolkata business calendar (via
+ * businessDate) so aging agrees with isOverdue/reconcileOverdueStatuses, which
+ * are also IST. Using the server's local/UTC day here made a bill look a day
+ * more or less overdue than it actually was for the hours the two calendars
+ * disagree (IST leads UTC by 5:30).
+ */
 export function daysOverdue(dueDate: Date | string | null, asOf: Date = new Date()): number {
   if (!dueDate) return 0;
-  const due = startOfDay(new Date(dueDate));
-  const today = startOfDay(asOf);
+  const due = businessDate(new Date(dueDate));
+  const today = businessDate(asOf);
   const diff = Math.floor((today.getTime() - due.getTime()) / (24 * 60 * 60 * 1000));
   return Math.max(0, diff);
-}
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 export type AgingBucket = "current" | "0-30" | "31-60" | "61-90" | "90+";
@@ -92,9 +98,12 @@ export function buildMonthlyTrend(
   const byMonth = new Map(rows.map((r) => [r.month, r]));
   const result: TrendMonthInput[] = [];
 
+  // Anchor on the IST calendar month, not the server's, so the "current month"
+  // point is right during the hours UTC still reads the previous month.
+  const anchor = businessDate(asOf);
   for (let i = months - 1; i >= 0; i -= 1) {
-    const d = new Date(asOf.getFullYear(), asOf.getMonth() - i, 1);
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const d = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() - i, 1));
+    const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
     const existing = byMonth.get(month);
     result.push(existing ?? { month, collected: 0, expenses: 0 });
   }

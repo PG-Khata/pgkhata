@@ -135,7 +135,7 @@ export default function DashboardPage() {
               <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-b from-transparent to-black/[0.02] opacity-0 transition-opacity group-hover:opacity-100" />
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="text-sm font-medium">Collection vs expenses</h2>
-                <span className="text-xs text-muted-foreground">Last 6 months</span>
+                <span className="text-xs text-muted-foreground">This month</span>
               </div>
               <PaymentStatusChart
                 collected={monthlyCollection}
@@ -266,7 +266,17 @@ export default function DashboardPage() {
             })()}
           </div>
         </>
-      ) : null}
+      ) : (
+        <div className="rounded-xl border border-dashed bg-card p-12 text-center">
+          <AlertTriangle className="mx-auto h-10 w-10 text-muted-foreground/30" />
+          <p className="mt-3 text-sm font-medium text-muted-foreground">
+            Could not load dashboard data
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Please refresh the page or try again in a moment.
+          </p>
+        </div>
+      )}
     </div>
   )
 }

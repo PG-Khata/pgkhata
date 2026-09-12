@@ -127,37 +127,47 @@ router.post("/:depositId/refund", async (req: AuthenticatedRequest, res) => {
     const body = refundSchema.parse(req.body);
     const depositId = param(req, "depositId");
 
-    const [deposit] = await db
-      .select()
-      .from(securityDeposit)
-      .where(and(eq(securityDeposit.id, depositId), eq(securityDeposit.propertyId, req.propertyId!)))
-      .limit(1);
+    // The whole read-decide-write runs in one transaction with the deposit row
+    // locked FOR UPDATE. Without the lock two concurrent refunds both read the
+    // same refundAmount and each write an absolute cumulative value
+    // (last-write-wins), letting the owner pay out more than the deposit while
+    // the record shows only a single refund — the amount CHECK can't catch it.
+    const result = await db.transaction(async (tx) => {
+      const [deposit] = await tx
+        .select()
+        .from(securityDeposit)
+        .where(and(eq(securityDeposit.id, depositId), eq(securityDeposit.propertyId, req.propertyId!)))
+        .for("update")
+        .limit(1);
 
-    if (!deposit) return res.status(404).json({ error: "Security deposit not found" });
+      if (!deposit) return { ok: false as const, status: 404, error: "Security deposit not found" };
 
-    const decision = issueRefund({ deposit, requestedAmount: body.amount });
+      const decision = issueRefund({ deposit, requestedAmount: body.amount });
+      if (!decision.ok) {
+        const messages: Record<typeof decision.reason, string> = {
+          "already-refunded": "This deposit has already been fully refunded",
+          "invalid-amount": "Refund amount must be positive",
+          "exceeds-outstanding": "Refund amount exceeds what remains outstanding",
+        };
+        return { ok: false as const, status: 409, error: messages[decision.reason] };
+      }
 
-    if (!decision.ok) {
-      const messages: Record<typeof decision.reason, string> = {
-        "already-refunded": "This deposit has already been fully refunded",
-        "invalid-amount": "Refund amount must be positive",
-        "exceeds-outstanding": "Refund amount exceeds what remains outstanding",
-      };
-      return res.status(409).json({ error: messages[decision.reason] });
-    }
+      const [updated] = await tx
+        .update(securityDeposit)
+        .set({
+          refundAmount: decision.newRefundAmount,
+          status: decision.newStatus,
+          refundDate: body.date ?? new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(securityDeposit.id, depositId))
+        .returning();
 
-    const [updated] = await db
-      .update(securityDeposit)
-      .set({
-        refundAmount: decision.newRefundAmount,
-        status: decision.newStatus,
-        refundDate: body.date ?? new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(securityDeposit.id, depositId))
-      .returning();
+      return { ok: true as const, updated };
+    });
 
-    res.json(updated);
+    if (!result.ok) return res.status(result.status).json({ error: result.error });
+    res.json(result.updated);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: "Validation error", details: error.issues });
