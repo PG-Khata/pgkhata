@@ -259,29 +259,15 @@ export function OnboardTenantModal({
     if (idProofInputRef.current) idProofInputRef.current.value = ""
   }
 
-  return (
-    <Dialog open={open} onOpenChange={isPublic ? undefined : onOpenChange}>
-      <DialogContent
-        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"
-        showCloseButton={!isPublic}
-      >
-        <DialogHeader>
-          <DialogTitle>{isPublic ? "Tenant Registration" : "Onboard tenant"}</DialogTitle>
-          <DialogDescription>
-            {isPublic
-              ? "Fill in your details below to register as a tenant."
-              : "Capture the resident's details. You can assign a bed afterwards from Occupancy."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+  const formBody = (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Contact details */}
           <div>
             <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Contact details
             </p>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
                     Full name (as per Aadhaar) <span className="text-destructive">*</span>
@@ -306,7 +292,7 @@ export function OnboardTenantModal({
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Alternate phone</label>
                   <div className="flex">
@@ -338,7 +324,7 @@ export function OnboardTenantModal({
               Personal details
             </p>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Date of birth <span className="text-destructive">*</span></label>
                   <Input type="date" {...register("dateOfBirth")} />
@@ -387,7 +373,7 @@ export function OnboardTenantModal({
               Identity & address
             </p>
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Aadhaar number <span className="text-destructive">*</span></label>
                   <Input {...register("aadhaarNumber")} maxLength={12} placeholder="123456789012" />
@@ -490,7 +476,7 @@ export function OnboardTenantModal({
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">City <span className="text-destructive">*</span></label>
                   <Input {...register("permanentAddressCity")} />
@@ -556,7 +542,7 @@ export function OnboardTenantModal({
               <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                 Billing
               </p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Security deposit</label>
                   <Input type="number" placeholder="0" {...register("securityDeposit")} />
@@ -569,8 +555,14 @@ export function OnboardTenantModal({
             </div>
           )}
 
-          <DialogFooter>
-            {!isPublic && (
+          {isPublic ? (
+            <div className="pt-2">
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit Registration"}
+              </Button>
+            </div>
+          ) : (
+            <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
@@ -582,18 +574,40 @@ export function OnboardTenantModal({
               >
                 Cancel
               </Button>
-            )}
-            <Button type="submit" size="sm" disabled={submitting}>
-              {submitting
-                ? isPublic
-                  ? "Submitting..."
-                  : "Onboarding..."
-                : isPublic
-                  ? "Submit Registration"
-                  : "Onboard tenant"}
-            </Button>
-          </DialogFooter>
+              <Button type="submit" size="sm" disabled={submitting}>
+                {submitting ? "Onboarding..." : "Onboard tenant"}
+              </Button>
+            </DialogFooter>
+          )}
         </form>
+  )
+
+  // Public mode: render as a plain card so the whole page scrolls naturally on
+  // mobile — no dimmed dialog overlay hiding the page header behind it.
+  if (isPublic) {
+    return (
+      <div className="rounded-xl border bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold sm:text-xl">Tenant Registration</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Fill in your details below to register as a tenant.
+          </p>
+        </div>
+        {formBody}
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Onboard tenant</DialogTitle>
+          <DialogDescription>
+            Capture the resident&apos;s details. You can assign a bed afterwards from Occupancy.
+          </DialogDescription>
+        </DialogHeader>
+        {formBody}
       </DialogContent>
     </Dialog>
   )

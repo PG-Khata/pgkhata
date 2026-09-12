@@ -85,7 +85,7 @@ export function QrOnboardModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden p-6">
-        <DialogHeader className="text-center pb-4">
+        <DialogHeader className="text-center pb-2">
           <DialogTitle className="text-xl">Add Tenant via QR</DialogTitle>
           <DialogDescription className="text-sm">
             Share this QR code or link with your tenant to fill the form directly.
@@ -105,12 +105,12 @@ export function QrOnboardModal({
             </Button>
           </div>
         ) : signupUrl ? (
-          <div className="flex flex-col items-center gap-5">
+          <div className="flex flex-col items-center gap-4">
             {/* QR Code */}
-            <div className="rounded-xl border-2 border-muted-foreground/10 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border-2 border-muted-foreground/10 bg-white p-3 shadow-sm">
               <QRCodeSVG
                 value={signupUrl}
-                size={200}
+                size={176}
                 level="H"
                 includeMargin={false}
               />
@@ -157,9 +157,9 @@ export function QrOnboardModal({
             </Button>
 
             {/* Instructions */}
-            <div className="w-full rounded-lg border bg-muted/20 p-4">
-              <p className="font-medium text-sm mb-3">How it works:</p>
-              <ol className="space-y-2.5">
+            <div className="w-full rounded-lg border bg-muted/20 p-3.5">
+              <p className="font-medium text-sm mb-2.5">How it works:</p>
+              <ol className="space-y-2">
                 {[
                   "Share QR code or link with your tenant",
                   "Tenant opens link and fills the form",

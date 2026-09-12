@@ -82,10 +82,8 @@ export default function PublicSignupPage() {
       <div className="mx-auto max-w-2xl">
         {/* Header */}
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold">{propertyName}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Tenant Registration Form
-          </p>
+          <p className="text-sm text-muted-foreground">Signing up for</p>
+          <h1 className="text-xl font-bold sm:text-2xl">{propertyName}</h1>
         </div>
 
         {/* Use OnboardTenantModal in page mode */}
