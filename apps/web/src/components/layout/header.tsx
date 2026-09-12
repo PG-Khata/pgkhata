@@ -55,28 +55,13 @@ export function Header() {
     router.push("/login")
   }
 
-  function handlePropertyChange(property: (typeof properties)[number] | null) {
-    if (property?.id === selectedProperty?.id) return
+  function handlePropertyChange(property: (typeof properties)[number]) {
+    if (property.id === selectedProperty?.id) return
 
+    // The dropdown is a pure scope filter: re-scope the current page in place.
+    // PropertyPageContent is keyed by the selection, so it remounts and every
+    // propertyId-keyed query refetches for the new PG — no reload or redirect.
     setSelectedProperty(property)
-
-    // The selector is also the property navigator: owners should land on the
-    // selected PG profile immediately, without needing a second sidebar click.
-    const destination = property
-      ? `/dashboard/properties/${property.id}`
-      : "/dashboard/properties"
-
-    // Add the selection to the URL as well. In particular, choosing "All
-    // properties" while already on /dashboard/properties must still navigate
-    // to a different URL; otherwise the browser may keep the existing page.
-    const url = new URL(window.location.href)
-    url.pathname = destination
-    url.searchParams.set("pg", property?.id ?? "all")
-
-    // This is intentionally a browser navigation, not a soft router refresh.
-    // It guarantees every sidebar screen and property profile starts with data
-    // for the newly selected PG on every switch.
-    window.location.assign(url.toString())
   }
 
   return (
@@ -94,7 +79,7 @@ export function Header() {
               <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent min-w-0">
                 <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate max-w-[160px]">
-                  {selectedProperty?.name ?? "All properties"}
+                  {selectedProperty?.name ?? "Select PG"}
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               </DropdownMenuTrigger>
@@ -103,15 +88,6 @@ export function Header() {
                   <DropdownMenuLabel>Your properties</DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handlePropertyChange(null)}
-                  className={!selectedProperty ? "bg-accent" : ""}
-                >
-                  {!selectedProperty && <Check className="mr-2 h-4 w-4" />}
-                  <span className={!selectedProperty ? "" : "ml-6"}>
-                    All properties
-                  </span>
-                </DropdownMenuItem>
                 {properties.map((p) => (
                   <DropdownMenuItem
                     key={p.id}

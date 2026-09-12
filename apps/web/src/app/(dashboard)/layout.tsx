@@ -4,7 +4,6 @@ import { BottomNav, MobileNavSheet } from "@/components/layout/mobile-nav"
 import { MobileNavProvider } from "@/components/layout/mobile-nav-context"
 import { PropertyProvider } from "@/components/layout/property-context"
 import { PropertyPageContent } from "@/components/layout/property-page-content"
-import { PropertySelector } from "@/components/layout/property-selector"
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Plus, Trash2 } from "lucide-react"
-import { useProperties } from "@/hooks/use-properties"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import {
   useChargeTypes,
   useCreateChargeType,
@@ -43,11 +43,10 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function ChargeTypesPage() {
-  const { data: properties, isLoading: propertiesLoading } = useProperties()
-  const [propertyId, setPropertyId] = useState("")
+  const { selectedProperty } = useSelectedProperty()
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const activeProperty = propertyId || properties?.[0]?.id || ""
+  const activeProperty = selectedProperty?.id ?? ""
   const { data: types, isLoading } = useChargeTypes(activeProperty)
   const createType = useCreateChargeType(activeProperty)
   const updateType = useUpdateChargeType(activeProperty)
@@ -121,19 +120,6 @@ export default function ChargeTypesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {properties && properties.length > 1 && (
-            <select
-              value={activeProperty}
-              onChange={(event) => setPropertyId(event.target.value)}
-              className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm"
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
           <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!activeProperty}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Charge type
@@ -141,7 +127,7 @@ export default function ChargeTypesPage() {
         </div>
       </div>
 
-      {propertiesLoading || isLoading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />

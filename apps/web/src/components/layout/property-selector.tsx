@@ -12,25 +12,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-export function PropertySelector() {
+/**
+ * PG scope selector. Switching re-scopes the current page in place — the
+ * dropdown is a pure filter, not a navigator. `onSelect` lets a container (the
+ * mobile nav sheet) close itself after a choice.
+ */
+export function PropertySelector({ onSelect }: { onSelect?: () => void }) {
   const { selectedProperty, setSelectedProperty, properties } = useSelectedProperty()
 
   if (properties.length === 0) return null
 
-  function handlePropertyChange(property: typeof properties[number] | null) {
-    if (property?.id === selectedProperty?.id) return
-
+  function handlePropertyChange(property: (typeof properties)[number]) {
+    onSelect?.()
+    if (property.id === selectedProperty?.id) return
     setSelectedProperty(property)
-
-    const destination = property
-      ? `/dashboard/properties/${property.id}`
-      : "/dashboard/properties"
-
-    const url = new URL(window.location.href)
-    url.pathname = destination
-    url.searchParams.set("pg", property?.id ?? "all")
-
-    window.location.assign(url.toString())
   }
 
   return (
@@ -38,7 +33,7 @@ export function PropertySelector() {
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent w-full sm:w-auto">
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 truncate text-left">
-          {selectedProperty?.name ?? "All properties"}
+          {selectedProperty?.name ?? "Select PG"}
         </span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
@@ -47,15 +42,6 @@ export function PropertySelector() {
           <DropdownMenuLabel>Your properties</DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => handlePropertyChange(null)}
-          className={!selectedProperty ? "bg-accent" : ""}
-        >
-          {!selectedProperty && <Check className="mr-2 h-4 w-4" />}
-          <span className={!selectedProperty ? "" : "ml-6"}>
-            All properties
-          </span>
-        </DropdownMenuItem>
         {properties.map((p) => (
           <DropdownMenuItem
             key={p.id}

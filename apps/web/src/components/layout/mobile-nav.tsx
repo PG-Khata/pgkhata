@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { useMobileNav } from "./mobile-nav-context"
+import { PropertySelector } from "./property-selector"
 import {
   BOTTOM_NAV_ITEMS,
   NAV_GROUPS,
@@ -48,6 +49,9 @@ export function MobileNavSheet() {
         <SheetHeader className="border-b px-4 py-3 text-left">
           <SheetTitle className="text-base font-semibold">PG Khata</SheetTitle>
         </SheetHeader>
+        <div className="border-b px-3 py-3">
+          <PropertySelector onSelect={() => setOpen(false)} />
+        </div>
         <nav className="overflow-y-auto p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {NAV_GROUPS.map((group, index) => (
             <div

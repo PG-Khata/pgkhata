@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Plus, Trash2, Check, X } from "lucide-react"
-import { useProperties } from "@/hooks/use-properties"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import {
   useExpenses,
   useExpenseSummary,
@@ -45,12 +45,11 @@ const categorySchema = z.object({ name: z.string().min(1, "Name is required").ma
 type CategoryFormData = z.infer<typeof categorySchema>
 
 export default function ExpensesPage() {
-  const { data: properties, isLoading: propertiesLoading } = useProperties()
-  const [propertyId, setPropertyId] = useState("")
+  const { selectedProperty } = useSelectedProperty()
   const [addOpen, setAddOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
 
-  const activeProperty = propertyId || properties?.[0]?.id || ""
+  const activeProperty = selectedProperty?.id ?? ""
   const { data: expenses, isLoading } = useExpenses(activeProperty)
   const { data: summary } = useExpenseSummary(activeProperty)
   const { data: categories } = useExpenseCategories(activeProperty)
@@ -170,7 +169,7 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {propertiesLoading || isLoading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />

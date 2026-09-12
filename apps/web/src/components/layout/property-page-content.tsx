@@ -53,5 +53,5 @@ export function PropertyPageContent({ children }: { children: React.ReactNode })
     )
   }
 
-  return <div key={selectedProperty?.id ?? "all-properties"}>{children}</div>
+  return <div key={selectedProperty?.id ?? "no-property"}>{children}</div>
 }

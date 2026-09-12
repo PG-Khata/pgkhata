@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
-import { useProperties } from "@/hooks/use-properties"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import { useTenants } from "@/hooks/use-tenants"
 import {
   useAdvancePayments,
@@ -38,11 +38,10 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function AdvancePaymentsPage() {
-  const { data: properties, isLoading: propertiesLoading } = useProperties()
-  const [propertyId, setPropertyId] = useState("")
+  const { selectedProperty } = useSelectedProperty()
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const activeProperty = propertyId || properties?.[0]?.id || ""
+  const activeProperty = selectedProperty?.id ?? ""
   const { data: advances, isLoading } = useAdvancePayments(activeProperty)
   const { data: tenants } = useTenants(activeProperty)
   const createAdvance = useCreateAdvancePayment(activeProperty)
@@ -100,7 +99,7 @@ export default function AdvancePaymentsPage() {
         </Button>
       </div>
 
-      {propertiesLoading || isLoading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />

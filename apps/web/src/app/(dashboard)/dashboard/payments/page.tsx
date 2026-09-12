@@ -4,7 +4,6 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { IndianRupee, Plus, Trash2 } from "lucide-react"
 import { useSelectedProperty } from "@/components/layout/property-context"
-import { useProperties } from "@/hooks/use-properties"
 import { useTenants } from "@/hooks/use-tenants"
 import { useBills } from "@/hooks/use-bills"
 import { usePayments, useRecordPayment, useDeletePayment } from "@/hooks/use-payments"
@@ -26,42 +25,11 @@ import { ApiError } from "@/lib/api-client"
 import { Banknote, CalendarClock, CreditCard, FileText } from "lucide-react"
 
 export default function PaymentsPage() {
-  const { selectedProperty, setSelectedProperty } = useSelectedProperty()
-  const { data: properties, isLoading: propsLoading } = useProperties()
+  const { selectedProperty } = useSelectedProperty()
 
-  if (!selectedProperty) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Payments</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Select a property to view payments.</p>
-        </div>
-        {propsLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-          </div>
-        ) : properties && properties.length > 0 ? (
-          <div className="space-y-2">
-            {properties.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setSelectedProperty(p)}
-                className="flex w-full items-center justify-between rounded-xl border p-4 text-left hover:bg-muted/30 transition-colors"
-              >
-                <span className="text-sm font-medium">{p.name}</span>
-                <span className="text-xs text-muted-foreground">View payments</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-dashed p-12 text-center">
-            <IndianRupee className="mx-auto h-10 w-10 text-muted-foreground/30" />
-            <p className="mt-3 text-sm font-medium text-muted-foreground">No properties</p>
-          </div>
-        )}
-      </div>
-    )
-  }
+  // One PG is always selected here; the zero-property case is handled upstream
+  // by PropertyPageContent ("Add your first PG").
+  if (!selectedProperty) return null
 
   return <PaymentsContent propertyId={selectedProperty.id} propertyName={selectedProperty.name} />
 }

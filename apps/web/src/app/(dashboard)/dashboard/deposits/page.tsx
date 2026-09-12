@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
-import { useProperties } from "@/hooks/use-properties"
+import { useSelectedProperty } from "@/components/layout/property-context"
 import { useTenants } from "@/hooks/use-tenants"
 import {
   useSecurityDeposits,
@@ -42,8 +42,7 @@ const refundSchema = z.object({
 type RefundFormData = z.infer<typeof refundSchema>
 
 export default function SecurityDepositsPage() {
-  const { data: properties, isLoading: propertiesLoading } = useProperties()
-  const [propertyId, setPropertyId] = useState("")
+  const { selectedProperty } = useSelectedProperty()
   const [addOpen, setAddOpen] = useState(false)
   const [refundTarget, setRefundTarget] = useState<{
     id: string
@@ -51,7 +50,7 @@ export default function SecurityDepositsPage() {
     outstanding: number
   } | null>(null)
 
-  const activeProperty = propertyId || properties?.[0]?.id || ""
+  const activeProperty = selectedProperty?.id ?? ""
   const { data: deposits, isLoading } = useSecurityDeposits(activeProperty)
   const { data: report } = useDepositLiabilityReport(activeProperty)
   const { data: tenants } = useTenants(activeProperty)
@@ -125,7 +124,7 @@ export default function SecurityDepositsPage() {
         </div>
       )}
 
-      {propertiesLoading || isLoading ? (
+      {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-10 w-full" />

@@ -116,7 +116,12 @@ export default function NewPropertyPage() {
           <Button type="submit" disabled={createProperty.isPending}>
             {createProperty.isPending ? "Creating..." : "Create property"}
           </Button>
-          <Button type="button" variant="outline" render={<Link href="/dashboard/properties" />}>
+          <Button
+            type="button"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/dashboard/properties" />}
+          >
             Cancel
           </Button>
         </div>

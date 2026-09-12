@@ -15,19 +15,23 @@ interface Notification {
 }
 
 export function useNotifications(propertyId?: string) {
-  const params = propertyId ? `?propertyId=${propertyId}` : ""
   return useQuery({
     queryKey: ["notifications", propertyId],
-    queryFn: () => api.get<Notification[]>(`/v1/notifications${params}`),
+    queryFn: () =>
+      api.get<Notification[]>(`/v1/notifications?propertyId=${propertyId}`),
+    enabled: !!propertyId,
     refetchInterval: 30000,
   })
 }
 
 export function useUnreadCount(propertyId?: string) {
-  const params = propertyId ? `?propertyId=${propertyId}` : ""
   return useQuery({
     queryKey: ["notifications", "unread-count", propertyId],
-    queryFn: () => api.get<{ count: number }>(`/v1/notifications/unread-count${params}`),
+    queryFn: () =>
+      api.get<{ count: number }>(
+        `/v1/notifications/unread-count?propertyId=${propertyId}`,
+      ),
+    enabled: !!propertyId,
     refetchInterval: 30000,
   })
 }

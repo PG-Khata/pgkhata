@@ -3,7 +3,6 @@
 import { useState } from "react"
 import {
   Bed,
-  Building2,
   CheckCircle2,
   IndianRupee,
   LayoutGrid,
@@ -13,7 +12,7 @@ import {
   AlertTriangle,
   Wallet,
 } from "lucide-react"
-import { useOwnerDashboard, usePropertyDashboard, useDueRent } from "@/hooks/use-dashboard"
+import { usePropertyDashboard, useDueRent } from "@/hooks/use-dashboard"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { StatCard } from "@/components/dashboard/stat-card"
 import { PaymentStatusChart } from "@/components/dashboard/payment-status-chart"
@@ -21,51 +20,33 @@ import { OccupancyChart } from "@/components/dashboard/occupancy-chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
-import { PropertySelector } from "@/components/layout/property-selector"
 
 export default function DashboardPage() {
   const { selectedProperty } = useSelectedProperty()
-  const { data: ownerDashboard, isLoading: ownerLoading } = useOwnerDashboard()
-  const { data: propertyDashboard, isLoading: propLoading } = usePropertyDashboard(
-    selectedProperty?.id ?? "",
-  )
-  const { data: dueRent } = useDueRent(selectedProperty?.id ?? "")
+  const propertyId = selectedProperty?.id ?? ""
+  const { data: dashboard, isLoading } = usePropertyDashboard(propertyId)
+  const { data: dueRent } = useDueRent(propertyId)
 
   const [search, setSearch] = useState("")
-
-  const isLoading = selectedProperty ? propLoading : ownerLoading
-  const dashboard = selectedProperty ? propertyDashboard : ownerDashboard
 
   const totalBeds = dashboard?.totalBeds ?? 0
   const occupiedBeds = dashboard?.occupiedBeds ?? 0
   const vacantBeds = totalBeds - occupiedBeds
   const occupancyRate = dashboard?.occupancyRate ?? 0
-  const monthlyCollection = selectedProperty
-    ? (propertyDashboard?.monthlyCollected ?? 0)
-    : (ownerDashboard?.monthlyCollection ?? 0)
-  const pendingRent = selectedProperty
-    ? (propertyDashboard?.monthlyPending ?? 0)
-    : (ownerDashboard?.pendingRent ?? 0)
+  const monthlyCollection = dashboard?.monthlyCollected ?? 0
+  const pendingRent = dashboard?.monthlyPending ?? 0
   const overdueRent = dashboard?.overdueRent ?? 0
   const totalRooms = dashboard?.totalRooms ?? 0
-  const totalTenants = selectedProperty
-    ? (propertyDashboard?.activeTenants ?? 0)
-    : (ownerDashboard?.totalTenants ?? 0)
-  const totalProperties = selectedProperty ? 1 : (ownerDashboard?.totalProperties ?? 0)
+  const totalTenants = dashboard?.activeTenants ?? 0
 
   const hasOverdue = overdueRent > 0
 
   return (
     <div className="space-y-6">
-      {/* Property selector - mobile only */}
-      <div className="sm:hidden">
-        <PropertySelector />
-      </div>
-
       <div>
         <h1 className="text-lg font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          {selectedProperty ? selectedProperty.name : "All properties"}
+          {selectedProperty?.name}
         </p>
       </div>
 
@@ -130,13 +111,6 @@ export default function DashboardPage() {
 
           {/* Row 2: 4 stat cards */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {!selectedProperty && (
-              <StatCard
-                label="Properties"
-                value={totalProperties}
-                icon={Building2}
-              />
-            )}
             <StatCard
               label="Rooms"
               value={totalRooms}

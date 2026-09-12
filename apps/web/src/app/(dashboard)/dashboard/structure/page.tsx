@@ -142,10 +142,21 @@ export default function StructurePage() {
             </button>
           ))}
         </div>
-        <Button className="shrink-0" onClick={() => setAddFloorOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Add {activeTab === "floors" ? "floor" : activeTab === "rooms" ? "room" : "bed"}
-        </Button>
+        {activeTab === "floors" ? (
+          <Button className="shrink-0" onClick={() => setAddFloorOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add floor
+          </Button>
+        ) : activeTab === "rooms" ? (
+          <Button
+            className="shrink-0"
+            nativeButton={false}
+            render={<Link href="/dashboard/structure/new" />}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add room
+          </Button>
+        ) : null}
       </div>
 
       {/* Content */}
@@ -175,11 +186,13 @@ export default function StructurePage() {
                     </p>
                   </div>
                 </div>
-                <Link href={`/dashboard/properties/${propertyId}/rooms`}>
-                  <Button variant="ghost" size="sm">
-                    View rooms
-                  </Button>
-                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setActiveTab("rooms")}
+                >
+                  View rooms
+                </Button>
               </div>
             ))}
           </div>
@@ -271,7 +284,7 @@ export default function StructurePage() {
           <Bed className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm font-medium text-muted-foreground">No beds yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Add rooms first, then create beds within them.
+            Beds are created from a room&apos;s capacity. Add or edit a room to add beds.
           </p>
         </div>
       )}

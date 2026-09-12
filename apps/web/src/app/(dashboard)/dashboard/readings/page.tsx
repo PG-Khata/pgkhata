@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
-import { useProperties } from "@/hooks/use-properties"
 import { useProperty, useUpdateProperty } from "@/hooks/use-properties"
 import { useReadings, useCreateReading, useDeleteReading, useUpdateReading, type ReadingWithRoom } from "@/hooks/use-readings"
 import { useRooms } from "@/hooks/use-rooms"
@@ -46,50 +45,13 @@ function getLast12Months() {
 }
 
 export default function ReadingsPage() {
-  const { selectedProperty, setSelectedProperty } = useSelectedProperty()
+  const { selectedProperty } = useSelectedProperty()
 
-  if (!selectedProperty) {
-    return <PropertySelector />
-  }
+  // One PG is always selected here; the zero-property case is handled upstream
+  // by PropertyPageContent ("Add your first PG").
+  if (!selectedProperty) return null
 
   return <ReadingsContent propertyId={selectedProperty.id} propertyName={selectedProperty.name} />
-}
-
-function PropertySelector() {
-  const { setSelectedProperty } = useSelectedProperty()
-  const { data: properties, isLoading } = useProperties()
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold tracking-tight">Meter reading</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">Select a property to manage meter readings.</p>
-      </div>
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-        </div>
-      ) : properties && properties.length > 0 ? (
-        <div className="space-y-2">
-          {properties.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedProperty(p)}
-              className="flex w-full items-center justify-between rounded-xl border p-4 text-left hover:bg-muted/30 transition-colors"
-            >
-              <span className="text-sm font-medium">{p.name}</span>
-              <span className="text-xs text-muted-foreground">View readings</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-xl border border-dashed p-12 text-center">
-          <Zap className="mx-auto h-10 w-10 text-muted-foreground/30" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">No properties</p>
-        </div>
-      )}
-    </div>
-  )
 }
 
 function ReadingsContent({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {

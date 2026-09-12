@@ -5,8 +5,11 @@ import { useProperties } from "@/hooks/use-properties"
 import type { Property } from "@/types"
 
 interface PropertyContextState {
+  /** The one PG the whole app is scoped to. Null only while an owner has none. */
   selectedProperty: Property | null
-  setSelectedProperty: (property: Property | null) => void
+  setSelectedProperty: (property: Property) => void
+  /** Select by id when only the id is known (e.g. a redirect from a URL). */
+  selectPropertyById: (id: string) => void
   properties: Property[]
   isLoading: boolean
 }
@@ -14,21 +17,19 @@ interface PropertyContextState {
 const PropertyContext = createContext<PropertyContextState | null>(null)
 
 const STORAGE_KEY = "pgkhata-selected-property"
-const ALL_PROPERTIES_VALUE = "__all__"
 
-function readStoredSelection(): string | null | undefined {
+function readStoredSelection(): string | undefined {
   if (typeof window === "undefined") return undefined
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored === ALL_PROPERTIES_VALUE ? null : stored ?? undefined
+    return localStorage.getItem(STORAGE_KEY) ?? undefined
   } catch {
     return undefined
   }
 }
 
-function storeSelection(value: string | null) {
+function storeSelection(id: string) {
   try {
-    localStorage.setItem(STORAGE_KEY, value ?? ALL_PROPERTIES_VALUE)
+    localStorage.setItem(STORAGE_KEY, id)
   } catch {
     // Selection remains usable in memory when storage is unavailable.
   }
@@ -36,35 +37,45 @@ function storeSelection(value: string | null) {
 
 export function PropertyProvider({ children }: { children: React.ReactNode }) {
   const { data: properties = [], isLoading } = useProperties()
-  const [selectedId, setSelectedId] = useState<string | null | undefined>(readStoredSelection)
+  const [selectedId, setSelectedId] = useState<string | undefined>(readStoredSelection)
 
+  // Persist the implicit default (first property) once the list has loaded, so a
+  // later visit reopens on the same PG. State stays undefined; the derivation
+  // below resolves the default at runtime.
   useEffect(() => {
     if (!isLoading && properties.length > 0 && selectedId === undefined) {
       storeSelection(properties[0].id)
     }
   }, [isLoading, properties, selectedId])
 
-  const selectedProperty = useMemo(
-    () => selectedId === undefined
-      ? properties[0] ?? null
-      : selectedId
-        ? properties.find((p) => p.id === selectedId) ?? null
-        : null,
-    [properties, selectedId],
-  )
-
-  const setSelectedProperty = (property: Property | null) => {
-    if (property) {
-      setSelectedId(property.id)
-      storeSelection(property.id)
-    } else {
-      setSelectedId(null)
-      storeSelection(null)
+  // Exactly one PG is selected whenever the owner has any. A stored id that no
+  // longer exists (deleted PG) falls back to the first property.
+  const selectedProperty = useMemo(() => {
+    if (properties.length === 0) return null
+    if (selectedId) {
+      return properties.find((p) => p.id === selectedId) ?? properties[0]
     }
+    return properties[0]
+  }, [properties, selectedId])
+
+  const setSelectedProperty = (property: Property) => {
+    setSelectedId(property.id)
+    storeSelection(property.id)
+  }
+
+  const selectPropertyById = (id: string) => {
+    setSelectedId(id)
+    storeSelection(id)
   }
 
   const value = useMemo(
-    () => ({ selectedProperty, setSelectedProperty, properties, isLoading }),
+    () => ({
+      selectedProperty,
+      setSelectedProperty,
+      selectPropertyById,
+      properties,
+      isLoading,
+    }),
     [selectedProperty, properties, isLoading],
   )
 
