@@ -229,31 +229,32 @@ describeDb("platform admin RBAC (database)", () => {
     expect((await request(app).get("/v1/admin/me").set("Cookie", deadSuper.cookie)).status).toBe(403);
   });
 
-  it("refuses to let a super_admin demote or deactivate themselves", async () => {
-    // One mis-click here bricks the console, and nobody can undo it from inside.
+  it("refuses to let a non-founder super_admin change themselves", async () => {
+    // A non-founder super admin cannot touch any super admin, and that includes
+    // their own row — so self-demotion is refused by the chain-of-command guard.
     const demote = await request(app)
       .patch(`/v1/admin/admins/${superA.adminId}`)
       .set("Cookie", superA.cookie)
       .send({ role: "support" });
-    expect(demote.status).toBe(409);
+    expect(demote.status).toBe(403);
 
     const deactivate = await request(app)
       .patch(`/v1/admin/admins/${superA.adminId}`)
       .set("Cookie", superA.cookie)
       .send({ isActive: false });
-    expect(deactivate.status).toBe(409);
+    expect(deactivate.status).toBe(403);
 
     const remove = await request(app)
       .delete(`/v1/admin/admins/${superA.adminId}`)
       .set("Cookie", superA.cookie);
-    expect(remove.status).toBe(409);
+    expect(remove.status).toBe(403);
 
     const row = await readAdmin(superA.adminId);
     expect(row!.role).toBe("super_admin");
     expect(row!.isActive).toBe(true);
   });
 
-  it("still allows a super_admin to change another admin, so 409 is not a blanket refusal", async () => {
+  it("still allows a super_admin to manage a support admin", async () => {
     const res = await request(app)
       .patch(`/v1/admin/admins/${supportAdmin.adminId}`)
       .set("Cookie", superA.cookie)
@@ -264,32 +265,22 @@ describeDb("platform admin RBAC (database)", () => {
   });
 
   it("cannot be driven down to zero active super admins", async () => {
-    // Note on how this invariant is actually reachable: the dedicated
-    // "Cannot remove the last active super admin" branch cannot fire over HTTP,
-    // because the caller must itself be an active super_admin, so any *other*
-    // target implies at least two. The property still holds, and the self-guard
-    // is what holds it — which is what this test pins.
+    // The chain of command makes this doubly impossible: a non-founder super
+    // admin cannot deactivate another super admin, nor themselves. Both attempts
+    // are refused, so the active-super-admin count cannot be moved from here at
+    // all — only the founder can, and the founder cannot be demoted.
     const deactivateOther = await request(app)
       .patch(`/v1/admin/admins/${superB.adminId}`)
       .set("Cookie", superA.cookie)
       .send({ isActive: false });
-    expect(deactivateOther.status).toBe(200);
-    expect((await readAdmin(superB.adminId))!.isActive).toBe(false);
+    expect(deactivateOther.status).toBe(403);
+    expect((await readAdmin(superB.adminId))!.isActive).toBe(true);
 
-    // superA is now the only one of this fixture's super admins left. Removing
-    // itself — the only remaining way to reach zero — is refused.
     const selfRemoval = await request(app)
       .patch(`/v1/admin/admins/${superA.adminId}`)
       .set("Cookie", superA.cookie)
       .send({ isActive: false });
-    expect(selfRemoval.status).toBe(409);
+    expect(selfRemoval.status).toBe(403);
     expect((await readAdmin(superA.adminId))!.isActive).toBe(true);
-
-    // A deactivated super_admin cannot undo its own deactivation either.
-    expect(
-      (await request(app).get("/v1/admin/admins").set("Cookie", superB.cookie)).status,
-    ).toBe(403);
-
-    await setAdminActive(superB.adminId, true);
   });
 });

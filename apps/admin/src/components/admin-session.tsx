@@ -10,6 +10,8 @@ export interface AdminSession {
   role: PlatformAdminRole;
   name: string;
   email: string;
+  /** The founder: may manage super admins. Others may manage support only. */
+  isRoot: boolean;
 }
 
 const AdminSessionContext = createContext<AdminSession | null>(null);

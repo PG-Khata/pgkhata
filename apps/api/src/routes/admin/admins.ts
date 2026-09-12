@@ -76,6 +76,30 @@ async function assertPrivilegeChangeIsSafe(
   return null;
 }
 
+/**
+ * Who may act on whom. A clear chain of command:
+ *   - the founder (a root admin) manages everyone;
+ *   - a super_admin manages support admins, but NOT other super_admins and NOT
+ *     the founder — peers cannot change each other;
+ *   - only the founder may grant super_admin (add or promote one).
+ *
+ * Returns a message when the action is forbidden, or null when it is allowed.
+ * Root targets are already refused before this runs.
+ */
+function authorizeAdminChange(
+  actorIsFounder: boolean,
+  targetRole: string,
+  next: { role?: string },
+): string | null {
+  if (targetRole === "super_admin" && !actorIsFounder) {
+    return "Only the founder can change a super admin.";
+  }
+  if (next.role === "super_admin" && !actorIsFounder) {
+    return "Only the founder can grant super admin.";
+  }
+  return null;
+}
+
 router.get("/admins", requireSuperAdminRole, async (_req, res) => {
   const rows = await db
     .select({
@@ -102,6 +126,10 @@ router.post("/admins", requireSuperAdminRole, async (req: AuthenticatedRequest, 
   if (!parsed.success) {
     return res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
   }
+
+  const actorIsFounder = isRootAdminEmail(req.user!.email);
+  const grantForbidden = authorizeAdminChange(actorIsFounder, "support", { role: parsed.data.role });
+  if (grantForbidden) return res.status(403).json({ error: grantForbidden });
 
   const [existingUser] = await db
     .select({ id: user.id })
@@ -167,6 +195,13 @@ router.patch("/admins/:adminId", requireSuperAdminRole, async (req: Authenticate
     if (isRootAdminEmail(before.email)) {
       return { forbidden: "This is a protected root admin and cannot be changed." };
     }
+    // Chain of command: only the founder may touch a super admin, or grant one.
+    const notAllowed = authorizeAdminChange(
+      isRootAdminEmail(req.user!.email),
+      before.role,
+      parsed.data,
+    );
+    if (notAllowed) return { forbidden: notAllowed };
     // A privilege change is the audit entry someone will actually go looking
     // for, and it is worthless without the role it replaced.
     captureBefore(req, before);
@@ -215,6 +250,9 @@ router.delete("/admins/:adminId", requireSuperAdminRole, async (req: Authenticat
     if (isRootAdminEmail(before.email)) {
       return { forbidden: "This is a protected root admin and cannot be removed." };
     }
+    // Only the founder may remove a super admin; a super_admin may remove support.
+    const notAllowed = authorizeAdminChange(isRootAdminEmail(req.user!.email), before.role, {});
+    if (notAllowed) return { forbidden: notAllowed };
     captureBefore(req, before);
 
     const blocked = await assertPrivilegeChangeIsSafe(

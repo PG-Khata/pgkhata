@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { type AuthenticatedRequest, requireAuth } from "../../middleware/auth";
 import { requirePlatformAdmin } from "../../middleware/admin";
 import { adminErrorTranslator } from "./errors";
+import { isRootAdminEmail } from "../../lib/root-admin";
 import ownersRouter from "./owners";
 import propertiesRouter from "./properties";
 import tenantsRouter from "./tenants";
@@ -54,6 +55,9 @@ router.get("/me", async (req: AuthenticatedRequest, res) => {
     role: req.admin!.role,
     name: req.user!.name,
     email: req.user!.email,
+    // The founder — used by the console to decide which admins this user may
+    // manage. The API enforces the same rule regardless.
+    isRoot: isRootAdminEmail(req.user!.email),
   });
 });
 

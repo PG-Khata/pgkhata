@@ -38,9 +38,11 @@ function formatDate(value: string | null) {
 function AddAdminDialog({
   open,
   onOpenChange,
+  canGrantSuperAdmin,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  canGrantSuperAdmin: boolean;
 }) {
   const createAdmin = useCreateAdmin();
   const [alias, setAlias] = useState("");
@@ -110,8 +112,15 @@ function AddAdminDialog({
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="support">Support - read access, tenant approvals</option>
-              <option value="super_admin">Super Admin - full access, manages admins</option>
+              {canGrantSuperAdmin && (
+                <option value="super_admin">Super Admin - full access, manages admins</option>
+              )}
             </select>
+            {!canGrantSuperAdmin && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Only the founder can add a super admin.
+              </p>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -206,9 +215,14 @@ export default function AdminsPage() {
           <TableBody>
             {admins?.map((row) => {
               const isMe = row.id === me.id;
-              // Root admins are untouchable by anyone; self is untouchable by
-              // you. Either way the controls lock, and the API enforces it too.
-              const locked = isMe || row.isRoot;
+              // Chain of command, enforced by the API and mirrored here:
+              //  - a root admin is untouchable by anyone, and self by you;
+              //  - only the founder changes roles or touches a super admin;
+              //  - a non-founder super admin may only manage support admins.
+              const untouchable = isMe || row.isRoot;
+              const canChangeRole = me.isRoot && !untouchable;
+              const canManageStatus =
+                !untouchable && (me.isRoot || row.role === "support");
               return (
                 <TableRow key={row.id}>
                   <TableCell>
@@ -226,7 +240,7 @@ export default function AdminsPage() {
                     <select
                       aria-label={`Role for ${row.email}`}
                       value={row.role}
-                      disabled={locked || updateAdmin.isPending}
+                      disabled={!canChangeRole || updateAdmin.isPending}
                       onChange={(e) => handleRoleChange(row, e.target.value as PlatformAdminRole)}
                       className="h-8 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
                     >
@@ -247,7 +261,7 @@ export default function AdminsPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={locked || updateAdmin.isPending}
+                        disabled={!canManageStatus || updateAdmin.isPending}
                         onClick={() => handleToggleActive(row)}
                       >
                         {row.isActive ? "Deactivate" : "Reactivate"}
@@ -255,7 +269,7 @@ export default function AdminsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={locked}
+                        disabled={!canManageStatus}
                         onClick={() => setPendingRemoval(row)}
                       >
                         Remove
@@ -270,12 +284,13 @@ export default function AdminsPage() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        You cannot change your own role or deactivate yourself, the last active super admin cannot
-        be removed, and a protected root admin cannot be changed at all. All enforced by the API,
+        Only the founder can change or remove a super admin, or grant super admin; super admins
+        manage support admins. You cannot change your own role, the last active super admin cannot
+        be removed, and the protected root admin cannot be changed at all. All enforced by the API,
         not just hidden here.
       </p>
 
-      <AddAdminDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddAdminDialog open={addOpen} onOpenChange={setAddOpen} canGrantSuperAdmin={me.isRoot} />
 
       <Dialog open={!!pendingRemoval} onOpenChange={(v) => !v && setPendingRemoval(null)}>
         <DialogContent>
