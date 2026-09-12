@@ -9,6 +9,7 @@ import Link from "next/link"
 import { signIn } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { BorderBeam } from "@/components/ui/border-beam"
 import { toast } from "sonner"
 
@@ -105,9 +106,8 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </div>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               placeholder="••••••••"
               {...register("password")}
             />

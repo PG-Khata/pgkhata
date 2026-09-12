@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signOut } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { ArrowLeft, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { ADMIN_EMAIL_DOMAIN, toAdminEmail } from "@/lib/admin-email";
@@ -159,9 +160,8 @@ function LoginForm() {
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium">
                 Password
               </label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -185,9 +185,8 @@ function LoginForm() {
               <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium">
                 New password
               </label>
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 8 characters"
@@ -199,9 +198,8 @@ function LoginForm() {
               <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-medium">
                 Confirm password
               </label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder="Re-enter the password"

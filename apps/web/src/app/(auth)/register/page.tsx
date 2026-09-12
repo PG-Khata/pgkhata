@@ -9,6 +9,7 @@ import Link from "next/link"
 import { signUp } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { BorderBeam } from "@/components/ui/border-beam"
 import { toast } from "sonner"
 
@@ -124,9 +125,8 @@ export default function RegisterPage() {
           <label htmlFor="password" className="text-sm font-medium">
             Password
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             placeholder="••••••••"
             {...register("password")}
           />

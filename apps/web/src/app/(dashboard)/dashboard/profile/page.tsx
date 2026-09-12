@@ -7,6 +7,7 @@ import { useState, Suspense } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Avatar,
@@ -366,15 +367,15 @@ function ProfileContent() {
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Current password</label>
-              <Input type="password" autoComplete="current-password" value={passwords.current} onChange={(event) => setPasswords({ ...passwords, current: event.target.value })} />
+              <PasswordInput autoComplete="current-password" value={passwords.current} onChange={(event) => setPasswords({ ...passwords, current: event.target.value })} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">New password</label>
-              <Input type="password" autoComplete="new-password" value={passwords.next} onChange={(event) => setPasswords({ ...passwords, next: event.target.value })} />
+              <PasswordInput autoComplete="new-password" value={passwords.next} onChange={(event) => setPasswords({ ...passwords, next: event.target.value })} />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Confirm new password</label>
-              <Input type="password" autoComplete="new-password" value={passwords.confirm} onChange={(event) => setPasswords({ ...passwords, confirm: event.target.value })} onKeyDown={(event) => event.key === "Enter" && handleChangePassword()} />
+              <PasswordInput autoComplete="new-password" value={passwords.confirm} onChange={(event) => setPasswords({ ...passwords, confirm: event.target.value })} onKeyDown={(event) => event.key === "Enter" && handleChangePassword()} />
             </div>
           </div>
           <DialogFooter>
