@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -31,6 +31,14 @@ const INDIAN_STATES = [
   "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
   "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
 ]
+
+const MAX_ID_PROOF_FILES = 5
+const MAX_ID_PROOF_BYTES = 5 * 1024 * 1024
+const ACCEPTED_ID_PROOF_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+])
 
 const schema = z.object({
   name: z.string().min(1, "Full name is required").max(100),
@@ -87,9 +95,10 @@ export function OnboardTenantModal({
   const createTenant = useCreateTenant(propertyId)
   const createSecurityDeposit = useCreateSecurityDeposit(propertyId)
   const createAdvancePayment = useCreateAdvancePayment(propertyId)
+  const idProofInputId = useId()
   const idProofInputRef = useRef<HTMLInputElement>(null)
   const [idProofFiles, setIdProofFiles] = useState<File[]>([])
-  const [idProofError, setIdProofError] = useState(false)
+  const [idProofError, setIdProofError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   // Remembers what already succeeded so a retry after a partial failure does not
   // create a second tenant (or duplicate its documents / billing rows).
@@ -109,21 +118,48 @@ export function OnboardTenantModal({
   })
 
   function handleIdProofChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files?.length) return
-    setIdProofFiles((prev) => [...prev, ...Array.from(files)])
-    setIdProofError(false)
-    if (idProofInputRef.current) idProofInputRef.current.value = ""
+    // Snapshot the FileList before resetting the native input. Keeping the
+    // input empty lets the browser emit `change` when the same file is chosen
+    // again after removal.
+    const selectedFiles = Array.from(e.currentTarget.files ?? [])
+    e.currentTarget.value = ""
+    if (selectedFiles.length === 0) return
+
+    if (idProofFiles.length + selectedFiles.length > MAX_ID_PROOF_FILES) {
+      setIdProofError(`You can attach up to ${MAX_ID_PROOF_FILES} documents`)
+      return
+    }
+
+    const unsupportedFile = selectedFiles.find(
+      (file) => !ACCEPTED_ID_PROOF_TYPES.has(file.type),
+    )
+    if (unsupportedFile) {
+      setIdProofError("Only JPG, PNG, and PDF documents are allowed")
+      return
+    }
+
+    const oversizedFile = selectedFiles.find(
+      (file) => file.size > MAX_ID_PROOF_BYTES,
+    )
+    if (oversizedFile) {
+      setIdProofError("Each document must be 5 MB or smaller")
+      return
+    }
+
+    setIdProofFiles((prev) => [...prev, ...selectedFiles])
+    setIdProofError(null)
   }
 
   function removeIdProof(index: number) {
     setIdProofFiles((prev) => prev.filter((_, i) => i !== index))
+    setIdProofError(null)
+    if (idProofInputRef.current) idProofInputRef.current.value = ""
   }
 
   async function onSubmit(data: FormData) {
     // Require ID proof in both modes
     if (idProofFiles.length === 0) {
-      setIdProofError(true)
+      setIdProofError("At least one ID proof document is required")
       return
     }
 
@@ -251,7 +287,7 @@ export function OnboardTenantModal({
   function resetForm() {
     reset()
     setIdProofFiles([])
-    setIdProofError(false)
+    setIdProofError(null)
     setCreatedTenantId(null)
     setDocsUploaded(false)
     setDepositDone(false)
@@ -409,11 +445,13 @@ export function OnboardTenantModal({
 
               {/* ID proof uploads — multiple files */}
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">ID proof <span className="text-destructive">*</span></label>
+                <label htmlFor={idProofInputId} className="text-sm font-medium">
+                  ID proof <span className="text-destructive">*</span>
+                </label>
                 <div className="space-y-2">
                   {idProofFiles.map((file, index) => (
                     <div
-                      key={index}
+                      key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
                       className="flex items-center gap-2 rounded-md border px-3 py-2"
                     >
                       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -427,42 +465,56 @@ export function OnboardTenantModal({
                         type="button"
                         onClick={() => removeIdProof(index)}
                         className="shrink-0 text-muted-foreground hover:text-foreground"
+                        aria-label={`Remove ${file.name}`}
                       >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => idProofInputRef.current?.click()}
-                    className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                  <div
+                    className={`group relative rounded-md focus-within:ring-3 focus-within:ring-ring/50 ${submitting ? "opacity-50" : ""}`}
                   >
-                    {idProofFiles.length > 0 ? (
-                      <>
-                        <Plus className="h-4 w-4" />
-                        Add more files
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-4 w-4" />
-                        Attach Aadhaar / ID proof
-                      </>
-                    )}
-                  </button>
+                    <input
+                      id={idProofInputId}
+                      ref={idProofInputRef}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      multiple
+                      disabled={submitting}
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                      aria-describedby={`${idProofInputId}-help${idProofError ? ` ${idProofInputId}-error` : ""}`}
+                      onChange={handleIdProofChange}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground transition-colors group-hover:border-foreground/30 group-hover:text-foreground group-focus-within:border-ring group-focus-within:text-foreground"
+                    >
+                      {idProofFiles.length > 0 ? (
+                        <>
+                          <Plus className="h-4 w-4" />
+                          Add more files
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4" />
+                          Attach Aadhaar / ID proof
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <p id={`${idProofInputId}-help`} className="text-xs text-muted-foreground">
+                    JPG, PNG, or PDF. Up to 5 MB each, maximum 5 files.
+                  </p>
                   {idProofError && (
-                    <p className="text-xs text-destructive">
-                      At least one ID proof document is required
+                    <p
+                      id={`${idProofInputId}-error`}
+                      role="alert"
+                      className="text-xs text-destructive"
+                    >
+                      {idProofError}
                     </p>
                   )}
                 </div>
-                <input
-                  ref={idProofInputRef}
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  className="hidden"
-                  onChange={handleIdProofChange}
-                />
               </div>
 
               <div className="space-y-1.5">
