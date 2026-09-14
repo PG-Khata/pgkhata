@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useTenants } from "@/hooks/use-tenants"
-import { useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type BillListItem, type MeterPreflight } from "@/hooks/use-bills"
+import { getBillDeliveryStatus, useBills, useGenerateBills, useApplyLateFees, useDeleteBill, useSetPromisedDate, useBillingPreflight, useSaveReadingBatch, useDeliverBill, useShareBill, type BillListItem, type MeterPreflight } from "@/hooks/use-bills"
 import { useRecordPayment } from "@/hooks/use-payments"
 import { useSecurityDeposits, useCreateSecurityDeposit } from "@/hooks/use-security-deposits"
 import { useAdvancePayments, useCreateAdvancePayment } from "@/hooks/use-advance-payments"
@@ -58,6 +58,26 @@ function getLast12Months() {
     months.push({ value, label })
   }
   return months
+}
+
+type DeliveryResult = { channel: string; status: string; reason?: string }
+
+function showDeliveryFeedback(results: DeliveryResult[], onWhatsAppPending?: (toastId: string | number) => void) {
+  const failures = results.filter((result) => result.status === "failed" || result.status === "skipped")
+  if (failures.length) {
+    toast.error(failures.map((result) => `${result.channel}: ${result.reason || result.status}`).join(" · "))
+    return
+  }
+
+  const emailSent = results.some((result) => result.channel === "email" && result.status === "sent")
+  const whatsappPending = results.some((result) => result.channel === "whatsapp" && result.status === "queued")
+  if (whatsappPending) {
+    const toastId = toast.info(`${emailSent ? "Email sent. " : ""}WhatsApp accepted the request and is confirming delivery.`)
+    onWhatsAppPending?.(toastId)
+    return
+  }
+
+  toast.success(results.map((result) => `${result.channel}: ${result.status}`).join(" · "))
 }
 
 function lastDateOfMonth(month: string) {
@@ -219,6 +239,30 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
     }, onError: () => toast.error("Could not create bill link") })
   }
 
+  async function watchWhatsAppDelivery(billId: string, toastId: string | number) {
+    // Meta normally posts status callbacks within seconds. Stop after 30
+    // seconds so a missing webhook never creates an endless client poll.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 3_000))
+      try {
+        const delivery = await getBillDeliveryStatus(propertyId, billId)
+        if (delivery.status === "sent") {
+          toast.success("WhatsApp confirmed the message was sent.", { id: toastId })
+          return
+        }
+        if (delivery.status === "failed" || delivery.status === "skipped") {
+          toast.error(delivery.error || "WhatsApp could not deliver the message.", { id: toastId })
+          return
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) continue
+        toast.error("Could not check WhatsApp delivery status.", { id: toastId })
+        return
+      }
+    }
+    toast.info("WhatsApp has not confirmed delivery yet. You can continue working.", { id: toastId })
+  }
+
   async function sendImmediateReminder() {
     if (!reminderOpen || !reminderChannels.length) return
     setSendingReminder(true)
@@ -228,7 +272,11 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         return api.post(`/v1/properties/${propertyId}/whatsapp/send-reminder/${reminderOpen.tenantId}`)
       }))
       setReminderOpen(null)
-      toast.success(`Reminder sent via ${reminderChannels.join(" and ")}`)
+      if (reminderChannels.includes("whatsapp")) {
+        toast.info(`${reminderChannels.includes("email") ? "Email reminder sent. " : ""}WhatsApp accepted the reminder and is confirming delivery.`)
+      } else {
+        toast.success("Email reminder sent")
+      }
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Could not send reminder")
     } finally { setSendingReminder(false) }
@@ -760,7 +808,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Send bill</DialogTitle><DialogDescription>Send {deliveryOpen?.tenantName} their secure bill link.</DialogDescription></DialogHeader>
           <div className="flex gap-4 text-sm">{(["email", "whatsapp"] as const).map((channel) => <label key={channel} className="flex items-center gap-2 capitalize"><input type="checkbox" checked={deliveryChannels.includes(channel)} onChange={() => setDeliveryChannels((channels) => channels.includes(channel) ? channels.filter((value) => value !== channel) : [...channels, channel])} />{channel}</label>)}</div>
-          <DialogFooter><Button variant="outline" onClick={() => setDeliveryOpen(null)}>Cancel</Button><Button disabled={!deliveryChannels.length || deliverBill.isPending} onClick={() => deliveryOpen && deliverBill.mutate({ billId: deliveryOpen.billId, channels: deliveryChannels }, { onSuccess: ({ results }) => { setDeliveryOpen(null); toast.success(results.map((result) => `${result.channel}: ${result.status}`).join(" · ")) }, onError: () => toast.error("Could not send bill") })}>{deliverBill.isPending ? "Sending..." : "Send bill"}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setDeliveryOpen(null)}>Cancel</Button><Button disabled={!deliveryChannels.length || deliverBill.isPending} onClick={() => deliveryOpen && deliverBill.mutate({ billId: deliveryOpen.billId, channels: deliveryChannels }, { onSuccess: ({ results }) => { const billId = deliveryOpen.billId; setDeliveryOpen(null); showDeliveryFeedback(results, (toastId) => void watchWhatsAppDelivery(billId, toastId)) }, onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not send bill") })}>{deliverBill.isPending ? "Sending..." : "Send bill"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -125,9 +125,14 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
       return res.status(500).json({ error: result.error });
     }
 
-    await recordDelivery({ ...entry, status: "sent", providerMessageId: result.messageId });
+    if (!result.messageId) {
+      await recordDelivery({ ...entry, status: "failed", error: "WhatsApp did not return a message ID" });
+      return res.status(502).json({ error: "WhatsApp did not return a message ID" });
+    }
 
-    res.json({ message: "Bill notification sent", messageId: result.messageId });
+    await recordDelivery({ ...entry, status: "queued", providerMessageId: result.messageId });
+
+    res.json({ message: "Bill accepted by WhatsApp; awaiting delivery confirmation", status: "queued", messageId: result.messageId });
   } catch (error) {
     res.status(500).json({ error: "Failed to send bill notification" });
   }
@@ -207,9 +212,14 @@ router.post("/send-reminder/:tenantId", async (req: AuthenticatedRequest, res) =
       return res.status(500).json({ error: result.error });
     }
 
-    await recordDelivery({ ...entry, status: "sent", providerMessageId: result.messageId });
+    if (!result.messageId) {
+      await recordDelivery({ ...entry, status: "failed", error: "WhatsApp did not return a message ID" });
+      return res.status(502).json({ error: "WhatsApp did not return a message ID" });
+    }
 
-    res.json({ message: "Payment reminder sent", messageId: result.messageId });
+    await recordDelivery({ ...entry, status: "queued", providerMessageId: result.messageId });
+
+    res.json({ message: "Reminder accepted by WhatsApp; awaiting delivery confirmation", status: "queued", messageId: result.messageId });
   } catch (error) {
     res.status(500).json({ error: "Failed to send payment reminder" });
   }
@@ -241,7 +251,7 @@ router.post("/send-bulk-reminders", async (req: AuthenticatedRequest, res) => {
     if (total === 0) {
       return res.json({
         message: "No unpaid bills",
-        sent: 0,
+        accepted: 0,
         failed: 0,
         skipped: 0,
         attempted: 0,
@@ -277,7 +287,7 @@ router.post("/send-bulk-reminders", async (req: AuthenticatedRequest, res) => {
     const truncated = total > unpaidBills.length;
     const remaining = total - unpaidBills.length;
 
-    let sent = 0;
+    let accepted = 0;
     let failed = 0;
     let skipped = 0;
 
@@ -311,11 +321,11 @@ router.post("/send-bulk-reminders", async (req: AuthenticatedRequest, res) => {
           dueDate: row.dueDate ? new Date(row.dueDate).toLocaleDateString("en-IN") : "N/A",
         });
 
-        if (result.success) {
-          await recordDelivery({ ...entry, status: "sent", providerMessageId: result.messageId });
-          sent++;
+        if (result.success && result.messageId) {
+          await recordDelivery({ ...entry, status: "queued", providerMessageId: result.messageId });
+          accepted++;
         } else {
-          await recordDelivery({ ...entry, status: "failed", error: result.error });
+          await recordDelivery({ ...entry, status: "failed", error: result.error || "WhatsApp did not return a message ID" });
           failed++;
         }
       } catch (error) {
@@ -331,9 +341,9 @@ router.post("/send-bulk-reminders", async (req: AuthenticatedRequest, res) => {
 
     res.json({
       message: truncated
-        ? `Sent ${sent} reminders, ${failed} failed. Capped at ${MAX_BULK_REMINDERS} per run, so ${remaining} unpaid bills were not contacted — run it again to continue.`
-        : `Sent ${sent} reminders, ${failed} failed`,
-      sent,
+        ? `WhatsApp accepted ${accepted} reminders, ${failed} failed. Capped at ${MAX_BULK_REMINDERS} per run, so ${remaining} unpaid bills were not contacted — run it again to continue.`
+        : `WhatsApp accepted ${accepted} reminders; delivery confirmation is pending. ${failed} failed`,
+      accepted,
       failed,
       skipped,
       attempted: unpaidBills.length,

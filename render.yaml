@@ -43,6 +43,18 @@ services:
         sync: false
       - key: RESEND_FROM_EMAIL
         sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        sync: false
+      - key: WHATSAPP_HEADER_IMAGE_URL
+        sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
 
   # Web Service (Next.js Frontend)
   - type: web

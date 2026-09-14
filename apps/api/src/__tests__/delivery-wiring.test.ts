@@ -180,7 +180,7 @@ function recorded(index = 0) {
 }
 
 describe("POST /send-bill/:billId records every outcome", () => {
-  it("records a sent message with the provider message id", async () => {
+  it("records an accepted message as queued until Meta confirms it", async () => {
     scriptQueries([billRow()]);
     h.sendBillNotification.mockResolvedValue({ success: true, messageId: "wamid.SENT" });
 
@@ -194,7 +194,7 @@ describe("POST /send-bill/:billId records every outcome", () => {
       propertyId: PROPERTY_ID,
       channel: "whatsapp",
       kind: "bill",
-      status: "sent",
+      status: "queued",
       providerMessageId: "wamid.SENT",
       recipient: "9876543210",
     });
@@ -264,7 +264,7 @@ describe("POST /send-reminder/:tenantId records every outcome", () => {
     propertyName: "Green PG",
   };
 
-  it("records a sent reminder", async () => {
+  it("records an accepted reminder as queued", async () => {
     scriptQueries([tenantRow], [unpaid]);
     h.sendPaymentReminder.mockResolvedValue({ success: true, messageId: "wamid.REMIND" });
 
@@ -274,7 +274,7 @@ describe("POST /send-reminder/:tenantId records every outcome", () => {
     expect(recorded()).toMatchObject({
       channel: "whatsapp",
       kind: "reminder",
-      status: "sent",
+      status: "queued",
       providerMessageId: "wamid.REMIND",
       billId: unpaid.id,
     });
@@ -304,7 +304,7 @@ describe("POST /send-bulk-reminders is capped", () => {
     expect(h.sendPaymentReminder).toHaveBeenCalledTimes(BULK_CAP);
     expect(h.recordDelivery).toHaveBeenCalledTimes(BULK_CAP);
     expect(res.body).toMatchObject({
-      sent: BULK_CAP,
+      accepted: BULK_CAP,
       failed: 0,
       attempted: BULK_CAP,
       total: 5,
@@ -335,7 +335,7 @@ describe("POST /send-bulk-reminders is capped", () => {
 
     const res = await request(whatsappApp).post("/send-bulk-reminders");
 
-    expect(res.body).toMatchObject({ sent: 2, truncated: false, remaining: 0 });
+    expect(res.body).toMatchObject({ accepted: 2, truncated: false, remaining: 0 });
   });
 
   it("records each failure and keeps going", async () => {
@@ -347,7 +347,7 @@ describe("POST /send-bulk-reminders is capped", () => {
 
     const res = await request(whatsappApp).post("/send-bulk-reminders");
 
-    expect(res.body).toMatchObject({ sent: 1, failed: 2 });
+    expect(res.body).toMatchObject({ accepted: 1, failed: 2 });
     // One row per attempt: a run nobody metered is exactly what this replaces.
     expect(h.recordDelivery).toHaveBeenCalledTimes(3);
     expect(recorded(1)).toMatchObject({ status: "failed", error: "Invalid number" });
@@ -361,7 +361,7 @@ describe("POST /send-bulk-reminders is capped", () => {
     const res = await request(whatsappApp).post("/send-bulk-reminders");
 
     expect(h.sendPaymentReminder).not.toHaveBeenCalled();
-    expect(res.body).toMatchObject({ sent: 0, skipped: 2 });
+    expect(res.body).toMatchObject({ accepted: 0, skipped: 2 });
     expect(recorded()).toMatchObject({ status: "skipped" });
   });
 
@@ -370,7 +370,7 @@ describe("POST /send-bulk-reminders is capped", () => {
 
     const res = await request(whatsappApp).post("/send-bulk-reminders");
 
-    expect(res.body).toMatchObject({ sent: 0, total: 0, truncated: false });
+    expect(res.body).toMatchObject({ accepted: 0, total: 0, truncated: false });
     expect(h.recordDelivery).not.toHaveBeenCalled();
   });
 
@@ -412,7 +412,7 @@ describe("POST /reminders/send runs through the shared delivery path", () => {
     scriptQueries([row]);
     h.deliverBill.mockResolvedValue([
       { channel: "email", status: "sent" },
-      { channel: "whatsapp", status: "sent" },
+      { channel: "whatsapp", status: "queued" },
     ]);
 
     const res = await request(remindersApp).post("/send").send({ billIds, channel: "both" });

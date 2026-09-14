@@ -590,9 +590,10 @@ export type MessageProvider = (typeof MESSAGE_PROVIDERS)[number];
  * ones that must be loggable. `bill_delivery` is backfilled into this table by
  * migration 0030 and left in place, read-only, as the historical record.
  *
- * Append-only: a delivery attempt is a fact about a moment, not a mutable
- * entity, so there is no `updated_at` and no `set_updated_at` trigger. A later
- * provider webhook is a new row, not an edit to this one.
+ * One row per delivery attempt. WhatsApp begins as `queued` when Meta accepts
+ * the API request, then the signed provider webhook promotes that same row to
+ * `sent` or `failed` by provider_message_id. Keeping one row avoids counting a
+ * single paid WhatsApp message multiple times in cost reports.
  *
  * No `owner_id`. Ownership is reached the way it is everywhere else in this
  * schema — `property -> owner_id` — so the two can never disagree, and auth

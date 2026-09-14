@@ -213,7 +213,17 @@ export async function deliverBill(row: OwnedBillWithDetails, channels: Array<"em
       else {
         const amounts = billAmounts(row);
         const result = await sendBillNotification({ phone: row.tenant.phone, tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", billMonth: row.bill.billMonth, ...amounts, totalAmount: row.bill.totalAmount, dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", upiId: row.upiId || undefined });
-        if (!result.success) { status = "failed"; reason = result.error; } else providerMessageId = result.messageId;
+        if (!result.success || !result.messageId) {
+          status = "failed";
+          reason = result.error || "WhatsApp did not return a message ID";
+        } else {
+          // A 200 from POST /messages means Meta accepted the request. It does
+          // not mean the handset received it. The signed status webhook is the
+          // only source allowed to promote this row to `sent`.
+          status = "queued";
+          reason = "Waiting for delivery confirmation from WhatsApp";
+          providerMessageId = result.messageId;
+        }
       }
     } catch (error) { status = "failed"; reason = error instanceof Error ? error.message : "Delivery failed"; }
     await recordDelivery({
@@ -225,7 +235,7 @@ export async function deliverBill(row: OwnedBillWithDetails, channels: Array<"em
       kind,
       template: channel === "email" ? BILL_EMAIL_TEMPLATE : BILL_WHATSAPP_TEMPLATE,
       status,
-      error: reason || null,
+      error: status === "failed" || status === "skipped" ? reason || null : null,
       providerMessageId: providerMessageId || null,
     });
     results.push({ channel, status, reason });

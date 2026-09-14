@@ -45,6 +45,7 @@ import adminDocumentsRouter from "./routes/admin-documents";
 import permissionsRouter from "./routes/permissions";
 import structureRouter from "./routes/structure";
 import whatsappRouter from "./routes/whatsapp";
+import whatsappWebhookRouter from "./routes/whatsapp-webhook";
 import policeVerificationRouter from "./routes/police-verification";
 
 const app = express();
@@ -87,7 +88,16 @@ app.use(
 );
 
 // Body parsing - needed for auth
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, _res, buffer) => {
+    // Meta signs the exact request bytes. Keep them only for this webhook so
+    // every other JSON request follows the normal parsed-body path.
+    if (req.url?.startsWith("/v1/webhooks/whatsapp")) {
+      (req as typeof req & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+    }
+  },
+}));
 app.use(validatePaginationQuery);
 
 // Mount Better Auth - use the handler as Express middleware
@@ -150,6 +160,10 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Public, but authenticated cryptographically with Meta's request signature.
+// Mount before session and impersonation middleware: Meta has no owner cookie.
+app.use("/v1/webhooks/whatsapp", whatsappWebhookRouter);
 
 // Impersonation, mounted globally and before every router.
 //

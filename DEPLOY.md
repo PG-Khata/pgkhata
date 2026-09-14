@@ -69,6 +69,35 @@ omitting it leaves a dead exit link in production rather than an obvious error.
 
 ---
 
+## WhatsApp delivery confirmation
+
+The Cloud API's `POST /messages` response only accepts a message for processing.
+PGKhata keeps that attempt `queued` until Meta confirms it through the signed
+status webhook.
+
+Configure these variables on the API service:
+
+| Variable | Value |
+|---|---|
+| `WHATSAPP_ACCESS_TOKEN` | permanent Cloud API access token |
+| `WHATSAPP_PHONE_NUMBER_ID` | sending phone-number ID |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | WABA ID, not the business portfolio ID |
+| `WHATSAPP_HEADER_IMAGE_URL` | public HTTPS image returning `200 image/*` |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN` | a new random secret used during webhook setup |
+| `META_APP_SECRET` | Meta App Dashboard → App settings → Basic → App secret |
+
+In Meta App Dashboard, configure the WhatsApp webhook callback as:
+
+```text
+https://api.pgkhata.com/v1/webhooks/whatsapp
+```
+
+Enter the same `WHATSAPP_WEBHOOK_VERIFY_TOKEN` as the verify token and subscribe
+the WhatsApp Business Account to the `messages` field. POST callbacks are
+accepted only when `X-Hub-Signature-256` matches `META_APP_SECRET`.
+
+---
+
 ## Impersonation: why the cookie is host-only
 
 A support session is carried by an `httpOnly` cookie (`pgk_imp`) set on the

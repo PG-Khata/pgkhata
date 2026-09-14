@@ -13,8 +13,9 @@ import {
   occupancyHistory,
   billingPolicy,
   payment,
+  messageDelivery,
 } from "@pgkhata/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, desc } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param } from "../lib/http";
@@ -183,6 +184,28 @@ router.get("/:billId/share-link", async (req: AuthenticatedRequest, res) => {
   const row = await ownedBillWithDetails(req.propertyId!, param(req, "billId"));
   if (!row || row.bill.voidedAt) return res.status(404).json({ error: "Bill not found" });
   res.json({ url: publicInvoiceUrl(row.bill.accessToken), message: shareMessage(row) });
+});
+
+router.get("/:billId/delivery-status", async (req: AuthenticatedRequest, res) => {
+  const [delivery] = await db
+    .select({
+      status: messageDelivery.status,
+      error: messageDelivery.error,
+      createdAt: messageDelivery.createdAt,
+    })
+    .from(messageDelivery)
+    .innerJoin(bill, eq(messageDelivery.billId, bill.id))
+    .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+    .where(and(
+      eq(bill.id, param(req, "billId")),
+      eq(tenant.propertyId, req.propertyId!),
+      eq(messageDelivery.channel, "whatsapp"),
+    ))
+    .orderBy(desc(messageDelivery.createdAt))
+    .limit(1);
+
+  if (!delivery) return res.status(404).json({ error: "WhatsApp delivery attempt not found" });
+  return res.json(delivery);
 });
 
 router.post("/:billId/deliver", async (req: AuthenticatedRequest, res) => {

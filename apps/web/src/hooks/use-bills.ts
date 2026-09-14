@@ -65,6 +65,12 @@ export function useShareBill(propertyId: string) {
   return useMutation({ mutationFn: (billId: string) => api.get<{ url: string; message: string }>(`/v1/properties/${propertyId}/bills/${billId}/share-link`) })
 }
 
+export function getBillDeliveryStatus(propertyId: string, billId: string) {
+  return api.get<{ status: string; error?: string | null; createdAt: string }>(
+    `/v1/properties/${propertyId}/bills/${billId}/delivery-status`,
+  )
+}
+
 
 export function useApplyLateFees(propertyId: string) {
   const qc = useQueryClient()
