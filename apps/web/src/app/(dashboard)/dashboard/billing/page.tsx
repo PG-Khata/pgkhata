@@ -110,7 +110,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const [sendingReminder, setSendingReminder] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState<{ billId: string; tenantName: string; balance: number } | null>(null)
   const [promiseOpen, setPromiseOpen] = useState<{ billId: string; tenantName: string } | null>(null)
-  const [voidConfirm, setVoidConfirm] = useState<{ billId: string; tenantName: string } | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ billId: string; tenantName: string } | null>(null)
   const [viewInvoice, setViewInvoice] = useState<BillListItem | null>(null)
   const [depositOpen, setDepositOpen] = useState(false)
   const [advanceOpen, setAdvanceOpen] = useState(false)
@@ -126,7 +126,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const deliverBill = useDeliverBill(propertyId)
   const shareBill = useShareBill(propertyId)
   const applyLateFees = useApplyLateFees(propertyId)
-  const voidBill = useDeleteBill(propertyId)
+  const deleteBill = useDeleteBill(propertyId)
   const setPromisedDate = useSetPromisedDate(propertyId)
   const recordPayment = useRecordPayment(propertyId)
   const { data: deposits } = useSecurityDeposits(propertyId)
@@ -278,13 +278,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   }
 
   function handleDelete() {
-    if (!voidConfirm) return
-    voidBill.mutate(voidConfirm.billId, {
+    if (!deleteConfirm) return
+    deleteBill.mutate(deleteConfirm.billId, {
       onSuccess: () => {
-        toast.success("Bill voided; payment history preserved")
-        setVoidConfirm(null)
+        toast.success("Bill permanently deleted")
+        setDeleteConfirm(null)
       },
-      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to void"),
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : "Failed to delete bill"),
     })
   }
 
@@ -434,7 +434,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                               <Share2 className="mr-1 h-3 w-3" /> Share
                             </Button>
                             {b.balance > 0 && <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setReminderOpen({ billId: b.id, tenantId: b.tenantId, tenantName: b.tenantName })}>Remind</Button>}
-                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-destructive hover:text-destructive" onClick={() => setDeleteConfirm({ billId: b.id, tenantName: b.tenantName })}>
                               Delete
                             </Button>
                           </div>
@@ -490,7 +490,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                         Share
                       </Button>
                       {b.balance > 0 && <Button variant="outline" size="sm" className="h-8 flex-1" onClick={() => setReminderOpen({ billId: b.id, tenantId: b.tenantId, tenantName: b.tenantName })}>Remind</Button>}
-                      <Button variant="outline" size="sm" className="h-8 text-destructive hover:text-destructive" onClick={() => setVoidConfirm({ billId: b.id, tenantName: b.tenantName })}>
+                      <Button variant="outline" size="sm" className="h-8 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm({ billId: b.id, tenantName: b.tenantName })}>
                         Delete
                       </Button>
                     </div>
@@ -829,13 +829,13 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
 
       {/* Delete confirmation */}
       <ConfirmDialog
-        open={!!voidConfirm}
-        onOpenChange={() => setVoidConfirm(null)}
-        title="Delete invoice"
-        description={`Delete the invoice for ${voidConfirm?.tenantName}? This will permanently remove the bill and cannot be undone.`}
-        confirmLabel="Delete"
+        open={!!deleteConfirm}
+        onOpenChange={() => setDeleteConfirm(null)}
+        title="Permanently delete invoice?"
+        description={`The invoice for ${deleteConfirm?.tenantName} will be removed permanently. This cannot be undone. Invoices with recorded payments cannot be deleted.`}
+        confirmLabel="Delete permanently"
         variant="destructive"
-        loading={voidBill.isPending}
+        loading={deleteBill.isPending}
         onConfirm={handleDelete}
       />
 

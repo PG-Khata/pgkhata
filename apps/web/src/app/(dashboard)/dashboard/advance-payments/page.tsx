@@ -5,13 +5,13 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 import { useSelectedProperty } from "@/components/layout/property-context"
 import { useTenants } from "@/hooks/use-tenants"
 import {
   useAdvancePayments,
   useCreateAdvancePayment,
-  useForfeitAdvancePayment,
+  useDeleteAdvancePayment,
 } from "@/hooks/use-advance-payments"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -45,7 +45,7 @@ export default function AdvancePaymentsPage() {
   const { data: advances, isLoading } = useAdvancePayments(activeProperty)
   const { data: tenants } = useTenants(activeProperty)
   const createAdvance = useCreateAdvancePayment(activeProperty)
-  const forfeitAdvance = useForfeitAdvancePayment(activeProperty)
+  const deleteAdvance = useDeleteAdvancePayment(activeProperty)
 
   const {
     register,
@@ -68,19 +68,19 @@ export default function AdvancePaymentsPage() {
 
   const { confirm: confirmAction, modal: confirmModal } = useConfirm()
 
-  async function handleForfeit(id: string, tenantName: string) {
+  async function handleDelete(id: string, tenantName: string) {
     const confirmed = await confirmAction({
-      title: "Forfeit Advance",
-      description: `Forfeit this advance for ${tenantName}? This cannot be undone.`,
-      confirmLabel: "Forfeit",
+      title: "Permanently delete advance?",
+      description: `The unused advance for ${tenantName} will be removed permanently. An advance already applied to a bill cannot be deleted.`,
+      confirmLabel: "Delete permanently",
       variant: "destructive",
     })
     if (!confirmed) return
 
-    forfeitAdvance.mutate(id, {
-      onSuccess: () => toast.success("Advance forfeited"),
+    deleteAdvance.mutate(id, {
+      onSuccess: () => toast.success("Advance permanently deleted"),
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Failed to forfeit advance"),
+        toast.error(error instanceof ApiError ? error.message : "Failed to delete advance"),
     })
   }
 
@@ -90,7 +90,7 @@ export default function AdvancePaymentsPage() {
         <div>
           <h1 className="text-lg font-semibold">Advance payments</h1>
           <p className="text-xs text-muted-foreground">
-            Money held for a tenant, applied against a bill later or forfeited.
+            Money held for a tenant and available to apply against a bill later.
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} disabled={!activeProperty}>
@@ -145,14 +145,16 @@ export default function AdvancePaymentsPage() {
                       <StatusBadge status={advance.status} />
                     </td>
                     <td className="py-2.5 text-right">
-                      {advance.status === "available" && (
+                      {advance.appliedAmount === 0 && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                          onClick={() => handleForfeit(advance.id, tenantName)}
+                          disabled={deleteAdvance.isPending}
+                          onClick={() => handleDelete(advance.id, tenantName)}
                         >
-                          Forfeit
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          Delete
                         </Button>
                       )}
                     </td>
@@ -185,14 +187,16 @@ export default function AdvancePaymentsPage() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{formatDateShort(advance.date)}</span>
-                  {advance.status === "available" && (
+                  {advance.appliedAmount === 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                      onClick={() => handleForfeit(advance.id, tenantName)}
+                      disabled={deleteAdvance.isPending}
+                      onClick={() => handleDelete(advance.id, tenantName)}
                     >
-                      Forfeit
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
                     </Button>
                   )}
                 </div>
@@ -207,8 +211,7 @@ export default function AdvancePaymentsPage() {
           <DialogHeader>
             <DialogTitle>Record advance</DialogTitle>
             <DialogDescription>
-              Apply it to a bill later from the tenant’s page, or forfeit it if it
-              is not returned.
+              You can apply this amount to one of the tenant’s bills later.
             </DialogDescription>
           </DialogHeader>
 

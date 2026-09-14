@@ -339,6 +339,20 @@ describeDb("advance payments (database)", () => {
     expect(second.status).toBe(409);
   });
 
+  it("permanently deletes an unused advance", async () => {
+    const created = await request(app)
+      .post(url(alice))
+      .set("Cookie", alice.cookie)
+      .send({ tenantId: aliceTenantId, amount: 1750 });
+
+    const removed = await request(app)
+      .delete(url(alice, `/${created.body.id}`))
+      .set("Cookie", alice.cookie);
+    expect(removed.status).toBe(200);
+    expect(removed.body.message).toMatch(/permanently deleted/i);
+    expect(await db.select().from(advancePayment).where(eq(advancePayment.id, created.body.id))).toHaveLength(0);
+  });
+
   it("refuses to apply a forfeited advance", async () => {
     const created = await request(app)
       .post(url(alice))

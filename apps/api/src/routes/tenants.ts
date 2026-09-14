@@ -475,7 +475,17 @@ router.get("/:tenantId/checkout-preview", async (req: AuthenticatedRequest, res)
       advancePayments: advances,
     });
 
-    res.json(preview);
+    const securityDepositRefunded = deposits.reduce((sum, deposit) => sum + deposit.refundAmount, 0);
+    const advanceApplied = advances.reduce((sum, advance) => sum + advance.appliedAmount, 0);
+    res.json({
+      outstandingBills: preview.totalOutstanding,
+      securityDepositHeld: preview.depositHeld,
+      securityDepositRefunded,
+      advanceAvailable: preview.advanceBalance,
+      advanceApplied,
+      netPayable: Math.max(0, -preview.netSettlement),
+      refundDue: Math.max(0, preview.netSettlement),
+    });
   } catch (error) {
     res.status(500).json({ error: "Failed to generate checkout preview" });
   }

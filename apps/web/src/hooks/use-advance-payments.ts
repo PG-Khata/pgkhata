@@ -57,13 +57,14 @@ export function useApplyAdvancePayment(propertyId: string) {
   })
 }
 
-export function useForfeitAdvancePayment(propertyId: string) {
+export function useDeleteAdvancePayment(propertyId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (advanceId: string) =>
-      api.post<AdvancePayment>(
-        `/v1/properties/${propertyId}/advance-payments/${advanceId}/forfeit`,
-      ),
-    onSuccess: () => invalidate(qc, propertyId),
+      api.delete(`/v1/properties/${propertyId}/advance-payments/${advanceId}`),
+    onSuccess: () => {
+      invalidate(qc, propertyId)
+      qc.invalidateQueries({ queryKey: ["tenant-checkout-preview", propertyId] })
+    },
   })
 }

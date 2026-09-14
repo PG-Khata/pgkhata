@@ -12,6 +12,7 @@ import {
   billAdjustment,
   occupancyHistory,
   billingPolicy,
+  payment,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
@@ -671,32 +672,43 @@ router.patch("/:billId/promised-date", async (req: AuthenticatedRequest, res) =>
   }
 });
 
-// Terminal soft-void: financial records and payments remain immutable audit evidence.
+// Permanently delete an unpaid invoice. Recorded payments remain protected
+// financial evidence and must be removed explicitly before their bill.
 router.delete("/:billId", async (req: AuthenticatedRequest, res) => {
   try {
     const billId = param(req, "billId");
+    const result = await db.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ bill })
+        .from(bill)
+        .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+        .where(and(eq(bill.id, billId), eq(tenant.propertyId, req.propertyId!)))
+        .for("update")
+        .limit(1);
+      if (!target) return { kind: "missing" as const };
 
-    const [target] = await db
-      .select({ bill: bill })
-      .from(bill)
-      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
-      .where(and(eq(bill.id, billId), eq(tenant.propertyId, req.propertyId!)))
-      .limit(1);
+      const [recordedPayment] = await tx.select({ id: payment.id }).from(payment)
+        .where(eq(payment.billId, billId)).limit(1);
+      if (target.bill.paidAmount > 0 || recordedPayment) return { kind: "paid" as const };
 
-    if (!target) return res.status(404).json({ error: "Bill not found" });
+      const [newerRevision] = await tx.select({ id: bill.id }).from(bill)
+        .where(eq(bill.supersedesBillId, billId)).limit(1);
+      if (newerRevision) return { kind: "referenced" as const };
 
-    if (target.bill.voidedAt) return res.status(409).json({ error: "Bill is already voided" });
+      const [deleted] = await tx.delete(bill).where(eq(bill.id, billId)).returning();
+      return { kind: "deleted" as const, bill: deleted };
+    });
 
-    const [voided] = await db.update(bill).set({
-      voidedAt: new Date(),
-      balance: 0,
-      status: "voided",
-      updatedAt: new Date(),
-    }).where(eq(bill.id, billId)).returning();
-
-    res.json({ message: "Bill voided", bill: voided });
+    if (result.kind === "missing") return res.status(404).json({ error: "Bill not found" });
+    if (result.kind === "paid") {
+      return res.status(409).json({ error: "This bill has recorded payments. Delete those payments first." });
+    }
+    if (result.kind === "referenced") {
+      return res.status(409).json({ error: "Delete the newer invoice revision first." });
+    }
+    res.json({ message: "Bill permanently deleted", bill: result.bill });
   } catch (error) {
-    res.status(500).json({ error: "Failed to void bill" });
+    res.status(500).json({ error: "Failed to delete bill" });
   }
 });
 

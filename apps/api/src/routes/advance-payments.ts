@@ -242,4 +242,37 @@ router.post("/:advanceId/forfeit", async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// Permanently remove an unused advance. Once any part has been applied to a
+// bill it becomes financial history and cannot be erased from this endpoint.
+router.delete("/:advanceId", async (req: AuthenticatedRequest, res) => {
+  try {
+    const advanceId = param(req, "advanceId");
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ advance: advancePayment })
+        .from(advancePayment)
+        .innerJoin(tenant, eq(advancePayment.tenantId, tenant.id))
+        .where(and(eq(advancePayment.id, advanceId), eq(tenant.propertyId, req.propertyId!)))
+        .for("update")
+        .limit(1);
+      if (!row) return { kind: "missing" as const };
+
+      const [application] = await tx.select({ id: advanceApplication.id })
+        .from(advanceApplication).where(eq(advanceApplication.advanceId, advanceId)).limit(1);
+      if (row.advance.appliedAmount > 0 || application) return { kind: "applied" as const };
+
+      await tx.delete(advancePayment).where(eq(advancePayment.id, advanceId));
+      return { kind: "deleted" as const };
+    });
+
+    if (result.kind === "missing") return res.status(404).json({ error: "Advance payment not found" });
+    if (result.kind === "applied") {
+      return res.status(409).json({ error: "An advance already applied to a bill cannot be deleted" });
+    }
+    res.json({ message: "Advance permanently deleted" });
+  } catch {
+    res.status(500).json({ error: "Failed to delete advance payment" });
+  }
+});
+
 export default router;

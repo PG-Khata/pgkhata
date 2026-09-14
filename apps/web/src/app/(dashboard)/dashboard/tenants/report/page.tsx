@@ -39,8 +39,10 @@ export default function TenantReportPage() {
   const advanceMap = new Map<string, number>()
   if (advances) {
     for (const a of advances) {
+      if (a.advance.status !== "available") continue
       const key = a.advance.tenantId
-      advanceMap.set(key, (advanceMap.get(key) ?? 0) + a.advance.amount)
+      const available = Math.max(0, a.advance.amount - a.advance.appliedAmount)
+      advanceMap.set(key, (advanceMap.get(key) ?? 0) + available)
     }
   }
 
@@ -49,7 +51,9 @@ export default function TenantReportPage() {
     0,
   )
   const totalAdvance = (advances ?? []).reduce(
-    (sum, a) => sum + a.advance.amount,
+    (sum, a) => sum + (a.advance.status === "available"
+      ? Math.max(0, a.advance.amount - a.advance.appliedAmount)
+      : 0),
     0,
   )
 

@@ -136,14 +136,16 @@ describeDb("bill generation idempotency (database)", () => {
     expect(res.body.error).toBe("Validation error");
   });
 
-  it("regenerates a voided bill as a linked revision without deleting the original", async () => {
+  it("permanently deletes an unpaid bill and allows a clean regeneration", async () => {
     const [original] = await db.select().from(bill)
       .innerJoin(tenant, eq(bill.tenantId, tenant.id))
       .where(eq(tenant.propertyId, propertyId));
-    const voided = await request(app)
+    const deleted = await request(app)
       .delete(`/v1/properties/${propertyId}/bills/${original!.bill.id}`)
       .set("Cookie", cookie);
-    expect(voided.status).toBe(200);
+    expect(deleted.status).toBe(200);
+    expect(deleted.body.message).toMatch(/permanently deleted/i);
+    expect(await db.select().from(bill).where(eq(bill.id, original!.bill.id))).toHaveLength(0);
 
     const regenerated = await request(app)
       .post(`/v1/properties/${propertyId}/bills/generate`)
@@ -152,11 +154,28 @@ describeDb("bill generation idempotency (database)", () => {
     expect(regenerated.status).toBe(201);
     expect(regenerated.body.generated).toBe(1);
     expect(regenerated.body.bills[0]).toMatchObject({
-      revision: 2,
-      supersedesBillId: original!.bill.id,
+      revision: 1,
+      supersedesBillId: null,
     });
     const history = await db.select().from(bill).where(eq(bill.tenantId, original!.tenant.id));
-    expect(history).toHaveLength(2);
-    expect(history.find((row) => row.id === original!.bill.id)!.voidedAt).not.toBeNull();
+    expect(history).toHaveLength(1);
+  });
+
+  it("refuses to permanently delete a bill with a recorded payment", async () => {
+    const [current] = await db.select().from(bill)
+      .innerJoin(tenant, eq(bill.tenantId, tenant.id))
+      .where(eq(tenant.propertyId, propertyId));
+    await db.insert(payment).values({
+      billId: current!.bill.id,
+      amount: 100,
+      paymentDate: new Date("2026-05-02T00:00:00.000Z"),
+      idempotencyKey: `protected-delete-${suffix}`,
+    });
+
+    const response = await request(app)
+      .delete(`/v1/properties/${propertyId}/bills/${current!.bill.id}`)
+      .set("Cookie", cookie);
+    expect(response.status).toBe(409);
+    expect(response.body.error).toMatch(/delete those payments first/i);
   });
 });

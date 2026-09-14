@@ -59,4 +59,17 @@ describe("calculateCheckoutPreview", () => {
     expect(result.depositHeld).toBe(0);
     expect(result.netSettlement).toBe(0);
   });
+
+  it("excludes forfeited advances and counts only the unused part of available advances", () => {
+    const result = calculateCheckoutPreview({
+      outstandingBills: [],
+      securityDeposits: [],
+      advancePayments: [
+        { amount: 4000, appliedAmount: 0, status: "forfeited" },
+        { amount: 2000, appliedAmount: 500, status: "available" },
+      ],
+    });
+
+    expect(result.advanceBalance).toBe(1500);
+  });
 });

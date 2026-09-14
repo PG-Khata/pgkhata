@@ -95,7 +95,12 @@ export function useDeleteBill(propertyId: string) {
   return useMutation({
     mutationFn: (billId: string) =>
       api.delete(`/v1/properties/${propertyId}/bills/${billId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bills", propertyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills", propertyId] })
+      qc.invalidateQueries({ queryKey: ["dashboard"] })
+      qc.invalidateQueries({ queryKey: ["tenant-financial-report", propertyId] })
+      qc.invalidateQueries({ queryKey: ["tenant-checkout-preview", propertyId] })
+    },
   })
 }
 
