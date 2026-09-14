@@ -71,7 +71,7 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
           && (existing.payment.method ?? null) === (body.method ?? null)
           && (existing.payment.notes ?? null) === (body.notes ?? null);
         if (!samePayload) throw new HttpError(409, "Idempotency key was used with different payment details");
-        return { type: "duplicate" as const, id: existing.payment.id };
+        return { type: "duplicate" as const, payment: existing.payment };
       }
 
       // Serializes every competing payment for this bill. The second request
@@ -102,7 +102,9 @@ router.post("/", async (req: AuthenticatedRequest, res, next) => {
     });
 
     if (result.type === "duplicate") {
-      return res.status(200).json({ message: "Payment already recorded", id: result.id });
+      // Replays return the same canonical resource shape as the original
+      // request so a mobile client can recover after losing the first response.
+      return res.status(200).json(result.payment);
     }
 
     res.status(201).json(result.payment);

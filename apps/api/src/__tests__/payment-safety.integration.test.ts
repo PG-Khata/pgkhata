@@ -88,6 +88,12 @@ describeDb("payment safety and soft void (database)", () => {
     const retry = await request(app).post(paymentsUrl()).set("Cookie", cookie)
       .send(payload(target.id, 400, key));
     expect([first.status, retry.status]).toEqual([201, 200]);
+    expect(retry.body).toMatchObject({
+      id: first.body.id,
+      billId: target.id,
+      amount: 400,
+      idempotencyKey: key,
+    });
     const rows = await db.select().from(payment).where(eq(payment.billId, target.id));
     expect(rows).toHaveLength(1);
     const [storedBill] = await db.select().from(bill).where(eq(bill.id, target.id));

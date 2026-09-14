@@ -60,6 +60,26 @@ function getLast12Months() {
   return months
 }
 
+function lastDateOfMonth(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number)
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10)
+}
+
+function defaultClosingDate(month: string) {
+  return month === currentMonth() ? new Date().toISOString().slice(0, 10) : lastDateOfMonth(month)
+}
+
+function previousDate(value: string) {
+  const date = new Date(`${value.slice(0, 10)}T00:00:00.000Z`)
+  date.setUTCDate(date.getUTCDate() - 1)
+  return date.toISOString().slice(0, 10)
+}
+
+function rentPeriodLabel(start?: string | null, end?: string | null) {
+  if (!start || !end) return null
+  return `${formatDateShort(start)} – ${formatDateShort(previousDate(end))}`
+}
+
 export default function BillingPage() {
   const { selectedProperty } = useSelectedProperty()
 
@@ -77,7 +97,12 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
   const [generateMonth, setGenerateMonth] = useState(currentMonth())
   const [generateTenantId, setGenerateTenantId] = useState("")
   const [missingReadings, setMissingReadings] = useState<MeterPreflight | null>(null)
-  const [readingValues, setReadingValues] = useState<Record<string, { reading: string; date: string }>>({})
+  const [readingValues, setReadingValues] = useState<Record<string, {
+    openingReading: string
+    openingDate: string
+    closingReading: string
+    closingDate: string
+  }>>({})
   const [deliveryOpen, setDeliveryOpen] = useState<{ billId: string; tenantName: string } | null>(null)
   const [deliveryChannels, setDeliveryChannels] = useState<Array<"email" | "whatsapp">>(["email"])
   const [reminderOpen, setReminderOpen] = useState<{ billId: string; tenantId: string; tenantName: string } | null>(null)
@@ -130,7 +155,12 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         if (result.complete) runGenerate()
         else {
           setMissingReadings(result)
-          setReadingValues(Object.fromEntries(result.missingRooms.map((room) => [room.roomId, { reading: String(room.latestReading?.reading ?? ""), date: new Date().toISOString().slice(0, 10) }])))
+          setReadingValues(Object.fromEntries(result.missingRooms.map((room) => [room.roomId, {
+            openingReading: "",
+            openingDate: room.closingReading ? previousDate(room.closingReading.readingDate) : `${generateMonth}-01`,
+            closingReading: "",
+            closingDate: defaultClosingDate(generateMonth),
+          }])))
         }
       },
       onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not check meter readings"),
@@ -156,9 +186,30 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
 
   function saveMissingReadings() {
     if (!missingReadings) return
-    const readings = missingReadings.missingRooms.map((room) => ({ roomId: room.roomId, reading: Number(readingValues[room.roomId]?.reading), readingDate: readingValues[room.roomId]?.date }))
+    const incomplete = missingReadings.missingRooms.some((room) => {
+      const value = readingValues[room.roomId]
+      if (!value) return true
+      const needsOpening = room.requirement === "opening" || room.requirement === "opening_and_closing"
+      const needsClosing = room.requirement === "closing" || room.requirement === "opening_and_closing"
+      return (needsOpening && (!value.openingReading.trim() || !value.openingDate))
+        || (needsClosing && (!value.closingReading.trim() || !value.closingDate))
+    })
+    if (incomplete) return toast.error("Enter every required reading and date")
+    const readings = missingReadings.missingRooms.flatMap((room) => {
+      const value = readingValues[room.roomId]
+      if (!value) return []
+      const opening = { roomId: room.roomId, reading: Number(value.openingReading), readingDate: value.openingDate }
+      const closing = { roomId: room.roomId, reading: Number(value.closingReading), readingDate: value.closingDate }
+      if (room.requirement === "opening_and_closing") return [opening, closing]
+      if (room.requirement === "opening") return [opening]
+      return [closing]
+    })
     if (readings.some((reading) => !Number.isFinite(reading.reading) || !reading.readingDate)) return toast.error("Enter a reading and date for each room")
-    saveReadingBatch.mutate(readings, { onSuccess: () => { setMissingReadings(null); toast.success("Meter readings saved"); runGenerate() }, onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not save readings") })
+    saveReadingBatch.mutate(readings, { onSuccess: () => {
+      setMissingReadings(null)
+      toast.success("Meter readings saved")
+      handleGenerate()
+    }, onError: (error) => toast.error(error instanceof ApiError ? error.message : "Could not save readings") })
   }
 
   function handleShare(billId: string) {
@@ -357,7 +408,10 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                     {filtered.map((b, i) => (
                       <tr key={b.id || i} className="border-b last:border-0 transition-colors hover:bg-muted/30">
                         <td className="px-3 py-2.5 font-medium">{b.tenantName}</td>
-                        <td className="px-3 py-2.5 text-muted-foreground">{b.billMonth}</td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          <p>{b.billMonth}</p>
+                          {rentPeriodLabel(b.rentPeriodStart, b.rentPeriodEnd) && <p className="text-[11px]">{rentPeriodLabel(b.rentPeriodStart, b.rentPeriodEnd)}</p>}
+                        </td>
                         <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(b.rentAmount)}</td>
                         <td className="px-3 py-2.5 text-right font-mono">{formatCurrency(b.balance)}</td>
                         <td className="px-3 py-2.5"><StatusBadge status={b.status} /></td>
@@ -404,7 +458,7 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Month</p>
-                        <p>{b.billMonth}</p>
+                        <p>{rentPeriodLabel(b.rentPeriodStart, b.rentPeriodEnd) ?? b.billMonth}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Due</p>
@@ -677,14 +731,24 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Meter readings required</DialogTitle>
-            <DialogDescription>Add a closing reading for every room before {generateMonth} invoices can be generated. A first-ever reading is saved as a zero-unit baseline.</DialogDescription>
+            <DialogDescription>Add the required opening and closing readings before {generateMonth} invoices can be generated.</DialogDescription>
           </DialogHeader>
           <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
             {missingReadings?.missingRooms.map((room) => (
-              <div key={room.roomId} className="grid grid-cols-[1fr_105px_130px] items-end gap-2 rounded-lg border p-3">
-                <div><p className="text-sm font-medium">Room {room.roomNumber}</p><p className="text-xs text-muted-foreground">{room.tenants.map((tenant) => tenant.name).join(", ")} · Last: {room.latestReading ? room.latestReading.reading : "none"}</p></div>
-                <label className="space-y-1 text-xs text-muted-foreground">New reading<Input type="number" min="0" value={readingValues[room.roomId]?.reading ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId], reading: event.target.value } }))} /></label>
-                <label className="space-y-1 text-xs text-muted-foreground">Reading date<Input type="date" value={readingValues[room.roomId]?.date ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId], date: event.target.value } }))} /></label>
+              <div key={room.roomId} className="space-y-3 rounded-lg border p-3">
+                <div><p className="text-sm font-medium">Room {room.roomNumber}</p><p className="text-xs text-muted-foreground">{room.tenants.map((tenant) => tenant.name).join(", ")} · Last saved: {room.latestReading ? `${room.latestReading.reading} on ${formatDateShort(room.latestReading.readingDate)}` : "none"}</p></div>
+                {(room.requirement === "opening" || room.requirement === "opening_and_closing") && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1 text-xs text-muted-foreground">Opening reading<Input type="number" min="0" value={readingValues[room.roomId]?.openingReading ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId]!, openingReading: event.target.value } }))} /></label>
+                    <label className="space-y-1 text-xs text-muted-foreground">Opening date<Input type="date" value={readingValues[room.roomId]?.openingDate ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId]!, openingDate: event.target.value } }))} /></label>
+                  </div>
+                )}
+                {(room.requirement === "closing" || room.requirement === "opening_and_closing") && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="space-y-1 text-xs text-muted-foreground">Closing reading<Input type="number" min="0" value={readingValues[room.roomId]?.closingReading ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId]!, closingReading: event.target.value } }))} /></label>
+                    <label className="space-y-1 text-xs text-muted-foreground">Closing date<Input type="date" value={readingValues[room.roomId]?.closingDate ?? ""} onChange={(event) => setReadingValues((values) => ({ ...values, [room.roomId]: { ...values[room.roomId]!, closingDate: event.target.value } }))} /></label>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -865,6 +929,8 @@ function BillingContent({ propertyId, propertyName }: { propertyId: string; prop
               issueDate={viewInvoice.createdAt}
               dueDate={viewInvoice.dueDate}
               billMonth={viewInvoice.billMonth}
+              rentPeriodStart={viewInvoice.rentPeriodStart}
+              rentPeriodEnd={viewInvoice.rentPeriodEnd}
               lineItems={viewInvoice.lineItems || []}
               totalAmount={viewInvoice.totalAmount}
               paidAmount={viewInvoice.paidAmount}

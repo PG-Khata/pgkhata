@@ -7,6 +7,10 @@ export interface BillLineItem {
   /** Present for a metered electricity line; values are stored for invoices. */
   units?: number;
   ratePerUnit?: number;
+  openingReading?: number;
+  closingReading?: number;
+  periodStart?: string;
+  periodEnd?: string;
 }
 
 export interface CalculatedBill {
@@ -32,6 +36,12 @@ export interface ElectricityInputs {
   occupancyShare?: number | null;
   /** Pre-reconciled integer share of the room charge. */
   amountOverride?: number | null;
+  readingPeriod?: {
+    openingReading: number;
+    closingReading: number;
+    start: Date | string;
+    end: Date | string;
+  } | null;
 }
 
 export interface RecurringCharge {
@@ -78,13 +88,22 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
     // amount) even when a room's meter is split across roommates. For a single
     // occupant this equals the full meter reading.
     const units = ratePerUnit > 0 ? Math.round(electricityAmount / ratePerUnit) : 0;
-    lineItems.push({
-      code: "ELEC",
-      name: "Electricity",
-      amount: electricityAmount,
-      units,
-      ratePerUnit,
-    });
+    const readingPeriod = inputs.electricity.readingPeriod;
+    lineItems.push(inputs.electricity.ratePerUnit
+      ? {
+          code: "ELEC",
+          name: "Electricity",
+          amount: electricityAmount,
+          units,
+          ratePerUnit,
+          ...(readingPeriod ? {
+            openingReading: readingPeriod.openingReading,
+            closingReading: readingPeriod.closingReading,
+            periodStart: new Date(readingPeriod.start).toISOString().slice(0, 10),
+            periodEnd: new Date(readingPeriod.end).toISOString().slice(0, 10),
+          } : {}),
+        }
+      : { code: "ELEC", name: "Electricity", amount: electricityAmount });
   }
 
   for (const charge of inputs.recurringCharges) {

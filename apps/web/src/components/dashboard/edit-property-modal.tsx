@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { useUpdateProperty } from "@/hooks/use-properties"
+import { useBillingPolicy, useUpdateBillingPolicy } from "@/hooks/use-billing-policy"
 import type { Property } from "@/types"
 import { ApiError } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
@@ -32,9 +33,27 @@ const schema = z.object({
   longitude: z.string().optional(),
   description: z.string().optional(),
   upiVpa: z.string().max(100).optional(),
+  rentCycleMode: z.enum(["calendar_month", "joining_anniversary"]),
+  electricityMode: z.enum(["flat", "meter"]),
+  electricityRatePerUnit: z.preprocess(
+    (value) => value === "" || value === undefined || value === null ? undefined : Number(value),
+    z.number().int().positive().optional(),
+  ),
+  flatElectricityAmount: z.preprocess(
+    (value) => value === "" || value === undefined ? undefined : Number(value),
+    z.number().int().positive().optional(),
+  ),
+}).superRefine((value, ctx) => {
+  if (value.electricityMode === "meter" && !value.electricityRatePerUnit) {
+    ctx.addIssue({ code: "custom", path: ["electricityRatePerUnit"], message: "Rate per unit is required" })
+  }
+  if (value.electricityMode === "flat" && !value.flatElectricityAmount) {
+    ctx.addIssue({ code: "custom", path: ["flatElectricityAmount"], message: "Fixed amount is required" })
+  }
 })
 
 type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
 
 interface EditPropertyModalProps {
   property: Property | null
@@ -44,9 +63,13 @@ interface EditPropertyModalProps {
 
 export function EditPropertyModal({ property, open, onOpenChange }: EditPropertyModalProps) {
   const updateProperty = useUpdateProperty(property?.id ?? "")
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { data: billingPolicy } = useBillingPolicy(property?.id ?? "")
+  const updateBillingPolicy = useUpdateBillingPolicy(property?.id ?? "")
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { rentCycleMode: "calendar_month", electricityMode: "meter" },
   })
+  const electricityMode = watch("electricityMode")
 
   useEffect(() => {
     if (!property) return
@@ -62,19 +85,29 @@ export function EditPropertyModal({ property, open, onOpenChange }: EditProperty
       longitude: property.longitude ?? "",
       description: property.description ?? "",
       upiVpa: property.upiVpa ?? "",
+      rentCycleMode: billingPolicy?.rentCycleMode ?? "calendar_month",
+      electricityMode: billingPolicy?.electricityMode ?? property.electricityMode,
+      electricityRatePerUnit: billingPolicy?.electricityRatePerUnit ?? property.electricityRatePerUnit,
+      flatElectricityAmount: billingPolicy?.flatElectricityAmount || undefined,
     })
-  }, [property, reset])
+  }, [property, billingPolicy, reset])
 
-  function onSubmit(data: FormData) {
+  async function onSubmit(data: FormData) {
     if (!property) return
-    updateProperty.mutate(data, {
-      onSuccess: () => {
-        toast.success("Property updated")
-        onOpenChange(false)
-      },
-      onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Failed to update property"),
-    })
+    const { rentCycleMode, electricityMode: mode, electricityRatePerUnit, flatElectricityAmount, ...details } = data
+    try {
+      await updateProperty.mutateAsync(details)
+      await updateBillingPolicy.mutateAsync({
+        rentCycleMode,
+        electricityMode: mode,
+        electricityRatePerUnit: mode === "meter" ? electricityRatePerUnit : null,
+        flatElectricityAmount: mode === "flat" ? flatElectricityAmount : undefined,
+      })
+      toast.success("Property updated")
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Failed to update property")
+    }
   }
 
   return (
@@ -124,6 +157,36 @@ export function EditPropertyModal({ property, open, onOpenChange }: EditProperty
             <Textarea rows={3} {...register("description")} />
           </div>
           <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Billing setup</p>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Rent starts</label>
+              <select {...register("rentCycleMode")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
+                <option value="calendar_month">Monthly from 1st</option>
+                <option value="joining_anniversary">Monthly from joining date</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Electricity billing</label>
+              <select {...register("electricityMode")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
+                <option value="meter">Meter reading</option>
+                <option value="flat">Fixed electricity charge</option>
+              </select>
+            </div>
+            {electricityMode === "meter" ? (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Rate per unit (₹) *</label>
+                <Input type="number" min={1} {...register("electricityRatePerUnit")} />
+                {errors.electricityRatePerUnit && <p className="text-xs text-destructive">{errors.electricityRatePerUnit.message}</p>}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Fixed amount per tenant/month (₹) *</label>
+                <Input type="number" min={1} {...register("flatElectricityAmount")} />
+                {errors.flatElectricityAmount && <p className="text-xs text-destructive">{errors.flatElectricityAmount.message}</p>}
+              </div>
+            )}
+          </div>
+          <div className="space-y-3">
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Payment</p>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">UPI ID (VPA)</label>
@@ -133,8 +196,8 @@ export function EditPropertyModal({ property, open, onOpenChange }: EditProperty
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" size="sm" disabled={updateProperty.isPending}>
-              {updateProperty.isPending ? "Saving..." : "Save changes"}
+            <Button type="submit" size="sm" disabled={updateProperty.isPending || updateBillingPolicy.isPending}>
+              {updateProperty.isPending || updateBillingPolicy.isPending ? "Saving..." : "Save changes"}
             </Button>
           </DialogFooter>
         </form>

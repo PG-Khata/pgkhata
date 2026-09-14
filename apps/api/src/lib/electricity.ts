@@ -64,6 +64,24 @@ export function readingPairForMonth<T extends ReadingCandidate>(
   return { first, second, units: second.reading - first.reading };
 }
 
+export type MeterReadingRequirement = "complete" | "opening" | "closing" | "opening_and_closing";
+
+/** Describes exactly what a room still needs before a metered bill can run. */
+export function meterReadingRequirement(
+  readings: ReadingCandidate[],
+  billMonth: string,
+): MeterReadingRequirement {
+  if (readingPairForMonth(readings, billMonth)) return "complete";
+  if (readingForMonth(readings, billMonth)) return "opening";
+  const match = /^(\d{4})-(\d{2})$/.exec(billMonth);
+  if (!match) return "opening_and_closing";
+  const monthStart = Date.UTC(Number(match[1]), Number(match[2]) - 1, 1);
+  const hasEarlierBaseline = readings.some(
+    (reading) => new Date(reading.readingDate).getTime() < monthStart,
+  );
+  return hasEarlierBaseline ? "closing" : "opening_and_closing";
+}
+
 /**
  * The share of a meter interval that a tenant occupied. The interval is
  * start-inclusive and end-exclusive, so a tenant joining on the second

@@ -9,6 +9,10 @@ interface InvoiceLineItem {
   amount: number
   units?: number
   ratePerUnit?: number
+  openingReading?: number
+  closingReading?: number
+  periodStart?: string
+  periodEnd?: string
 }
 
 interface InvoiceProps {
@@ -22,6 +26,8 @@ interface InvoiceProps {
   issueDate: string
   dueDate?: string | null
   billMonth: string
+  rentPeriodStart?: string | null
+  rentPeriodEnd?: string | null
   lineItems: InvoiceLineItem[]
   totalAmount: number
   paidAmount: number
@@ -40,6 +46,8 @@ export function InvoiceTemplate({
   issueDate,
   dueDate,
   billMonth,
+  rentPeriodStart,
+  rentPeriodEnd,
   lineItems,
   totalAmount,
   paidAmount,
@@ -107,6 +115,9 @@ export function InvoiceTemplate({
             <div className="flex-1">
               <p className="text-[11px] font-medium">{item.name}</p>
               <p className="text-[10px] text-[#494949]">{item.code}</p>
+              {item.code === "ELEC" && item.periodStart && item.periodEnd && (
+                <p className="text-[9px] text-[#494949]">{item.periodStart}–{item.periodEnd} · {item.openingReading}→{item.closingReading}</p>
+              )}
             </div>
             <p className="w-[75px] text-right text-[11px]">
               {item.code === "ELEC" ? `${item.units ?? 0} units` : "1"}
@@ -149,6 +160,12 @@ export function InvoiceTemplate({
             <span className="w-[75px] text-[#494949]">Bill month</span>
             <span>{billMonth}</span>
           </div>
+          {rentPeriodStart && rentPeriodEnd && (
+            <div className="flex gap-3">
+              <span className="w-[75px] text-[#494949]">Rent period</span>
+              <span>{formatDateShort(rentPeriodStart)} – {formatDateShort(new Date(new Date(rentPeriodEnd).getTime() - 86_400_000).toISOString())}</span>
+            </div>
+          )}
           <div className="flex gap-3">
             <span className="w-[75px] text-[#494949]">Total</span>
             <span>{formatCurrency(totalAmount)}</span>

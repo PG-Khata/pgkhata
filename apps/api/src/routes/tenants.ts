@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db, tenant, room, bed, bill, advancePayment, securityDeposit, payment } from "@pgkhata/db";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc, sql, ilike, or } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { requireProperty } from "../middleware/property";
 import { param, HttpError } from "../lib/http";
@@ -53,6 +53,10 @@ const assignSchema = z
   .refine((value) => value.bedId || value.roomId, {
     message: "Provide a bed or a room to assign",
   });
+const tenantListSchema = z.object({
+  status: z.enum(["pending", "active", "vacating", "vacated", "rejected"]).optional(),
+  search: z.string().trim().min(1).max(100).optional(),
+});
 
 router.use(requireAuth, requireOwner, requireProperty);
 
@@ -69,11 +73,14 @@ function tenantSelection() {
 router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const page = pagination(req);
-    const status = req.query.status as string | undefined;
-
-    const where = status
-      ? and(eq(tenant.propertyId, req.propertyId!), eq(tenant.status, status))
-      : eq(tenant.propertyId, req.propertyId!);
+    const { status, search } = tenantListSchema.parse(req.query);
+    const where = and(
+      eq(tenant.propertyId, req.propertyId!),
+      status ? eq(tenant.status, status) : undefined,
+      search
+        ? or(ilike(tenant.name, `%${search}%`), ilike(tenant.phone, `%${search}%`))
+        : undefined,
+    );
 
     const tenants = await db
       .select(tenantSelection())
@@ -91,6 +98,9 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         roomNumber: row.roomNumber,
       })), page);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.issues });
+    }
     res.status(500).json({ error: "Failed to fetch tenants" });
   }
 });

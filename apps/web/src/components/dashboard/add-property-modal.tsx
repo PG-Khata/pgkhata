@@ -30,9 +30,27 @@ const schema = z.object({
   longitude: z.string().optional(),
   description: z.string().optional(),
   upiVpa: z.string().max(100).optional(),
+  rentCycleMode: z.enum(["calendar_month", "joining_anniversary"]),
+  electricityMode: z.enum(["flat", "meter"]),
+  electricityRatePerUnit: z.preprocess(
+    (value) => value === "" || value === undefined ? undefined : Number(value),
+    z.number().int().positive().optional(),
+  ),
+  flatElectricityAmount: z.preprocess(
+    (value) => value === "" || value === undefined ? undefined : Number(value),
+    z.number().int().positive().optional(),
+  ),
+}).superRefine((value, ctx) => {
+  if (value.electricityMode === "meter" && !value.electricityRatePerUnit) {
+    ctx.addIssue({ code: "custom", path: ["electricityRatePerUnit"], message: "Rate per unit is required" })
+  }
+  if (value.electricityMode === "flat" && !value.flatElectricityAmount) {
+    ctx.addIssue({ code: "custom", path: ["flatElectricityAmount"], message: "Fixed amount is required" })
+  }
 })
 
 type FormData = z.infer<typeof schema>
+type FormInput = z.input<typeof schema>
 
 interface AddPropertyModalProps {
   open: boolean
@@ -46,14 +64,25 @@ export function AddPropertyModal({ open, onOpenChange }: AddPropertyModalProps) 
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
-  } = useForm<FormData>({
+  } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
+    defaultValues: {
+      rentCycleMode: "calendar_month",
+      electricityMode: "meter",
+    },
   })
+
+  const electricityMode = watch("electricityMode")
 
   function onSubmit(data: FormData) {
     createProperty.mutate(
-      { ...data, electricityMode: "flat" },
+      {
+        ...data,
+        electricityRatePerUnit: data.electricityMode === "meter" ? data.electricityRatePerUnit : undefined,
+        flatElectricityAmount: data.electricityMode === "flat" ? data.flatElectricityAmount : undefined,
+      },
       {
         onSuccess: () => {
           toast.success("Property created")
@@ -155,6 +184,47 @@ export function AddPropertyModal({ open, onOpenChange }: AddPropertyModalProps) 
               rows={3}
               {...register("description")}
             />
+          </div>
+
+          {/* Billing */}
+          <div>
+            <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Billing setup
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Rent starts</label>
+                <select {...register("rentCycleMode")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
+                  <option value="calendar_month">Monthly from 1st</option>
+                  <option value="joining_anniversary">Monthly from joining date</option>
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {watch("rentCycleMode") === "calendar_month"
+                    ? "Example: joining on 13 Sep is charged only through 30 Sep; the next month starts on 1 Oct."
+                    : "Example: joining on 13 Sep creates a full-rent cycle from 13 Sep to 12 Oct."}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Electricity billing</label>
+                <select {...register("electricityMode")} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm">
+                  <option value="meter">Meter reading</option>
+                  <option value="flat">Fixed electricity charge</option>
+                </select>
+              </div>
+              {electricityMode === "meter" ? (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Rate per unit (₹) *</label>
+                  <Input type="number" min={1} placeholder="8" {...register("electricityRatePerUnit")} />
+                  {errors.electricityRatePerUnit && <p className="text-xs text-destructive">{errors.electricityRatePerUnit.message}</p>}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Fixed amount per tenant/month (₹) *</label>
+                  <Input type="number" min={1} placeholder="500" {...register("flatElectricityAmount")} />
+                  {errors.flatElectricityAmount && <p className="text-xs text-destructive">{errors.flatElectricityAmount.message}</p>}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Payment */}

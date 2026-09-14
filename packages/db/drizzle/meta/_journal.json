@@ -218,6 +218,13 @@
       "when": 1789155281331,
       "tag": "0030_add_message_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789329385023,
+      "tag": "0031_dapper_scarecrow",
+      "breakpoints": true
     }
   ]
 }

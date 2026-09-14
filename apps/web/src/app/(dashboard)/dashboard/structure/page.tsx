@@ -221,7 +221,7 @@ export default function StructurePage() {
                   <div>
                     <p className="font-medium">Room {r.number}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.type} · Capacity {r.capacity} · ₹{r.monthlyRent}/mo
+                      {r.type} · Capacity {r.capacity} · ₹{r.planRent ?? r.monthlyRent}/mo
                     </p>
                   </div>
                 </div>

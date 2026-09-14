@@ -1,15 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { db, property, bed, room, tenant, complaint } from "@pgkhata/db";
+import { db, property, bed, room, tenant, complaint, billingPolicy, chargeType } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
 import { param, aggregate } from "../lib/http";
-import { seedElectricityChargeType } from "../lib/charge-types";
+import { ELECTRICITY_CODE } from "../lib/charge-types";
 import { pagination, sendPage } from "../lib/pagination";
 
 const router = Router();
 
-const createPropertySchema = z.object({
+const propertyFieldsSchema = z.object({
   name: z.string().min(1).max(100),
   code: z.string().max(20).optional(),
   address: z.string().optional(),
@@ -20,12 +20,25 @@ const createPropertySchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   description: z.string().optional(),
-  electricityMode: z.enum(["flat", "meter"]).default("flat"),
+  electricityMode: z.enum(["flat", "meter"]),
   electricityRatePerUnit: z.number().optional(),
   upiVpa: z.string().max(100).optional(),
 });
 
-const updatePropertySchema = createPropertySchema.partial();
+const createPropertySchema = propertyFieldsSchema.extend({
+  rentCycleMode: z.enum(["calendar_month", "joining_anniversary"]).default("calendar_month"),
+  electricityMode: z.enum(["flat", "meter"]).optional(),
+  flatElectricityAmount: z.number().int().positive().optional(),
+}).superRefine((value, ctx) => {
+  if ((value.electricityMode === "meter" || (!value.electricityMode && value.electricityRatePerUnit)) && (!value.electricityRatePerUnit || value.electricityRatePerUnit <= 0)) {
+    ctx.addIssue({ code: "custom", path: ["electricityRatePerUnit"], message: "Rate per unit must be greater than zero" });
+  }
+  if (value.electricityMode === "flat" && (!value.flatElectricityAmount || value.flatElectricityAmount <= 0)) {
+    ctx.addIssue({ code: "custom", path: ["flatElectricityAmount"], message: "Fixed electricity amount must be greater than zero" });
+  }
+});
+
+const updatePropertySchema = propertyFieldsSchema.partial();
 
 // Get all properties for owner
 router.get("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
@@ -307,21 +320,33 @@ router.get("/:id", requireAuth, requireOwner, async (req: AuthenticatedRequest, 
 router.post("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
   try {
     const body = createPropertySchema.parse(req.body);
+    const { rentCycleMode, flatElectricityAmount, electricityMode: requestedMode, ...propertyData } = body;
+    // Legacy API clients omitted this field. Preserve their old flat/no-charge
+    // behavior while every current UI sends an explicit, validated choice.
+    const electricityMode = requestedMode ?? (propertyData.electricityRatePerUnit ? "meter" : "flat");
+    const newProperty = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(property)
+        .values({
+          ...propertyData,
+          electricityMode,
+          electricityRatePerUnit: electricityMode === "meter" ? propertyData.electricityRatePerUnit : null,
+          ownerId: req.ownerId!,
+        })
+        .returning();
+      if (!created) throw new Error("PROPERTY_CREATE_FAILED");
 
-    const [newProperty] = await db
-      .insert(property)
-      .values({
-        ...body,
-        ownerId: req.ownerId!,
-      })
-      .returning();
-
-    if (newProperty) {
-      // Every property bills electricity today, so the one charge type
-      // billing depends on must exist from the start rather than being
-      // something an owner has to remember to create.
-      await seedElectricityChargeType(newProperty.id);
-    }
+      await tx.insert(billingPolicy).values({ propertyId: created.id, rentCycleMode });
+      await tx.insert(chargeType).values({
+        propertyId: created.id,
+        name: "Electricity",
+        code: ELECTRICITY_CODE,
+        defaultAmount: electricityMode === "flat" ? flatElectricityAmount ?? 0 : 0,
+        isRecurring: true,
+        isActive: true,
+      });
+      return created;
+    });
 
     res.status(201).json(newProperty);
   } catch (error) {
@@ -336,6 +361,10 @@ router.post("/", requireAuth, requireOwner, async (req: AuthenticatedRequest, re
 router.put("/:id", requireAuth, requireOwner, async (req: AuthenticatedRequest, res) => {
   try {
     const body = updatePropertySchema.parse(req.body);
+
+    if (body.electricityMode === "meter" && (!body.electricityRatePerUnit || body.electricityRatePerUnit <= 0)) {
+      return res.status(400).json({ error: "Rate per unit must be greater than zero for meter billing" });
+    }
 
     const [updated] = await db
       .update(property)

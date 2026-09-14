@@ -5,6 +5,7 @@ import {
   readingForMonth,
   readingPairForMonth,
   rentProrationForMonth,
+  meterReadingRequirement,
 } from "../lib/electricity";
 
 describe("allocateExactAmount", () => {
@@ -92,6 +93,17 @@ describe("readingForMonth", () => {
     expect(pair?.units).toBe(100);
     expect(pair?.first.reading).toBe(1010);
     expect(pair?.second.reading).toBe(1110);
+  });
+
+  it("describes the readings still required before billing", () => {
+    expect(meterReadingRequirement([], "2026-05")).toBe("opening_and_closing");
+    expect(meterReadingRequirement([{ readingDate: "2026-04-30", reading: 100 }], "2026-05")).toBe("closing");
+    expect(meterReadingRequirement([{ readingDate: "2026-05-31", reading: 150 }], "2026-05")).toBe("opening");
+    expect(meterReadingRequirement([{ readingDate: "2026-06-30", reading: 200 }], "2026-05")).toBe("opening_and_closing");
+    expect(meterReadingRequirement([
+      { readingDate: "2026-04-30", reading: 100 },
+      { readingDate: "2026-05-31", reading: 150 },
+    ], "2026-05")).toBe("complete");
   });
 
   it("charges a mid-month tenant only for their occupied reading days", () => {

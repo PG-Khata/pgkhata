@@ -82,6 +82,16 @@ describe("calculateBill", () => {
     expect(result.lineItems.some((line) => line.code === "ELEC")).toBe(false);
   });
 
+  it("adds a fixed electricity amount without meter-only fields", () => {
+    const result = calculateBill({
+      ...base(),
+      electricity: { occupants: 1, amountOverride: 500 },
+    });
+
+    expect(result.electricityAmount).toBe(500);
+    expect(result.lineItems).toContainEqual({ code: "ELEC", name: "Electricity", amount: 500 });
+  });
+
   it("floors occupants at 1 so a room with zero active tenants does not divide by zero", () => {
     const result = calculateBill({
       ...base(),

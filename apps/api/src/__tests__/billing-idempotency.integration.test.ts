@@ -30,7 +30,7 @@ describeDb("bill generation idempotency (database)", () => {
     const createProperty = await request(app)
       .post("/v1/properties")
       .set("Cookie", cookie)
-      .send({ name: `Idempotency PG ${suffix}`, electricityMode: "flat" });
+      .send({ name: `Idempotency PG ${suffix}`, electricityMode: "flat", flatElectricityAmount: 500 });
     expect(createProperty.status).toBe(201);
     propertyId = createProperty.body.id;
 
@@ -104,6 +104,26 @@ describeDb("bill generation idempotency (database)", () => {
 
     expect(list.status).toBe(200);
     expect(list.body).toHaveLength(1);
+
+    const matchingStatus = await request(app)
+      .get(`/v1/properties/${propertyId}/bills?month=2026-05&status=${list.body[0].status}`)
+      .set("Cookie", cookie);
+    expect(matchingStatus.status).toBe(200);
+    expect(matchingStatus.body).toHaveLength(1);
+
+    const paidOnly = await request(app)
+      .get(`/v1/properties/${propertyId}/bills?month=2026-05&status=paid`)
+      .set("Cookie", cookie);
+    expect(paidOnly.status).toBe(200);
+    expect(paidOnly.body).toHaveLength(0);
+  });
+
+  it("rejects an unknown bill status filter", async () => {
+    const response = await request(app)
+      .get(`/v1/properties/${propertyId}/bills?status=unknown`)
+      .set("Cookie", cookie);
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("Validation error");
   });
 
   it("rejects a malformed month rather than generating", async () => {

@@ -11,14 +11,14 @@ export const ELECTRICITY_CODE = "ELEC";
  * calling this twice — or from two concurrent property-create requests —
  * never produces a duplicate or an error.
  */
-export async function seedElectricityChargeType(propertyId: string): Promise<void> {
+export async function seedElectricityChargeType(propertyId: string, defaultAmount = 0): Promise<void> {
   await db
     .insert(chargeType)
     .values({
       propertyId,
       name: "Electricity",
       code: ELECTRICITY_CODE,
-      defaultAmount: 0,
+      defaultAmount,
       isRecurring: true,
       isActive: true,
     })

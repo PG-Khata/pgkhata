@@ -37,6 +37,29 @@ export interface Property {
   occupiedBeds?: number
 }
 
+export type RentCycleMode = "calendar_month" | "joining_anniversary"
+
+export interface BillingPolicy {
+  id: string
+  propertyId: string
+  advanceHandlingMode: "manual" | "auto_adjust"
+  bookingExpiryDays: number
+  autoAllocatePayments: boolean
+  rentCycleMode: RentCycleMode
+  electricityMode: "flat" | "meter"
+  electricityRatePerUnit?: number | null
+  flatElectricityAmount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreatePropertyInput = Pick<Property, "name"> & Partial<Omit<Property, "id" | "ownerId" | "name" | "createdAt" | "updatedAt">> & {
+  electricityMode: "flat" | "meter"
+  electricityRatePerUnit?: number
+  flatElectricityAmount?: number
+  rentCycleMode: RentCycleMode
+}
+
 export interface Floor {
   id: string
   propertyId: string
@@ -253,6 +276,10 @@ export interface BillLineItem {
   amount: number
   units?: number
   ratePerUnit?: number
+  openingReading?: number
+  closingReading?: number
+  periodStart?: string
+  periodEnd?: string
 }
 
 export interface Bill {
@@ -267,6 +294,9 @@ export interface Bill {
   balance: number
   status: "pending" | "partial" | "paid" | "overdue"
   dueDate?: string | null
+  rentPeriodStart?: string | null
+  rentPeriodEnd?: string | null
+  rentCycleMode?: RentCycleMode | null
   approved: boolean
   voidedAt?: string | null
   promisedDate?: string | null

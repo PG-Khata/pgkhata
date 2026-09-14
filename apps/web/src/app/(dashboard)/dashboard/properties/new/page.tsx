@@ -17,11 +17,23 @@ const schema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   pincode: z.string().optional(),
+  rentCycleMode: z.enum(["calendar_month", "joining_anniversary"]),
   electricityMode: z.enum(["flat", "meter"]),
   electricityRatePerUnit: z.preprocess(
     (v) => (v === "" || v === undefined ? undefined : Number(v)),
-    z.number().min(0).optional(),
+    z.number().int().positive().optional(),
   ),
+  flatElectricityAmount: z.preprocess(
+    (v) => (v === "" || v === undefined ? undefined : Number(v)),
+    z.number().int().positive().optional(),
+  ),
+}).superRefine((value, ctx) => {
+  if (value.electricityMode === "meter" && !value.electricityRatePerUnit) {
+    ctx.addIssue({ code: "custom", path: ["electricityRatePerUnit"], message: "Rate per unit is required" })
+  }
+  if (value.electricityMode === "flat" && !value.flatElectricityAmount) {
+    ctx.addIssue({ code: "custom", path: ["flatElectricityAmount"], message: "Fixed amount is required" })
+  }
 })
 
 type FormData = z.infer<typeof schema>
@@ -38,7 +50,7 @@ export default function NewPropertyPage() {
     formState: { errors },
   } = useForm<FormInput, unknown, FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { electricityMode: "flat" },
+    defaultValues: { electricityMode: "meter", rentCycleMode: "calendar_month" },
   })
 
   const electricityMode = watch("electricityMode")
@@ -91,24 +103,44 @@ export default function NewPropertyPage() {
         </div>
 
         <div className="space-y-1.5">
+          <label className="text-sm font-medium">Rent starts</label>
+          <select
+            {...register("rentCycleMode")}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+          >
+            <option value="calendar_month">Monthly from 1st</option>
+            <option value="joining_anniversary">Monthly from joining date</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
           <label className="text-sm font-medium">Electricity billing</label>
           <select
             {...register("electricityMode")}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
           >
-            <option value="flat">Flat rate</option>
-            <option value="meter">Per unit (metered)</option>
+            <option value="meter">Meter reading</option>
+            <option value="flat">Fixed electricity charge</option>
           </select>
         </div>
 
         {electricityMode === "meter" && (
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Rate per unit (₹)</label>
+            <label className="text-sm font-medium">Rate per unit (₹) *</label>
             <Input
               type="number"
               placeholder="8"
               {...register("electricityRatePerUnit")}
             />
+            {errors.electricityRatePerUnit && <p className="text-xs text-destructive">{errors.electricityRatePerUnit.message}</p>}
+          </div>
+        )}
+
+        {electricityMode === "flat" && (
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Fixed amount per tenant/month (₹) *</label>
+            <Input type="number" min={1} placeholder="500" {...register("flatElectricityAmount")} />
+            {errors.flatElectricityAmount && <p className="text-xs text-destructive">{errors.flatElectricityAmount.message}</p>}
           </div>
         )}
 

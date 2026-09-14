@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { emailOTP } from "better-auth/plugins";
+import { bearer, emailOTP } from "better-auth/plugins";
 import { db } from "@pgkhata/db";
 import { sendEmail, passwordResetEmail, emailVerificationOtpEmail } from "@pgkhata/email";
 import { ensureOwnerProfile, type OwnerProfileWriter } from "./owner-profile";
@@ -113,6 +113,11 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24, // 1 day
   },
   plugins: [
+    // Native clients cannot rely on a browser cookie jar. The bearer plugin
+    // exposes the signed Better Auth session token in `set-auth-token` after
+    // sign-in and turns it back into the normal session cookie server-side.
+    // Web clients continue to use the existing secure cookie flow.
+    bearer({ requireSignature: true }),
     emailOTP({
       otpLength: 6,
       expiresIn: 300,

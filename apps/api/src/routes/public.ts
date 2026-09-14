@@ -121,7 +121,7 @@ router.get("/invoice/:token", async (req, res) => {
       .from(bill).innerJoin(tenant, eq(bill.tenantId, tenant.id)).innerJoin(property, eq(tenant.propertyId, property.id))
       .leftJoin(room, eq(tenant.roomId, room.id)).where(eq(bill.accessToken, req.params.token)).limit(1);
     if (!row || row.bill.voidedAt) return res.status(404).json({ error: "Invoice not found" });
-    res.json({ invoice: { month: row.bill.billMonth, lineItems: row.bill.lineItems, totalAmount: row.bill.totalAmount, paidAmount: row.bill.paidAmount, balance: row.bill.balance, status: row.bill.status, dueDate: row.bill.dueDate, tenantName: row.tenantName, propertyName: row.propertyName, roomNumber: row.roomNumber, upiVpa: row.upiVpa } });
+    res.json({ invoice: { month: row.bill.billMonth, rentPeriodStart: row.bill.rentPeriodStart, rentPeriodEnd: row.bill.rentPeriodEnd, lineItems: row.bill.lineItems, totalAmount: row.bill.totalAmount, paidAmount: row.bill.paidAmount, balance: row.bill.balance, status: row.bill.status, dueDate: row.bill.dueDate, tenantName: row.tenantName, propertyName: row.propertyName, roomNumber: row.roomNumber, upiVpa: row.upiVpa } });
   } catch { res.status(500).json({ error: "Failed to fetch invoice" }); }
 });
 

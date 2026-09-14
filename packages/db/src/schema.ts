@@ -140,29 +140,39 @@ export const ownerProfile = pgTable(
   ],
 );
 
-export const property = pgTable("property", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  ownerId: uuid("owner_id")
-    .notNull()
-    .references(() => ownerProfile.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  code: text("code"),
-  address: text("address"),
-  landmark: text("landmark"),
-  city: text("city"),
-  state: text("state"),
-  pincode: text("pincode"),
-  latitude: text("latitude"),
-  longitude: text("longitude"),
-  description: text("description"),
-  electricityMode: text("electricity_mode").notNull().default("flat"),
-  electricityRatePerUnit: integer("electricity_rate_per_unit"),
-  upiVpa: text("upi_vpa"),
-  signupToken: text("signup_token").unique(),
-  complaintToken: text("complaint_token").unique(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const property = pgTable(
+  "property",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => ownerProfile.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    code: text("code"),
+    address: text("address"),
+    landmark: text("landmark"),
+    city: text("city"),
+    state: text("state"),
+    pincode: text("pincode"),
+    latitude: text("latitude"),
+    longitude: text("longitude"),
+    description: text("description"),
+    electricityMode: text("electricity_mode").notNull().default("flat"),
+    electricityRatePerUnit: integer("electricity_rate_per_unit"),
+    upiVpa: text("upi_vpa"),
+    signupToken: text("signup_token").unique(),
+    complaintToken: text("complaint_token").unique(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    check("property_electricity_mode_check", sql`${table.electricityMode} in ('flat', 'meter')`),
+    check(
+      "property_meter_rate_required",
+      sql`${table.electricityMode} <> 'meter' or ${table.electricityRatePerUnit} > 0`,
+    ),
+  ],
+);
 
 export const floor = pgTable(
   "floor",
@@ -477,6 +487,10 @@ export const bill = pgTable(
     status: text("status").notNull().default("pending"),
     /** Calendar due date in the property's Asia/Kolkata business calendar. */
     dueDate: date("due_date", { mode: "date" }),
+    /** Rent service period. End is exclusive so date arithmetic is unambiguous. */
+    rentPeriodStart: date("rent_period_start", { mode: "date" }),
+    rentPeriodEnd: date("rent_period_end", { mode: "date" }),
+    rentCycleMode: text("rent_cycle_mode"),
     approved: boolean("approved").notNull().default(false),
     voidedAt: timestamp("voided_at"),
     /** Tenant's promised payment date; late fees are suspended until this date. */
@@ -508,6 +522,14 @@ export const bill = pgTable(
     check(
       "bill_balance_consistent",
       sql`${table.voidedAt} is not null or (${table.paidAmount} <= ${table.totalAmount} and ${table.balance} = ${table.totalAmount} - ${table.paidAmount})`,
+    ),
+    check(
+      "bill_rent_cycle_mode_check",
+      sql`${table.rentCycleMode} is null or ${table.rentCycleMode} in ('calendar_month', 'joining_anniversary')`,
+    ),
+    check(
+      "bill_rent_period_complete",
+      sql`(${table.rentPeriodStart} is null and ${table.rentPeriodEnd} is null and ${table.rentCycleMode} is null) or (${table.rentPeriodStart} is not null and ${table.rentPeriodEnd} > ${table.rentPeriodStart} and ${table.rentCycleMode} is not null)`,
     ),
   ],
 );
@@ -886,9 +908,16 @@ export const billingPolicy = pgTable("billing_policy", {
   advanceHandlingMode: text("advance_handling_mode").notNull().default("manual"), // manual, auto_adjust
   bookingExpiryDays: integer("booking_expiry_days").notNull().default(3),
   autoAllocatePayments: boolean("auto_allocate_payments").notNull().default(false),
+  rentCycleMode: text("rent_cycle_mode").notNull().default("calendar_month"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [uniqueIndex("billing_policy_property_uq").on(table.propertyId)]);
+}, (table) => [
+  uniqueIndex("billing_policy_property_uq").on(table.propertyId),
+  check(
+    "billing_policy_rent_cycle_mode_check",
+    sql`${table.rentCycleMode} in ('calendar_month', 'joining_anniversary')`,
+  ),
+]);
 
 export const notificationPreference = pgTable("notification_preference", {
   id: uuid("id").primaryKey().defaultRandom(),

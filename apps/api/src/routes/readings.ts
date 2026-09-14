@@ -163,23 +163,52 @@ router.post("/", async (req: AuthenticatedRequest, res) => {
 router.post("/batch", async (req: AuthenticatedRequest, res) => {
   try {
     const { readings } = batchReadingSchema.parse(req.body);
-    if (new Set(readings.map((r) => r.roomId)).size !== readings.length) {
-      return res.status(400).json({ error: "Only one reading per room can be saved at a time" });
-    }
     const created = await db.transaction(async (tx) => {
       const rows: (typeof electricityReading.$inferSelect)[] = [];
+      const byRoom = new Map<string, typeof readings>();
       for (const input of readings) {
+        const bucket = byRoom.get(input.roomId);
+        if (bucket) bucket.push(input);
+        else byRoom.set(input.roomId, [input]);
+      }
+
+      for (const [roomId, inputs] of byRoom) {
         const [owned] = await tx.select({ id: room.id }).from(room)
-          .where(and(eq(room.id, input.roomId), eq(room.propertyId, req.propertyId!))).limit(1);
+          .where(and(eq(room.id, roomId), eq(room.propertyId, req.propertyId!))).limit(1);
         if (!owned) throw new Error("ROOM_NOT_FOUND");
-        const [previous] = await tx.select().from(electricityReading)
-          .where(eq(electricityReading.roomId, input.roomId)).orderBy(desc(electricityReading.readingDate)).limit(1);
-        if (previous && (input.readingDate <= previous.readingDate || input.reading < previous.reading)) {
-          throw new Error("INVALID_READING_POSITION");
+
+        const existing = await tx.select().from(electricityReading)
+          .where(eq(electricityReading.roomId, roomId)).orderBy(asc(electricityReading.readingDate));
+        const timeline = [
+          ...existing.map((row) => ({ kind: "existing" as const, row, reading: row.reading, readingDate: row.readingDate })),
+          ...inputs.map((input) => ({ kind: "input" as const, input, reading: input.reading, readingDate: input.readingDate })),
+        ].sort((a, b) => a.readingDate.getTime() - b.readingDate.getTime());
+
+        for (let index = 0; index < timeline.length; index += 1) {
+          const current = timeline[index]!;
+          const previous = timeline[index - 1];
+          if (previous && (current.readingDate.getTime() === previous.readingDate.getTime() || current.reading < previous.reading)) {
+            throw new Error("INVALID_READING_POSITION");
+          }
         }
-        const [row] = await tx.insert(electricityReading).values({ roomId: input.roomId, reading: input.reading, readingDate: input.readingDate, units: previous ? input.reading - previous.reading : 0 }).returning();
-        if (!row) throw new Error("FAILED_TO_CREATE_READING");
-        rows.push(row);
+
+        for (let index = 0; index < timeline.length; index += 1) {
+          const current = timeline[index]!;
+          const previous = timeline[index - 1];
+          const units = previous ? current.reading - previous.reading : 0;
+          if (current.kind === "input") {
+            const [row] = await tx.insert(electricityReading).values({
+              roomId,
+              reading: current.reading,
+              readingDate: current.readingDate,
+              units,
+            }).returning();
+            if (!row) throw new Error("FAILED_TO_CREATE_READING");
+            rows.push(row);
+          } else if (current.row.units !== units) {
+            await tx.update(electricityReading).set({ units }).where(eq(electricityReading.id, current.row.id));
+          }
+        }
       }
       return rows;
     });

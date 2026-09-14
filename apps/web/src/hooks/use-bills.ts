@@ -30,7 +30,17 @@ export function useGenerateBills(propertyId: string) {
   })
 }
 
-export type MeterPreflight = { complete: boolean; missingRooms: Array<{ roomId: string; roomNumber: string; tenants: Array<{ id: string; name: string }>; latestReading: { reading: number; readingDate: string } | null }> }
+export type MeterPreflight = {
+  complete: boolean
+  missingRooms: Array<{
+    roomId: string
+    roomNumber: string
+    tenants: Array<{ id: string; name: string }>
+    requirement: "opening" | "closing" | "opening_and_closing"
+    latestReading: { reading: number; readingDate: string } | null
+    closingReading: { reading: number; readingDate: string } | null
+  }>
+}
 
 export function useBillingPreflight(propertyId: string) {
   return useMutation({ mutationFn: (data: { month: string; tenantId?: string }) =>

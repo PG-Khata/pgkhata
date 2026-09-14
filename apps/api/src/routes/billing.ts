@@ -11,6 +11,7 @@ import {
   electricityReading,
   billAdjustment,
   occupancyHistory,
+  billingPolicy,
 } from "@pgkhata/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { AuthenticatedRequest, requireAuth, requireOwner } from "../middleware/auth";
@@ -22,9 +23,10 @@ import {
   allocateExactAmount,
   readingForMonth,
   readingPairForMonth,
-  rentProrationForMonth,
+  meterReadingRequirement,
 } from "../lib/electricity";
 import { computeDueDate, isOverdue } from "../lib/due-date";
+import { resolveRentPeriod, type RentCycleMode } from "../lib/rent-cycle";
 import { calculateLateFee } from "../lib/late-fee";
 import {
   deliverBill,
@@ -47,26 +49,53 @@ const applyLateFeesSchema = z.object({
   asOf: z.string().optional(),
 });
 const deliverySchema = z.object({ channels: z.array(z.enum(["email", "whatsapp"])).min(1) });
+const billListSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "Format: YYYY-MM").optional(),
+  status: z.enum(["draft", "pending", "partial", "paid", "overdue", "voided"]).optional(),
+});
 
 router.use(requireAuth, requireOwner, requireProperty);
 
-async function missingMeterReadings(propertyId: string, month: string, tenantId?: string) {
+async function rentCycleModeForProperty(propertyId: string): Promise<RentCycleMode> {
+  const [policy] = await db.select({ rentCycleMode: billingPolicy.rentCycleMode })
+    .from(billingPolicy).where(eq(billingPolicy.propertyId, propertyId)).limit(1);
+  return policy?.rentCycleMode === "joining_anniversary" ? "joining_anniversary" : "calendar_month";
+}
+
+async function missingMeterReadings(
+  propertyId: string,
+  month: string,
+  rentCycleMode: RentCycleMode,
+  tenantId?: string,
+) {
   const active = await db.select({ tenant: tenant, room: room })
     .from(tenant).leftJoin(room, eq(tenant.roomId, room.id))
     .where(tenantId
       ? and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active"), eq(tenant.id, tenantId))
       : and(eq(tenant.propertyId, propertyId), eq(tenant.status, "active")));
-  const billable = active.filter((row) => row.room && rentProrationForMonth(row.tenant.joiningDate, month) > 0);
+  const billable = active.filter((row) => row.room && resolveRentPeriod(row.tenant.joiningDate, month, rentCycleMode).billable);
   const roomIds = [...new Set(billable.map((row) => row.room!.id))];
   if (!roomIds.length) return [];
   const all = await db.select({ roomId: electricityReading.roomId, reading: electricityReading.reading, readingDate: electricityReading.readingDate })
     .from(electricityReading).where(inArray(electricityReading.roomId, roomIds));
   return roomIds.flatMap((roomId) => {
     const readings = all.filter((r) => r.roomId === roomId);
-    if (readingForMonth(readings, month)) return [];
+    const requirement = meterReadingRequirement(readings, month);
+    if (requirement === "complete") return [];
     const occupants = billable.filter((row) => row.room!.id === roomId);
-    const latest = readings.reduce<typeof readings[number] | undefined>((last, current) => !last || current.readingDate > last.readingDate ? current : last, undefined);
-    return [{ roomId, roomNumber: occupants[0]!.room!.number, tenants: occupants.map((row) => ({ id: row.tenant.id, name: row.tenant.name })), latestReading: latest ? { reading: latest.reading, readingDate: latest.readingDate } : null }];
+    const [year, monthNumber] = month.split("-").map(Number);
+    const monthEnd = new Date(Date.UTC(year!, monthNumber!, 1));
+    const relevantReadings = readings.filter((reading) => reading.readingDate < monthEnd);
+    const latest = relevantReadings.reduce<typeof readings[number] | undefined>((last, current) => !last || current.readingDate > last.readingDate ? current : last, undefined);
+    const closing = readingForMonth(readings, month);
+    return [{
+      roomId,
+      roomNumber: occupants[0]!.room!.number,
+      tenants: occupants.map((row) => ({ id: row.tenant.id, name: row.tenant.name })),
+      requirement,
+      latestReading: latest ? { reading: latest.reading, readingDate: latest.readingDate } : null,
+      closingReading: closing ? { reading: closing.reading, readingDate: closing.readingDate } : null,
+    }];
   });
 }
 
@@ -76,7 +105,8 @@ router.get("/preflight", async (req: AuthenticatedRequest, res) => {
   try {
     const { month, tenantId } = generateBillsSchema.parse(req.query);
     if (req.property!.electricityMode !== "meter") return res.json({ complete: true, missingRooms: [] });
-    const missingRooms = await missingMeterReadings(req.propertyId!, month, tenantId);
+    const rentCycleMode = await rentCycleModeForProperty(req.propertyId!);
+    const missingRooms = await missingMeterReadings(req.propertyId!, month, rentCycleMode, tenantId);
     res.json({ complete: missingRooms.length === 0, missingRooms });
   } catch (error) {
     if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation error", details: error.issues });
@@ -89,11 +119,12 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
   try {
     const page = pagination(req);
     await reconcileOverdueStatuses([req.propertyId!]);
-    const month = req.query.month as string | undefined;
-
-    const where = month
-      ? and(eq(tenant.propertyId, req.propertyId!), eq(bill.billMonth, month))
-      : eq(tenant.propertyId, req.propertyId!);
+    const { month, status } = billListSchema.parse(req.query);
+    const where = and(
+      eq(tenant.propertyId, req.propertyId!),
+      month ? eq(bill.billMonth, month) : undefined,
+      status ? eq(bill.status, status) : undefined,
+    );
 
     const bills = await db
       .select({
@@ -114,6 +145,9 @@ router.get("/", async (req: AuthenticatedRequest, res) => {
         roomNumber: row.roomNumber,
       })), page);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Validation error", details: error.issues });
+    }
     console.error("[Billing] List error:", error);
     res.status(500).json({ error: "Failed to fetch bills" });
   }
@@ -169,8 +203,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
   try {
     const { month, tenantId } = generateBillsSchema.parse(req.body);
     const prop = req.property!;
+    const rentCycleMode = await rentCycleModeForProperty(req.propertyId!);
     if (prop.electricityMode === "meter") {
-      const missingRooms = await missingMeterReadings(req.propertyId!, month, tenantId);
+      const missingRooms = await missingMeterReadings(req.propertyId!, month, rentCycleMode, tenantId);
       if (missingRooms.length) return res.status(409).json({ error: "Meter readings are required before billing", missingRooms });
     }
 
@@ -201,6 +236,12 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
           sql`${chargeType.code} <> 'ELEC'`,
         ),
       );
+
+    const [electricityCharge] = await db
+      .select({ amount: chargeType.defaultAmount })
+      .from(chargeType)
+      .where(and(eq(chargeType.propertyId, req.propertyId!), eq(chargeType.code, "ELEC")))
+      .limit(1);
 
     const roomIds = [
       ...new Set(activeTenants.map((row) => row.room?.id).filter((id): id is string => Boolean(id))),
@@ -316,8 +357,8 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
         // Do not create a historical bill for someone who had not moved in.
         // This also makes a late billing run safe: its result is anchored to
         // the requested month and tenant move-in date, never today's date.
-        const rentProration = rentProrationForMonth(t.joiningDate, month);
-        if (rentProration === 0) continue;
+        const rentPeriod = resolveRentPeriod(t.joiningDate, month, rentCycleMode);
+        if (!rentPeriod.billable) continue;
 
         // Electricity is defined by the first and second actual meter
         // readings, not by the date a bill happens to be generated. The
@@ -348,31 +389,41 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             )
           : 0;
 
-        const calculated = calculateBill({
-          rent: {
-            tenantOverride: t.monthlyRentOverride,
-            bedRent: b?.monthlyRent,
-            planRent: plan?.monthlyRent,
-            roomRent: r.monthlyRent,
-            proration: rentProration,
-          },
-          electricity: {
-            ratePerUnit: prop.electricityRatePerUnit,
-            unitsForMonth: readingPair?.units,
-            occupants: roomOccupants.length || 1,
-            occupancyShare: totalOccupancyDays > 0 ? tenantOccupancyDays / totalOccupancyDays : undefined,
-            amountOverride: electricityByTenant.get(t.id) ?? 0,
-          },
-          recurringCharges,
-        });
-
-        // Check if a bill already exists for this tenant+month
+        // An issued invoice owns its original rent period and amount. Re-runs
+        // may reconcile electricity, but a later policy change must not rewrite rent.
         const existingBills = await tx
           .select({ bill })
           .from(bill)
           .where(and(eq(bill.tenantId, t.id), eq(bill.billMonth, month)))
           .orderBy(sql`${bill.revision} desc`);
         const existingBill = existingBills[0]?.bill;
+        const preserveIssuedRent = Boolean(existingBill && !existingBill.voidedAt);
+
+        const calculated = calculateBill({
+          rent: {
+            tenantOverride: preserveIssuedRent ? existingBill!.rentAmount : t.monthlyRentOverride,
+            bedRent: b?.monthlyRent,
+            planRent: plan?.monthlyRent,
+            roomRent: r.monthlyRent,
+            proration: preserveIssuedRent ? 1 : rentPeriod.proration,
+          },
+          electricity: {
+            ratePerUnit: prop.electricityMode === "meter" ? prop.electricityRatePerUnit : null,
+            unitsForMonth: readingPair?.units,
+            occupants: roomOccupants.length || 1,
+            occupancyShare: totalOccupancyDays > 0 ? tenantOccupancyDays / totalOccupancyDays : undefined,
+            amountOverride: prop.electricityMode === "meter"
+              ? electricityByTenant.get(t.id) ?? 0
+              : electricityCharge?.amount ?? 0,
+            readingPeriod: readingPair ? {
+              openingReading: readingPair.first.reading,
+              closingReading: readingPair.second.reading,
+              start: readingPair.first.readingDate,
+              end: readingPair.second.readingDate,
+            } : null,
+          },
+          recurringCharges,
+        });
 
         if (existingBill && !existingBill.voidedAt) {
           // Preserve line items the generator does not compute — the LATE fee
@@ -425,7 +476,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
 
         if (!isRequestedTenant) continue;
 
-        const dueDate = computeDueDate(month, plan?.dueDay ?? 5);
+        const dueDate = rentCycleMode === "joining_anniversary"
+          ? rentPeriod.start
+          : computeDueDate(month, plan?.dueDay ?? 5);
         const revision = existingBill ? existingBill.revision + 1 : 1;
 
         const [newBill] = await tx
@@ -439,6 +492,9 @@ router.post("/generate", async (req: AuthenticatedRequest, res) => {
             totalAmount: calculated.totalAmount,
             balance: calculated.totalAmount,
             dueDate,
+            rentPeriodStart: rentPeriod.start,
+            rentPeriodEnd: rentPeriod.end,
+            rentCycleMode,
             status: isOverdue(dueDate, issuedAt) ? "overdue" : "pending",
             revision,
             supersedesBillId: existingBill?.id,
