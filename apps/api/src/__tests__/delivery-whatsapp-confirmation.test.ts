@@ -50,7 +50,7 @@ describe("WhatsApp acknowledgement semantics", () => {
         accessToken: "token-1",
         lineItems: [
           { code: "RENT", amount: 8000 },
-          { code: "ELEC", amount: 600 },
+          { code: "ELEC", amount: 600, units: 50, roomUnits: 100, ratePerUnit: 12, openingReading: 900, closingReading: 1000 },
         ],
       },
       tenant: {
@@ -70,6 +70,13 @@ describe("WhatsApp acknowledgement semantics", () => {
       status: "queued",
       reason: "Waiting for delivery confirmation from WhatsApp",
     }]);
+    expect(h.sendBillNotification).toHaveBeenCalledWith(expect.objectContaining({
+      electricityAmount: 600,
+      electricityDetails: [
+        "Room usage: 100 units × ₹12/unit",
+        "Your share: 50 units × ₹12/unit",
+      ],
+    }));
     expect(h.inserted[0]).toMatchObject({
       channel: "whatsapp",
       status: "queued",

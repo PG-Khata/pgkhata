@@ -10,6 +10,7 @@ import { billReadyEmail, formatCurrency, sendEmail } from "@pgkhata/email";
 import { isWhatsAppConfigured, sendBillNotification } from "./whatsapp";
 import { logger } from "./logger";
 import { setAuthDeliveryRecorder } from "@pgkhata/auth";
+import type { BillLineItem } from "./billing-calculator";
 
 /**
  * Every outbound message the platform sends, and the one place that records it.
@@ -172,16 +173,68 @@ export async function ownedBillWithDetails(propertyId: string, billId: string) {
 
 export type OwnedBillWithDetails = NonNullable<Awaited<ReturnType<typeof ownedBillWithDetails>>>;
 
-export function billAmounts(row: OwnedBillWithDetails) {
-  const lines = row.bill.lineItems as { code: string; amount: number }[];
+export interface ElectricityBreakdown {
+  ratePerUnit: number;
+  roomUnits: number;
+  tenantUnits: number;
+  shared: boolean;
+}
+
+const unitFormatter = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
+/**
+ * Human-readable metered usage stored with the invoice. Older bills predate
+ * `roomUnits`, so opening/closing readings remain a lossless fallback.
+ */
+export function electricityDetailLines(breakdown?: ElectricityBreakdown): string[] {
+  if (!breakdown) return [];
+  const rate = `₹${unitFormatter.format(breakdown.ratePerUnit)}/unit`;
+  const roomUsage = `${unitFormatter.format(breakdown.roomUnits)} units × ${rate}`;
+  const tenantUsage = `${unitFormatter.format(breakdown.tenantUnits)} units × ${rate}`;
+  return breakdown.shared
+    ? [`Room usage: ${roomUsage}`, `Your share: ${tenantUsage}`]
+    : [`Usage: ${tenantUsage}`];
+}
+
+export function billAmounts(row: Pick<OwnedBillWithDetails, "bill">) {
+  const lines = row.bill.lineItems as BillLineItem[];
   const rentAmount = lines.find((line) => line.code === "RENT")?.amount ?? 0;
-  const electricityAmount = lines.find((line) => line.code === "ELEC")?.amount ?? 0;
-  return { rentAmount, electricityAmount, otherCharges: row.bill.totalAmount - rentAmount - electricityAmount };
+  const electricityLine = lines.find((line) => line.code === "ELEC");
+  const electricityAmount = electricityLine?.amount ?? 0;
+  const ratePerUnit = electricityLine?.ratePerUnit;
+  let electricityBreakdown: ElectricityBreakdown | undefined;
+
+  if (ratePerUnit != null && Number.isFinite(ratePerUnit) && ratePerUnit > 0) {
+    const unitsFromReadings = electricityLine?.openingReading != null && electricityLine.closingReading != null
+      ? Math.max(0, electricityLine.closingReading - electricityLine.openingReading)
+      : undefined;
+    const roomUnits = Math.max(0, electricityLine?.roomUnits ?? unitsFromReadings ?? electricityLine?.units ?? 0);
+    // Use the charged amount to derive the tenant's effective units. This
+    // preserves exact rupee allocation when a shared room does not divide
+    // evenly or a tenant joined midway through the reading period.
+    const tenantUnits = Math.round((electricityAmount / ratePerUnit) * 100) / 100;
+    electricityBreakdown = {
+      ratePerUnit,
+      roomUnits,
+      tenantUnits,
+      shared: Math.abs(roomUnits - tenantUnits) > 0.01,
+    };
+  }
+
+  return {
+    rentAmount,
+    electricityAmount,
+    electricityBreakdown,
+    otherCharges: row.bill.totalAmount - rentAmount - electricityAmount,
+  };
 }
 
 export function shareMessage(row: OwnedBillWithDetails) {
-  const { rentAmount, electricityAmount, otherCharges } = billAmounts(row);
-  return `Hi ${row.tenant.name}, your ${row.bill.billMonth} bill for ${row.propertyName} Room ${row.roomNumber || "—"} is ready.\n\nRent: ${formatCurrency(rentAmount)}\nElectricity: ${formatCurrency(electricityAmount)}\nOther charges: ${formatCurrency(otherCharges)}\n------------------\nTotal due: ${formatCurrency(row.bill.totalAmount)}\n\nDue by ${row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—"}. Pay by UPI to ${row.upiId || "the property owner"}.\n\nSave this message as your bill receipt.`;
+  const { rentAmount, electricityAmount, electricityBreakdown, otherCharges } = billAmounts(row);
+  const electricityDetails = electricityDetailLines(electricityBreakdown);
+  const electricityLabel = electricityBreakdown?.shared ? "Electricity (your charge)" : "Electricity";
+  const electricityBlock = `${electricityLabel}: ${formatCurrency(electricityAmount)}${electricityDetails.length ? `\n${electricityDetails.join("\n")}` : ""}`;
+  return `Hi ${row.tenant.name}, your ${row.bill.billMonth} bill for ${row.propertyName} Room ${row.roomNumber || "—"} is ready.\n\nRent: ${formatCurrency(rentAmount)}\n${electricityBlock}\nOther charges: ${formatCurrency(otherCharges)}\n------------------\nTotal due: ${formatCurrency(row.bill.totalAmount)}\n\nDue by ${row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—"}. Pay by UPI to ${row.upiId || "the property owner"}.\n\nSave this message as your bill receipt.`;
 }
 
 /**
@@ -206,13 +259,13 @@ export async function deliverBill(row: OwnedBillWithDetails, channels: Array<"em
         else if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) { status = "skipped"; reason = "Email delivery is not configured"; }
         else {
           const amounts = billAmounts(row);
-          const result = await sendEmail({ to: row.tenant.email, subject: `${kind === "reminder" ? "Payment reminder" : "Bill ready"} — ${row.propertyName}`, html: billReadyEmail({ tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", month: row.bill.billMonth, rentAmount: formatCurrency(amounts.rentAmount), electricityAmount: formatCurrency(amounts.electricityAmount), otherCharges: formatCurrency(amounts.otherCharges), totalAmount: formatCurrency(row.bill.totalAmount), balance: formatCurrency(row.bill.balance), dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", invoiceUrl: publicInvoiceUrl(row.bill.accessToken) }) });
+          const result = await sendEmail({ to: row.tenant.email, subject: `${kind === "reminder" ? "Payment reminder" : "Bill ready"} — ${row.propertyName}`, html: billReadyEmail({ tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", month: row.bill.billMonth, rentAmount: formatCurrency(amounts.rentAmount), electricityAmount: formatCurrency(amounts.electricityAmount), electricityDetails: electricityDetailLines(amounts.electricityBreakdown), otherCharges: formatCurrency(amounts.otherCharges), totalAmount: formatCurrency(row.bill.totalAmount), balance: formatCurrency(row.bill.balance), dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", invoiceUrl: publicInvoiceUrl(row.bill.accessToken) }) });
           providerMessageId = result?.id;
         }
       } else if (!isWhatsAppConfigured()) { status = "skipped"; reason = "WhatsApp delivery is not configured"; }
       else {
         const amounts = billAmounts(row);
-        const result = await sendBillNotification({ phone: row.tenant.phone, tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", billMonth: row.bill.billMonth, ...amounts, totalAmount: row.bill.totalAmount, dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", upiId: row.upiId || undefined });
+        const result = await sendBillNotification({ phone: row.tenant.phone, tenantName: row.tenant.name, propertyName: row.propertyName, roomNumber: row.roomNumber || "—", billMonth: row.bill.billMonth, rentAmount: amounts.rentAmount, electricityAmount: amounts.electricityAmount, electricityDetails: electricityDetailLines(amounts.electricityBreakdown), otherCharges: amounts.otherCharges, totalAmount: row.bill.totalAmount, dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "—", upiId: row.upiId || undefined });
         if (!result.success || !result.messageId) {
           status = "failed";
           reason = result.error || "WhatsApp did not return a message ID";

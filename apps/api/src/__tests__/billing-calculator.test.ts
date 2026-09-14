@@ -31,6 +31,7 @@ describe("calculateBill", () => {
       name: "Electricity",
       amount: 500,
       units: 50,
+      roomUnits: 50,
       ratePerUnit: 10,
     });
   });
@@ -69,6 +70,26 @@ describe("calculateBill", () => {
       name: "Electricity",
       amount: 0,
       units: 0,
+      roomUnits: 0,
+      ratePerUnit: 10,
+    });
+  });
+
+  it("stores both full room units and the tenant's exact allocated units", () => {
+    const result = calculateBill({
+      ...base(),
+      electricity: {
+        ratePerUnit: 10,
+        unitsForMonth: 100,
+        occupants: 2,
+        amountOverride: 333,
+      },
+    });
+
+    expect(result.lineItems.find((line) => line.code === "ELEC")).toMatchObject({
+      amount: 333,
+      roomUnits: 100,
+      units: 33.3,
       ratePerUnit: 10,
     });
   });

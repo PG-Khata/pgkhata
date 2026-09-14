@@ -165,7 +165,7 @@ describeDb("billing on line items (database)", () => {
     expect(theBill.electricityAmount).toBe(500); // 50 units * 10/unit
     expect(theBill.lineItems).toEqual([
       { code: "RENT", name: "Rent", amount: 6500 },
-      { code: "ELEC", name: "Electricity", amount: 500, units: 50, ratePerUnit: 10 },
+      expect.objectContaining({ code: "ELEC", name: "Electricity", amount: 500, units: 50, roomUnits: 50, ratePerUnit: 10 }),
     ]);
     expect(theBill.totalAmount).toBe(7000);
     expect(new Date(theBill.dueDate).toISOString().slice(0, 10)).toBe("2026-06-07");

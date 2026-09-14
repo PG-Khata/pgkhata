@@ -275,6 +275,7 @@ export interface BillLineItem {
   name: string
   amount: number
   units?: number
+  roomUnits?: number
   ratePerUnit?: number
   openingReading?: number
   closingReading?: number

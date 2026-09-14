@@ -57,6 +57,14 @@ export interface SendResult {
   error?: string;
 }
 
+const templateNumberFormatter = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
+
+/** Value inserted after the template's existing `Electricity: ₹` prefix. */
+export function formatElectricityTemplateAmount(amount: number, details: string[] = []): string {
+  const formattedAmount = templateNumberFormatter.format(amount);
+  return details.length ? `${formattedAmount} (${details.join("; ")})` : formattedAmount;
+}
+
 /**
  * Check if WhatsApp is configured.
  */
@@ -332,6 +340,7 @@ export async function sendBillNotification(params: {
   billMonth: string;
   rentAmount: number;
   electricityAmount: number;
+  electricityDetails?: string[];
   otherCharges: number;
   totalAmount: number;
   dueDate: string;
@@ -364,7 +373,13 @@ export async function sendBillNotification(params: {
       { type: "text", parameter_name: "bill_month", text: params.billMonth },
       { type: "text", parameter_name: "property_room", text: `${params.propertyName} Room ${params.roomNumber}` },
       { type: "text", parameter_name: "rent_amount", text: String(params.rentAmount) },
-      { type: "text", parameter_name: "electricity_amount", text: String(params.electricityAmount) },
+      {
+        type: "text",
+        parameter_name: "electricity_amount",
+        // Keep the existing approved Meta template. Details stay on one line
+        // inside the same variable, avoiding a template edit/reapproval.
+        text: formatElectricityTemplateAmount(params.electricityAmount, params.electricityDetails),
+      },
       { type: "text", parameter_name: "other_charges", text: String(params.otherCharges) },
       { type: "text", parameter_name: "total_amount", text: String(params.totalAmount) },
       { type: "text", parameter_name: "due_date", text: params.dueDate },

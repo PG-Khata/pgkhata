@@ -4,8 +4,10 @@ export interface BillLineItem {
   code: string;
   name: string;
   amount: number;
-  /** Present for a metered electricity line; values are stored for invoices. */
+  /** Metered units allocated to this tenant after occupancy splitting. */
   units?: number;
+  /** The complete room-meter usage before splitting between tenants. */
+  roomUnits?: number;
   ratePerUnit?: number;
   openingReading?: number;
   closingReading?: number;
@@ -87,7 +89,10 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
     // charge, so the line stays internally consistent (units × ratePerUnit ==
     // amount) even when a room's meter is split across roommates. For a single
     // occupant this equals the full meter reading.
-    const units = ratePerUnit > 0 ? Math.round(electricityAmount / ratePerUnit) : 0;
+    const units = ratePerUnit > 0
+      ? Math.round((electricityAmount / ratePerUnit) * 100) / 100
+      : 0;
+    const roomUnits = Math.max(0, inputs.electricity.unitsForMonth ?? 0);
     const readingPeriod = inputs.electricity.readingPeriod;
     lineItems.push(inputs.electricity.ratePerUnit
       ? {
@@ -95,6 +100,7 @@ export function calculateBill(inputs: BillCalculationInputs): CalculatedBill {
           name: "Electricity",
           amount: electricityAmount,
           units,
+          roomUnits,
           ratePerUnit,
           ...(readingPeriod ? {
             openingReading: readingPeriod.openingReading,

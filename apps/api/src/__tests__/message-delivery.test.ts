@@ -50,7 +50,7 @@ vi.mock("../lib/logger", () => ({
   logger: { error: (...args: unknown[]) => h.logged.push(args) },
 }));
 
-const { MAX_BULK_REMINDERS, deliverBill, normaliseRecipient, recordDelivery, shareMessage } =
+const { MAX_BULK_REMINDERS, deliverBill, electricityDetailLines, normaliseRecipient, recordDelivery, shareMessage } =
   await import("../lib/delivery");
 
 type BillRow = Parameters<typeof deliverBill>[0];
@@ -66,7 +66,7 @@ function billRow(overrides: { email?: string | null } = {}): BillRow {
       accessToken: "tok-1",
       lineItems: [
         { code: "RENT", amount: 1000 },
-        { code: "ELEC", amount: 150 },
+        { code: "ELEC", amount: 150, units: 15, roomUnits: 30, ratePerUnit: 10, openingReading: 100, closingReading: 130 },
       ],
     },
     tenant: {
@@ -247,7 +247,17 @@ describe("deliverBill", () => {
   it("keeps the owner-facing share message unchanged by the extraction", () => {
     const message = shareMessage(billRow());
     expect(message).toContain("your 2026-08 bill for Sunrise PG Room 101 is ready");
+    expect(message).toContain("Electricity (your charge): ₹150");
+    expect(message).toContain("Room usage: 30 units × ₹10/unit");
+    expect(message).toContain("Your share: 15 units × ₹10/unit");
     expect(message).toContain("Pay by UPI to sunrise@upi");
+  });
+
+  it("formats single-tenant and shared electricity without hiding the room total", () => {
+    expect(electricityDetailLines({ ratePerUnit: 8.5, roomUnits: 40, tenantUnits: 40, shared: false }))
+      .toEqual(["Usage: 40 units × ₹8.5/unit"]);
+    expect(electricityDetailLines({ ratePerUnit: 10, roomUnits: 100, tenantUnits: 33.3, shared: true }))
+      .toEqual(["Room usage: 100 units × ₹10/unit", "Your share: 33.3 units × ₹10/unit"]);
   });
 });
 

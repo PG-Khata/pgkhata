@@ -1,13 +1,13 @@
 "use client"
 
 import { formatCurrency, formatDateShort } from "@/lib/utils"
-import { StatusBadge } from "@/components/dashboard/status-badge"
 
 interface InvoiceLineItem {
   code: string
   name: string
   amount: number
   units?: number
+  roomUnits?: number
   ratePerUnit?: number
   openingReading?: number
   closingReading?: number
@@ -33,6 +33,22 @@ interface InvoiceProps {
   paidAmount: number
   balance: number
   status: string
+}
+
+function fullRoomUnits(item: InvoiceLineItem) {
+  if (item.roomUnits !== undefined) return item.roomUnits
+  if (item.openingReading !== undefined && item.closingReading !== undefined) {
+    return Math.max(0, item.closingReading - item.openingReading)
+  }
+  return item.units
+}
+
+function hasSharedElectricity(item: InvoiceLineItem) {
+  const roomUnits = fullRoomUnits(item)
+  return item.code === "ELEC"
+    && roomUnits !== undefined
+    && item.units !== undefined
+    && Math.abs(roomUnits - item.units) > 0.01
 }
 
 export function InvoiceTemplate({
@@ -117,6 +133,9 @@ export function InvoiceTemplate({
               <p className="text-[10px] text-[#494949]">{item.code}</p>
               {item.code === "ELEC" && item.periodStart && item.periodEnd && (
                 <p className="text-[9px] text-[#494949]">{item.periodStart}–{item.periodEnd} · {item.openingReading}→{item.closingReading}</p>
+              )}
+              {hasSharedElectricity(item) && (
+                <p className="text-[9px] text-[#494949]">Room: {fullRoomUnits(item)} units · Your share: {item.units} units</p>
               )}
             </div>
             <p className="w-[75px] text-right text-[11px]">

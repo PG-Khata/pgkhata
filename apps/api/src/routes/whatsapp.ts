@@ -10,7 +10,7 @@ import {
   isWhatsAppConfigured,
   isTemplateManagementConfigured,
 } from "../lib/whatsapp";
-import { recordDelivery, MAX_BULK_REMINDERS } from "../lib/delivery";
+import { billAmounts, electricityDetailLines, recordDelivery, MAX_BULK_REMINDERS } from "../lib/delivery";
 
 const router = Router({ mergeParams: true });
 
@@ -89,10 +89,7 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
       return res.status(503).json({ error: NOT_CONFIGURED });
     }
 
-    const lineItems = row.bill.lineItems as { code: string; name: string; amount: number }[];
-    const rentAmount = lineItems.find((l) => l.code === "RENT")?.amount ?? 0;
-    const electricityAmount = lineItems.find((l) => l.code === "ELEC")?.amount ?? 0;
-    const otherCharges = row.bill.totalAmount - rentAmount - electricityAmount;
+    const amounts = billAmounts({ bill: row.bill });
 
     let result;
     try {
@@ -102,9 +99,10 @@ router.post("/send-bill/:billId", async (req: AuthenticatedRequest, res) => {
         propertyName: row.propertyName,
         roomNumber: row.roomNumber || "N/A",
         billMonth: row.bill.billMonth,
-        rentAmount,
-        electricityAmount,
-        otherCharges,
+        rentAmount: amounts.rentAmount,
+        electricityAmount: amounts.electricityAmount,
+        electricityDetails: electricityDetailLines(amounts.electricityBreakdown),
+        otherCharges: amounts.otherCharges,
         totalAmount: row.bill.totalAmount,
         dueDate: row.bill.dueDate ? new Date(row.bill.dueDate).toLocaleDateString("en-IN") : "N/A",
         upiId: row.upiId || undefined,
